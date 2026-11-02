@@ -1,4 +1,4 @@
-# Grok Video Studio v2.4.0 chatcut-adapter 测试与使用指南
+# VideoCreate v2.4.0 chatcut-adapter 测试与使用指南
 
 本文面向技能使用者和验收人员。所有示例都是可以直接发给 Codex 的标准话术，不包含真实 Key。导演规划、原生上游音频、有效片段剪辑和表演 QA 适用于所有视频路线；连续剧只是额外增加系列连续性和逐集审批。
 
@@ -56,8 +56,8 @@
 标准话术：
 
 ```text
-请把这台机器已经安装过的 Grok Video Studio 更新到仓库 main 分支最新版：
-仓库：https://github.com/1582345746/GrokVideoSkill.git
+请把这台机器已经安装过的 VideoCreate 更新到仓库 main 分支最新版：
+仓库：https://github.com/1582345746/VideoCreate.git
 
 先检查现有仓库和安装目录。工作区干净时使用 fast-forward 拉取 main；如果有未提交修改，先报告，不要覆盖。然后运行 install.ps1 -Repair -Force。
 
@@ -78,7 +78,7 @@
 费用等级：A/B。
 
 ```text
-使用 $grok-video-studio 做一次只读诊断。运行 version、capabilities、install-plan --profile upstream-dialogue 和 doctor；列出四条产品路线、Sub2Api/NewApi 的 T2V/I2V 能力、当前安装档位、已配置的凭据职责、FFmpeg 状态和可选本地组件状态。不要输出任何 Key，不要创建项目，不要发起生图或生视频请求。
+使用 $videocreate 做一次只读诊断。运行 version、capabilities、install-plan --profile upstream-dialogue 和 doctor；列出四条产品路线、Sub2Api/NewApi 的 T2V/I2V 能力、当前安装档位、已配置的凭据职责、FFmpeg 状态和可选本地组件状态。不要输出任何 Key，不要创建项目，不要发起生图或生视频请求。
 ```
 
 通过标准：
@@ -93,7 +93,7 @@
 费用等级：C。建议首次只做 1 个 6 秒镜头。
 
 ```text
-使用 $grok-video-studio 创建一个 6 秒、9:16、480p 的文生视频测试：清晨的乡村公交站，一名背双肩包的原创年轻人登上进城公交，镜头缓慢跟拍，写实电影感。
+使用 $videocreate 创建一个 6 秒、9:16、480p 的文生视频测试：清晨的乡村公交站，一名背双肩包的原创年轻人登上进城公交，镜头缓慢跟拍，写实电影感。
 
 使用 text-to-video 和 Sub2Api 文生视频，不要生图，不要创建角色母版。画面禁止字幕、文字、点赞、评论、弹幕、按钮、Logo、水印和贴纸。先展示最终提示词、字符数、1 次视频请求和预算，等我明确回复“批准生成”后再调用上游。完成后运行 QA 并打开首帧、末帧供人工检查。
 ```
@@ -111,7 +111,7 @@
 费用等级：C。只需要图生视频请求，不应重新生图。
 
 ```text
-使用 $grok-video-studio 把这张现成图片制作成 6 秒 9:16 图生视频：<图片绝对路径>。
+使用 $videocreate 把这张现成图片制作成 6 秒 9:16 图生视频：<图片绝对路径>。
 
 使用 image-to-video 和 single-image-animation。不要调用生图接口，不要改变人物身份、脸型、服装、构图和背景；只增加自然眨眼、呼吸、发丝轻动和很小幅度转头。先把图片复制到项目 assets/references，展示预检和 1 次主视频请求，等我批准后再优先调用 Sub2Api；只有安全分类的失败才允许自动切换 NewApi。完成后检查最终提供方、尝试历史、首末帧人物一致性和画面形变。
 ```
@@ -128,7 +128,7 @@
 费用等级：C。会产生生图和图生视频请求。
 
 ```text
-使用 $grok-video-studio 做一个两镜头、每镜头 5 秒的角色一致性测试。角色是一名 24 岁原创中国农村青年，短黑发、深绿色夹克、旧帆布双肩包。先生成一张包含同一人物正面、侧面和全身视图的单张角色母版，再为“公交站”和“城市招聘会”分别派生镜头关键帧，最后优先使用 Sub2Api 做图生视频，安全失败时才使用 NewApi。
+使用 $videocreate 做一个两镜头、每镜头 5 秒的角色一致性测试。角色是一名 24 岁原创中国农村青年，短黑发、深绿色夹克、旧帆布双肩包。先生成一张包含同一人物正面、侧面和全身视图的单张角色母版，再为“公交站”和“城市招聘会”分别派生镜头关键帧，最后优先使用 Sub2Api 做图生视频，安全失败时才使用 NewApi。
 
 先展示角色设定、母版提示词、两个关键帧提示词、生图/视频请求数和预算，不要立即生成。每个视频请求只能发送当前镜头关键帧，不能把三视图母版直接发给视频模型。等我逐阶段批准：先母版，再关键帧，再视频。
 ```
@@ -146,7 +146,7 @@
 费用等级：C。无需 CosyVoice 或 MuseTalk。
 
 ```text
-使用 $grok-video-studio 做一个 8 秒文生视频，让一名原创 AI 主持人面对镜头说：“你好，这是今天的重点消息。”使用 upstream-dialogue 档位和 native-dialogue。
+使用 $videocreate 做一个 8 秒文生视频，让一名原创 AI 主持人面对镜头说：“你好，这是今天的重点消息。”使用 upstream-dialogue 档位和 native-dialogue。
 
 先展示对白文本、说话时间窗、generate_audio 设置、最终视频提示词、请求数和预算，等我批准后生成。完成后必须实际播放并检查：是否有可听人声、逐字内容是否正确、口型是否自然、画面是否被上游自动烧入字幕。不要因为存在音轨就宣称对白成功。
 ```
@@ -164,7 +164,7 @@
 费用等级：A。复用已有成片，不应重新生成视频。
 
 ```text
-使用 $grok-video-studio 为当前项目生成确定性 SRT。字幕文本必须来自已批准的对白、旁白或字幕时间轴，使用 subtitle_source=project。先导出 SRT 给我检查，不要立即烧录。
+使用 $videocreate 为当前项目生成确定性 SRT。字幕文本必须来自已批准的对白、旁白或字幕时间轴，使用 subtitle_source=project。先导出 SRT 给我检查，不要立即烧录。
 
 我确认文字和时间轴后，分别说明 clean、cinematic、news 三种样式，再按我选择的样式用 FFmpeg 输出 final-subtitled.mp4。始终保留 final.mp4。若源视频来自 native-dialogue，先逐镜头确认没有上游内嵌字幕，只有确认干净后才允许烧录，避免双层字幕。
 ```
@@ -182,7 +182,7 @@
 费用等级：D。需要 `precise-voice`，但可复用现有干净视频，避免新的 Sub2Api 请求。
 
 ```text
-使用 $grok-video-studio 对当前项目做 CosyVoice 精确中文配音。先运行 install-plan --profile precise-voice 和 components-doctor，只报告现有 Docker、NVIDIA、CosyVoice 源码、模型和服务状态；缺失时先展示下载量与磁盘位置，未经我批准不要安装。
+使用 $videocreate 对当前项目做 CosyVoice 精确中文配音。先运行 install-plan --profile precise-voice 和 components-doctor，只报告现有 Docker、NVIDIA、CosyVoice 源码、模型和服务状态；缺失时先展示下载量与磁盘位置，未经我批准不要安装。
 
 使用已批准对白：“第一次来这座城市，我会认真把路走下去。”对白文字同时作为字幕唯一来源。声音只能使用 synthetic、owned 或 licensed 素材，并核对 reference_text。先启动 CosyVoice，再生成逐句 WAV、dialogue-track.wav、对白混音版和 SRT；保留 final.mp4。完成后报告实际时长、响度、静音占比和缓存状态，然后停止服务。
 ```
@@ -201,7 +201,7 @@
 费用等级：D。需要 `lip-sync`；8 GB 显卡应分阶段运行服务。
 
 ```text
-使用 $grok-video-studio 对已经完成 CosyVoice 配音的原创 AI 人物视频做 MuseTalk 口型同步。先运行 install-plan --profile lip-sync 和 components-doctor，展示模型、磁盘、Docker、GPU 与端口状态，未经批准不要下载。
+使用 $videocreate 对已经完成 CosyVoice 配音的原创 AI 人物视频做 MuseTalk 口型同步。先运行 install-plan --profile lip-sync 和 components-doctor，展示模型、磁盘、Docker、GPU 与端口状态，未经批准不要下载。
 
 这台机器显存为 8 GB 时必须分阶段：先只启动 CosyVoice 完成并缓存对白，停止或切换后只启动 MuseTalk，复用缓存音频执行 local-lipsync。不得同时启动两个服务。输出独立口型版，保留干净母版和普通对白版；完成后导出人脸近景审阅帧并停止服务。
 ```
@@ -221,7 +221,7 @@
 ### 规划测试
 
 ```text
-使用 $grok-video-studio 创建一部 3 集连续短剧测试，每集 24 秒，图生视频路线。主题是农村青年第一次进城求职。先创建 series.json 和三集项目，写整季剧情弧线、固定角色、服装、地点、道具、每集开头状态、剧情、结尾状态和全部分镜提示词。不要生图或生视频。完成后给我文件路径和逐集请求预算，等待我审核。
+使用 $videocreate 创建一部 3 集连续短剧测试，每集 24 秒，图生视频路线。主题是农村青年第一次进城求职。先创建 series.json 和三集项目，写整季剧情弧线、固定角色、服装、地点、道具、每集开头状态、剧情、结尾状态和全部分镜提示词。不要生图或生视频。完成后给我文件路径和逐集请求预算，等待我审核。
 ```
 
 ### 第一集生成
@@ -249,7 +249,7 @@
 费用等级：研究和验证为 A；生图/视频为 C。
 
 ```text
-使用 $grok-video-studio 创建一个最近 24 小时热点新闻视频测试，目标 24 秒。你必须联网查找当前来源，优先使用官方或第一手页面，并至少加入两个不同发布者。先创建 news.json，列出检索词、链接、发布和访问时间、来源类型、逐条事实主张、冲突项、旁白及每个镜头对应的 claim_id。
+使用 $videocreate 创建一个最近 24 小时热点新闻视频测试，目标 24 秒。你必须联网查找当前来源，优先使用官方或第一手页面，并至少加入两个不同发布者。先创建 news.json，列出检索词、链接、发布和访问时间、来源类型、逐条事实主张、冲突项、旁白及每个镜头对应的 claim_id。
 
 不得把没有画面授权的新闻图片下载进项目；visual_rights=facts-only 时只生成原创示意画面。先运行 news-validate，把证据合同和视频预检给我，不要生成。我批准后才调用上游。成片中明确标示 AI 示意，不得冒充现场素材。
 ```
@@ -270,19 +270,19 @@
 ### 现有视频拼接
 
 ```text
-使用 $grok-video-studio 按我给出的顺序拼接这些 MP4：<视频路径列表>。先用 ffprobe 报告每段的时长、尺寸、帧率和音轨；统一为 H.264、yuv420p、30 fps，target-size=auto，audio-policy=preserve。输出新文件，不修改原片。完成后报告总时长和音视频流。
+使用 $videocreate 按我给出的顺序拼接这些 MP4：<视频路径列表>。先用 ffprobe 报告每段的时长、尺寸、帧率和音轨；统一为 H.264、yuv420p、30 fps，target-size=auto，audio-policy=preserve。输出新文件，不修改原片。完成后报告总时长和音视频流。
 ```
 
 ### 轻量后期
 
 ```text
-使用 $grok-video-studio 对 <输入视频> 做轻量后期：添加 <音乐路径>、<旁白路径>、<SRT 路径> 和 0.5 秒淡入淡出。先检查素材存在和授权，压低背景音乐避免遮住人声，输出到新文件并运行媒体 QA。不要调用上游生成接口。
+使用 $videocreate 对 <输入视频> 做轻量后期：添加 <音乐路径>、<旁白路径>、<SRT 路径> 和 0.5 秒淡入淡出。先检查素材存在和授权，压低背景音乐避免遮住人声，输出到新文件并运行媒体 QA。不要调用上游生成接口。
 ```
 
 ### 可恢复时间线剪辑 v2
 
 ```text
-使用 $grok-video-studio 为 <项目目录> 创建 edit-plan v2。shot-002 使用 warm 滤镜，shot-003 速度设为 1.25；shot-001 后硬切，shot-002 后 dissolve 0.3 秒；最终音频归一化到 -16 LUFS。先运行 edit-validate，再执行 edit。保留 deliverables/final.mp4，输出 final-edited.mp4，并打开 deliverables/edit-preview 下的开始、转场边界和结束证据帧逐一检查。不要调用生图或生视频接口。
+使用 $videocreate 为 <项目目录> 创建 edit-plan v2。shot-002 使用 warm 滤镜，shot-003 速度设为 1.25；shot-001 后硬切，shot-002 后 dissolve 0.3 秒；最终音频归一化到 -16 LUFS。先运行 edit-validate，再执行 edit。保留 deliverables/final.mp4，输出 final-edited.mp4，并打开 deliverables/edit-preview 下的开始、转场边界和结束证据帧逐一检查。不要调用生图或生视频接口。
 ```
 
 通过标准：计划中每个镜头和边界都可追溯；速度变化后的有效时长正确；硬切与转场可混用；输出音视频可读；第二次相同渲染返回 `resumed=true`；预览帧带 SHA-256；干净母版哈希不变。旧 edit-plan v1 应通过内存迁移继续验证和渲染。
@@ -290,7 +290,7 @@
 ### 封面
 
 ```text
-使用 $grok-video-studio 从 <输入视频> 的 0.5 秒位置导出 PNG 封面。先确认该帧不是黑帧、转场或明显人物畸变；不合格时从审阅帧中选择更清晰的一帧。不要修改视频。
+使用 $videocreate 从 <输入视频> 的 0.5 秒位置导出 PNG 封面。先确认该帧不是黑帧、转场或明显人物畸变；不合格时从审阅帧中选择更清晰的一帧。不要修改视频。
 ```
 
 通过标准：原文件保留；输出可播放；拼接顺序、时长和音频策略符合要求；没有因为某一段无音轨而丢掉其他段的音频。
@@ -302,13 +302,13 @@
 先检查插件和当前任务工具：
 
 ```text
-使用 $grok-video-studio 运行 chatcut-capabilities。确认 ChatCut 插件已安装、MCP 已配置，并明确报告当前任务是否真正暴露 list_projects、target_project、browse_assets、import_media、manage_timelines、edit_item、preview_timeline 等工具。仅插件文件存在或 OAuth 登录成功都不能当成当前任务可编辑。
+使用 $videocreate 运行 chatcut-capabilities。确认 ChatCut 插件已安装、MCP 已配置，并明确报告当前任务是否真正暴露 list_projects、target_project、browse_assets、import_media、manage_timelines、edit_item、preview_timeline 等工具。仅插件文件存在或 OAuth 登录成功都不能当成当前任务可编辑。
 ```
 
 真实 ChatCut 编辑：
 
 ```text
-使用 $grok-video-studio 为 <项目目录> 生成 edit-plan v2，并执行 edit-validate 和 edit-handoff --backend chatcut。若当前任务工具完整可用：先创建或定位 ChatCut 项目，检查资产库，按 asset-import 规则导入每个原始 MP4，在可编辑时间线上应用镜头窗口、速度、滤镜和转场；重新读取时间线并用 preview_timeline/render_cloud_screenshot 检查结构和画面。先不要导出，保留 ChatCut 可编辑项目供我查看。
+使用 $videocreate 为 <项目目录> 生成 edit-plan v2，并执行 edit-validate 和 edit-handoff --backend chatcut。若当前任务工具完整可用：先创建或定位 ChatCut 项目，检查资产库，按 asset-import 规则导入每个原始 MP4，在可编辑时间线上应用镜头窗口、速度、滤镜和转场；重新读取时间线并用 preview_timeline/render_cloud_screenshot 检查结构和画面。先不要导出，保留 ChatCut 可编辑项目供我查看。
 ```
 
 用户要求导出后：
@@ -324,7 +324,7 @@
 费用等级：A/B；只有明确重新创建失败任务时为 C。
 
 ```text
-使用 $grok-video-studio 检查 <项目目录> 的 state.json 和 status。列出每个镜头的本地状态、上游 task_id、已下载文件和未完成步骤。已有 task_id 的任务只允许 resume、轮询或下载，不能创建第二个任务。
+使用 $videocreate 检查 <项目目录> 的 state.json 和 status。列出每个镜头的本地状态、上游 task_id、已下载文件和未完成步骤。已有 task_id 的任务只允许 resume、轮询或下载，不能创建第二个任务。
 
 如果创建请求失败且没有 task_id，把它标记为 ambiguous 并停止，说明重复计费风险。只有我明确批准并给出重试原因后，才能使用 --retry-failed --retry-reason "<原因>" 创建新任务。恢复完成后再 assemble 和 qa。
 ```
@@ -341,7 +341,7 @@
 ### 标准 QA 话术
 
 ```text
-使用 $grok-video-studio 对 <项目目录> 运行严格 QA。报告容器、编码、分辨率、方向、帧率、时长、音轨、平均/峰值音量、静音占比、黑帧和冻结风险。打开每个镜头的首帧和末帧进行人工检查，逐项记录人物一致性、肢体、运动、口型、字幕、Logo、水印和意外短视频界面元素。技术检查通过不能替代人工通过；发现问题时指出具体镜头和建议处理方式。
+使用 $videocreate 对 <项目目录> 运行严格 QA。报告容器、编码、分辨率、方向、帧率、时长、音轨、平均/峰值音量、静音占比、黑帧和冻结风险。打开每个镜头的首帧和末帧进行人工检查，逐项记录人物一致性、肢体、运动、口型、字幕、Logo、水印和意外短视频界面元素。技术检查通过不能替代人工通过；发现问题时指出具体镜头和建议处理方式。
 ```
 
 ### 单模块记录模板
@@ -388,37 +388,37 @@
 ### 通用视频项目
 
 ```text
-使用 $grok-video-studio 创建一个通用视频项目。先根据我的目标说明文生视频和图生视频两种路线的成本、人物一致性和参考图差异，让我选择；再给出分镜、提示词和预检，不要直接生成。目标：<目标描述>。
+使用 $videocreate 创建一个通用视频项目。先根据我的目标说明文生视频和图生视频两种路线的成本、人物一致性和参考图差异，让我选择；再给出分镜、提示词和预检，不要直接生成。目标：<目标描述>。
 ```
 
 ### 单集人物短剧
 
 ```text
-使用 $grok-video-studio 的 short-drama 预设做一个 30 秒单集人物短剧，不要创建连续剧项目。先写人物身份锁、剧情起承转合、每镜头动作和连续性说明；严格人物一致性时使用角色母版和逐镜头关键帧。展示生图/视频请求数和预算，等我批准后逐阶段生成。
+使用 $videocreate 的 short-drama 预设做一个 30 秒单集人物短剧，不要创建连续剧项目。先写人物身份锁、剧情起承转合、每镜头动作和连续性说明；严格人物一致性时使用角色母版和逐镜头关键帧。展示生图/视频请求数和预算，等我批准后逐阶段生成。
 ```
 
 ### 产品广告
 
 ```text
-使用 $grok-video-studio 的 product-ad 预设，把这张产品图制作成 15 秒广告：<产品图路径>。保持产品外形、商标位置、包装文字和颜色不变，先规划特写、旋转展示和使用场景。不要让模型重新绘制包装文字；先预检并等我批准，再用图生视频生成，完成后逐镜头核对产品一致性。
+使用 $videocreate 的 product-ad 预设，把这张产品图制作成 15 秒广告：<产品图路径>。保持产品外形、商标位置、包装文字和颜色不变，先规划特写、旋转展示和使用场景。不要让模型重新绘制包装文字；先预检并等我批准，再用图生视频生成，完成后逐镜头核对产品一致性。
 ```
 
 ### 人物跳舞与表演
 
 ```text
-使用 $grok-video-studio 的 dance-performance 预设，把这张原创或已获授权的人物图制作成 8 秒全身舞蹈视频：<人物图路径>。保持脸、发型和服装不变，动作幅度与画面构图匹配，避免手脚出框和肢体畸形。先预检，批准后只做一次图生视频，完成后检查首末帧和四肢动作。
+使用 $videocreate 的 dance-performance 预设，把这张原创或已获授权的人物图制作成 8 秒全身舞蹈视频：<人物图路径>。保持脸、发型和服装不变，动作幅度与画面构图匹配，避免手脚出框和肢体畸形。先预检，批准后只做一次图生视频，完成后检查首末帧和四肢动作。
 ```
 
 ### 搞笑动作视频
 
 ```text
-使用 $grok-video-studio 的 comedy-action 预设，把这张主体图片制作成 6 秒轻喜剧反应视频：<图片路径>。笑点通过表情、停顿和小幅动作完成，不添加短视频点赞、评论、弹幕或贴纸。先展示动作节拍和预检，等我批准后生成。
+使用 $videocreate 的 comedy-action 预设，把这张主体图片制作成 6 秒轻喜剧反应视频：<图片路径>。笑点通过表情、停顿和小幅动作完成，不添加短视频点赞、评论、弹幕或贴纸。先展示动作节拍和预检，等我批准后生成。
 ```
 
 ### 插画、建筑与风景动效
 
 ```text
-使用 $grok-video-studio 的 scene-animation 预设，让这张插画或风景图自然动起来：<图片路径>。保持主体构图和美术风格，只让云、水面、树叶、光影或景深产生分层运动，禁止整体画面漂移和新增人物。先预检，批准后生成 8 秒图生视频。
+使用 $videocreate 的 scene-animation 预设，让这张插画或风景图自然动起来：<图片路径>。保持主体构图和美术风格，只让云、水面、树叶、光影或景深产生分层运动，禁止整体画面漂移和新增人物。先预检，批准后生成 8 秒图生视频。
 ```
 
 这些预设的验收重点不同：产品广告检查产品和文字，舞蹈与搞笑动作检查肢体，场景动效检查构图漂移，人物短剧检查跨镜头身份与叙事连续性。

@@ -39,27 +39,27 @@
 ### 默认 Sub2Api
 
 ```text
-使用 $grok-video-studio 制作 <主题>。生视频上游不特别指定，按默认规则优先 Sub2Api；只有明确属于安全失败的情况才允许在总尝试次数内使用 NewApi。先展示路线、分镜、最终提示词、请求数量、预算和预检结果，不要立即创建任务。
+使用 $videocreate 制作 <主题>。生视频上游不特别指定，按默认规则优先 Sub2Api；只有明确属于安全失败的情况才允许在总尝试次数内使用 NewApi。先展示路线、分镜、最终提示词、请求数量、预算和预检结果，不要立即创建任务。
 ```
 
 ### 固定 NewApi
 
 ```text
-使用 $grok-video-studio 制作 <主题>，生视频选择 NewApi。
+使用 $videocreate 制作 <主题>，生视频选择 NewApi。
 文生视频和图生视频都必须固定直连 NewApi，不先调用 Sub2Api，也不自动切换其他视频上游。项目中保存 video_provider=newapi、video_provider_policy=fixed。先预检并等待我批准，再创建任务。
 ```
 
 ### 固定 Sub2Api
 
 ```text
-使用 $grok-video-studio 制作 <主题>，生视频固定选择 Sub2Api。
+使用 $videocreate 制作 <主题>，生视频固定选择 Sub2Api。
 文生视频和图生视频都不要回退到 NewApi。失败时保留 state.json、错误分类和任务状态，除非我明确批准新的重试，否则不要创建替代任务。
 ```
 
 ### 明确要求自动备用
 
 ```text
-使用 $grok-video-studio 制作 <主题>，允许 Sub2Api 优先、NewApi 安全备用。
+使用 $videocreate 制作 <主题>，允许 Sub2Api 优先、NewApi 安全备用。
 只有在上游明确拒绝且没有任务 ID、或已知任务进入终态失败时才允许切换；网络超时、5xx、提交结果不明和轮询超时都不能自动创建第二个任务。备用调用计入总尝试次数。
 ```
 
@@ -68,8 +68,8 @@
 ### 新用户安装
 
 ```text
-请从 main 分支安装 Grok Video Studio：
-仓库：https://github.com/1582345746/GrokVideoSkill.git
+请从 main 分支安装 VideoCreate：
+仓库：https://github.com/1582345746/VideoCreate.git
 
 请使用 upstream-dialogue 档位。通过受管进程标准输入配置 Sub2Api 生图 Key、Sub2Api 视频 Key（T2V/I2V）、NewApi 视频 Key；Windows 使用 DPAPI 保存。Key 不得出现在命令行、项目文件、日志、源码或终端输出中。
 安装后运行 version、install.ps1 -Check、doctor、capabilities、chatcut-capabilities 和 install-plan --profile upstream-dialogue。不要发起付费生成，不要下载或启动 Voicebox、CosyVoice、MuseTalk、Docker 镜像或模型。
@@ -78,13 +78,13 @@
 只有静音或保留源音频时才使用：
 
 ```text
-安装 Grok Video Studio 的 basic 档位。只保留上游/源音频或明确交付静音版本，不安装任何本地 AI 组件；完成后做只读诊断，不进行付费生成。
+安装 VideoCreate 的 basic 档位。只保留上游/源音频或明确交付静音版本，不安装任何本地 AI 组件；完成后做只读诊断，不进行付费生成。
 ```
 
 ### 旧版升级
 
 ```text
-请将现有 Grok Video Studio 更新到仓库 main 最新提交。
+请将现有 VideoCreate 更新到仓库 main 最新提交。
 先检查仓库是否在 main、工作区是否干净；有未提交修改时只报告，不覆盖。工作区干净后执行 install.ps1 -Repair -Force，并保留 DPAPI 凭据、安装档位、项目、角色母版、可选组件源码和模型缓存，不要求重新输入 Key，不重新下载完整模型。
 完成后运行 version、install.ps1 -Check、doctor、capabilities 和离线测试；不要发起付费生成。
 ```
@@ -92,7 +92,7 @@
 ### 只读诊断
 
 ```text
-对当前 Grok Video Studio 做只读诊断：运行 version、capabilities、install-plan --profile upstream-dialogue、doctor 和 install.ps1 -Check。报告版本、默认视频上游、Sub2Api/NewApi 的 T2V/I2V 能力、三个凭据职责、FFmpeg、可选组件状态和缺失依赖。不要输出 Key，不创建项目，不发起生成请求。
+对当前 VideoCreate 做只读诊断：运行 version、capabilities、install-plan --profile upstream-dialogue、doctor 和 install.ps1 -Check。报告版本、默认视频上游、Sub2Api/NewApi 的 T2V/I2V 能力、三个凭据职责、FFmpeg、可选组件状态和缺失依赖。不要输出 Key，不创建项目，不发起生成请求。
 ```
 
 ## 产品路线话术
@@ -100,35 +100,35 @@
 ### 文生视频 T2V
 
 ```text
-使用 $grok-video-studio 做一个 <时长> 秒、<比例> 的文生视频，主题是 <主题>。
+使用 $videocreate 做一个 <时长> 秒、<比例> 的文生视频，主题是 <主题>。
 不要参考图、不要生图、不要创建角色母版。每个镜头只安排一个连续动作，并加入景别、镜头运动、环境运动和收尾姿态。禁止字幕、画面文字、Logo、水印和短视频 UI。先展示剧本、分镜、提示词字节数、请求数和预算，等我回复“批准生成”后再生成并运行 QA。
 ```
 
 ### 现成图片直接 I2V
 
 ```text
-使用 $grok-video-studio 将 <图片路径> 做成 <时长> 秒图生视频。
+使用 $videocreate 将 <图片路径> 做成 <时长> 秒图生视频。
 不要重新生图；把图片作为唯一当前镜头参考，保持人物/产品、服装、构图、背景和文字位置，只增加 <动作>。先复制并预检图片格式、尺寸、比例、清晰度和主体完整性，展示一次视频请求和预算，批准后生成。完成后对比输入图与首帧、关键帧、尾帧，并报告最终上游和 QA。
 ```
 
 ### 先生关键帧再 I2V
 
 ```text
-使用 $grok-video-studio 为 <主题> 做 <镜头数> 个图生视频镜头。
+使用 $videocreate 为 <主题> 做 <镜头数> 个图生视频镜头。
 先用 Sub2Api 生图，每个镜头单独生成关键帧；不要把多视图角色母版直接发送给视频模型。每张关键帧生成后暂停，展示图片、哈希、提示词版本和费用，等我接受后锁定。全部关键帧接受后，再按 <Sub2Api/NewApi/自动备用> 逐镜头生成视频。每个视频请求只发送当前镜头关键帧。
 ```
 
 ### 角色母版
 
 ```text
-使用 $grok-video-studio 建立一个原创角色母版：<角色身份>。
+使用 $videocreate 建立一个原创角色母版：<角色身份>。
 先生成一张包含同一角色正面、侧面和全身视图的单张母版，锁定脸型、发型、服装、道具和颜色。通过人工检查后，再为每个镜头派生独立关键帧；视频模型只接收当前镜头关键帧，不接收多视图母版。严格一致性要求下不要改用纯 T2V。
 ```
 
 ### 原生对白、声音和口型
 
 ```text
-使用 $grok-video-studio 制作带原生对白的视频。audio.mode=native-dialogue、generate_audio=true、subtitle_source=none。
+使用 $videocreate 制作带原生对白的视频。audio.mode=native-dialogue、generate_audio=true、subtitle_source=none。
 把角色、对白、情绪、环境音和音效写进视频提示词；不要自动生成本地字幕或配音。生成后检查是否有音频轨、对白是否可听、音画和口型是否基本同步，并打开首帧/关键帧/尾帧检查模型是否把对白文字烧进画面。原生对白逐字内容、音色、口型和是否内嵌字幕都不能承诺完全准确。
 ```
 
@@ -153,14 +153,14 @@
 ### 连续剧
 
 ```text
-使用 $grok-video-studio 规划 <集数> 集连续短剧，每集 <时长> 秒。
+使用 $videocreate 规划 <集数> 集连续短剧，每集 <时长> 秒。
 先填写季主题、冲突升级、中点、高潮、结尾钩子、角色/地点/道具和每集动态分镜；每集覆盖 establishing、动作、反应、非对白视觉和 ending_hook。只预检并批准 ep-001 后生成；生成后人工验收并用实际结尾运行 series-accept，下一集只能继承验收后的连续性状态。
 ```
 
 ### 新闻视频
 
 ```text
-使用 $grok-video-studio 制作最近 <时间范围> 的热点新闻视频。必须联网检索，至少使用两个独立可靠来源；先写 news.json，保存来源 URL、发布时间、访问时间、事实主张、冲突项、claim_id、旁白和镜头映射。先 news-validate，不通过就不要生成。AI 画面标为示意，不得冒充现场素材。
+使用 $videocreate 制作最近 <时间范围> 的热点新闻视频。必须联网检索，至少使用两个独立可靠来源；先写 news.json，保存来源 URL、发布时间、访问时间、事实主张、冲突项、claim_id、旁白和镜头映射。先 news-validate，不通过就不要生成。AI 画面标为示意，不得冒充现场素材。
 ```
 
 ## 内部预设话术
@@ -168,7 +168,7 @@
 这些 ID 是可编辑的工作流预设，不是新的产品路线。可用 ID 以 `capabilities` 输出为准。
 
 ```text
-使用 $grok-video-studio 的 <预设 ID> 预设制作 <主题>。先运行 describe <预设 ID>，根据它的提问补齐输入，再生成完整故事、镜头、提示词和预检；等待批准后才付费生成。完成后按该预设的重点运行人工 QA。
+使用 $videocreate 的 <预设 ID> 预设制作 <主题>。先运行 describe <预设 ID>，根据它的提问补齐输入，再生成完整故事、镜头、提示词和预检；等待批准后才付费生成。完成后按该预设的重点运行人工 QA。
 ```
 
 当前预设重点：
@@ -213,6 +213,6 @@
 ## 二次开发话术
 
 ```text
-我要在 Grok Video Studio 上新增一个工作流：<名称和目标>。
-先阅读 grok-video-studio/references/project-schema.md、workflow-catalog.md、api-contracts.md、error-matrix.md 和 tests/test_grok_video_studio.py。优先只修改 assets/workflow-templates/<id>.json 和文档；如果需要新字段，先给出向后兼容的 schema 变更、预检规则、state 记录、费用门禁和测试计划。不要把 Key 写进仓库，不要把 MP4/WAV 塞进普通 input_reference，不要破坏现有预设 ID。完成后运行完整离线测试、py_compile、git diff --check，并说明是否需要付费验收。
+我要在 VideoCreate 上新增一个工作流：<名称和目标>。
+先阅读 videocreate/references/project-schema.md、workflow-catalog.md、api-contracts.md、error-matrix.md 和 tests/test_videocreate_engine.py。优先只修改 assets/workflow-templates/<id>.json 和文档；如果需要新字段，先给出向后兼容的 schema 变更、预检规则、state 记录、费用门禁和测试计划。不要把 Key 写进仓库，不要把 MP4/WAV 塞进普通 input_reference，不要破坏现有预设 ID。完成后运行完整离线测试、py_compile、git diff --check，并说明是否需要付费验收。
 ```

@@ -46,7 +46,7 @@ Seedance 内置默认路由等价于：
 - 旧任务签名兼容比较已加入，仍需通过旧格式任务恢复回归确认其可恢复到原身份；不能因此创建重复付费任务。`submission_unknown` 不自动重建。
 - 生图字段和旧项目格式继续向前兼容，不要求批量重写项目。
 
-项目样例及字段定义见 [project-schema.md](../grok-video-studio/references/project-schema.md)。
+项目样例及字段定义见 [project-schema.md](../videocreate/references/project-schema.md)。
 
 ## XingAPI 状态
 

@@ -11,8 +11,8 @@ import sys
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-SKILL_ROOT = REPO_ROOT / "grok-video-studio"
-CLI = SKILL_ROOT / "scripts" / "grok_video_studio.py"
+SKILL_ROOT = REPO_ROOT / "videocreate"
+CLI = SKILL_ROOT / "scripts" / "videocreate_engine.py"
 sys.path.insert(0, str(SKILL_ROOT / "scripts"))
 
 from editing_workflow import (  # noqa: E402

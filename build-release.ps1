@@ -8,8 +8,8 @@ param(
 
 $ErrorActionPreference = "Stop"
 $repoRoot = [IO.Path]::GetFullPath($PSScriptRoot)
-$skillSource = Join-Path $repoRoot "grok-video-studio"
-$cli = Join-Path $skillSource "scripts\grok_video_studio.py"
+$skillSource = Join-Path $repoRoot "videocreate"
+$cli = Join-Path $skillSource "scripts\videocreate.py"
 if (-not (Test-Path -LiteralPath $cli -PathType Leaf)) {
     throw "Skill CLI is missing: $cli"
 }
@@ -19,7 +19,7 @@ if (-not $versionResult.ok -or [string]::IsNullOrWhiteSpace($versionResult.versi
     throw "Unable to read the Skill version."
 }
 $version = [string]$versionResult.version
-$bundleName = "GrokVideoSkill-v$version"
+$bundleName = "VideoCreate-v$version"
 $outputRoot = [IO.Path]::GetFullPath($OutputDirectory)
 New-Item -ItemType Directory -Path $outputRoot -Force | Out-Null
 $zipPath = Join-Path $outputRoot "$bundleName.zip"
@@ -31,7 +31,7 @@ foreach ($path in @($zipPath, $checksumPath, $manifestPath)) {
     }
 }
 
-$stagingRoot = Join-Path ([IO.Path]::GetTempPath()) ("gvs-release-" + [guid]::NewGuid().ToString("N"))
+$stagingRoot = Join-Path ([IO.Path]::GetTempPath()) ("videocreate-release-" + [guid]::NewGuid().ToString("N"))
 $bundleRoot = Join-Path $stagingRoot $bundleName
 $signed = $false
 $signatureStatus = "NotSigned"
@@ -41,6 +41,17 @@ try {
     Copy-Item -LiteralPath (Join-Path $repoRoot "README.md") -Destination $bundleRoot
     Copy-Item -LiteralPath (Join-Path $repoRoot "docs") -Destination $bundleRoot -Recurse
     Copy-Item -LiteralPath $skillSource -Destination $bundleRoot -Recurse
+    $stagedSkill = [IO.Path]::GetFullPath((Join-Path $bundleRoot "videocreate"))
+    $cacheDirectories = @(Get-ChildItem -LiteralPath $stagedSkill -Directory -Recurse -Force | Where-Object { $_.Name -eq "__pycache__" -or $_.Name.EndsWith(".egg-info") })
+    foreach ($cache in $cacheDirectories) {
+        $cachePath = [IO.Path]::GetFullPath($cache.FullName)
+        if (-not $cachePath.StartsWith($stagedSkill + [IO.Path]::DirectorySeparatorChar)) {
+            throw "Unexpected cache path outside staged skill."
+        }
+        Remove-Item -LiteralPath $cachePath -Recurse -Force
+    }
+    & python (Join-Path $repoRoot "tools\check_release.py") --directory $bundleRoot
+    if ($LASTEXITCODE -ne 0) { throw "Release source safety check failed." }
 
     $stagedInstaller = Join-Path $bundleRoot "install.ps1"
     if (-not [string]::IsNullOrWhiteSpace($SigningCertificateThumbprint)) {
@@ -65,7 +76,7 @@ try {
     $dirty = -not [string]::IsNullOrWhiteSpace((& git -C $repoRoot status --porcelain))
     $manifest = [ordered]@{
         schema_version = 1
-        product = "Grok Video Studio"
+        product = "VideoCreate"
         version = $version
         git_commit = $commit
         source_dirty = $dirty

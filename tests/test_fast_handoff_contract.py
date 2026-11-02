@@ -8,10 +8,10 @@ from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "grok-video-studio" / "scripts"))
+sys.path.insert(0, str(ROOT / "videocreate" / "scripts"))
 
-import grok_video_studio as gvs  # noqa: E402
-from grok_video_studio import SkillError, previous_shot_keyframe, prompt_variants, validate_project  # noqa: E402
+import videocreate_engine as gvs  # noqa: E402
+from videocreate_engine import SkillError, previous_shot_keyframe, prompt_variants, validate_project  # noqa: E402
 from scoped_prompts import compile_scoped_prompt  # noqa: E402
 
 

@@ -11,12 +11,12 @@ from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "grok-video-studio" / "scripts"))
+sys.path.insert(0, str(ROOT / "videocreate" / "scripts"))
 
-import grok_video_studio as gvs  # noqa: E402
+import videocreate_engine as gvs  # noqa: E402
 from content_reviews import LAYERS, apply_review_receipt, create_review_template  # noqa: E402
 from director_contracts import director_gate, story_clarity_score  # noqa: E402
-from gvs_common import APIError, SkillError  # noqa: E402
+from vc_common import APIError, SkillError  # noqa: E402
 
 
 class ScopedPaidGateIntegrationTests(unittest.TestCase):

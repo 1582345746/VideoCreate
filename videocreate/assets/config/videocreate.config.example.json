@@ -1,0 +1,192 @@
+{
+  "schema_version": 3,
+  "product": "VideoCreate",
+  "defaults": {
+    "video_model": "grok-imagine-video-1.5",
+    "image_model": "gpt-image-2",
+    "aspect_ratio": "9:16",
+    "resolution": "720p",
+    "audio_mode": "native-dialogue",
+    "subtitle_source": "none",
+    "pace_profile": "story-adaptive"
+  },
+  "models": {
+    "grok-imagine-video-1.5": {
+      "kind": "video",
+      "family": "grok",
+      "display_name": "Grok Imagine Video 1.5",
+      "prompt_profile": "grok-current-shot-v1"
+    },
+    "seedance-2.0-mini-720p": {
+      "kind": "video",
+      "family": "seedance",
+      "display_name": "Seedance configured channel model",
+      "prompt_profile": "seedance-current-shot-v1"
+    },
+    "gpt-image-2": {
+      "kind": "image",
+      "family": "gpt-image",
+      "display_name": "GPT Image 2"
+    }
+  },
+  "upstreams": {
+    "primary-sub2api": {
+      "display_name": "My Sub2API",
+      "platform": "sub2api",
+      "base_url": "https://your-sub2api-host.example",
+      "auth": {
+        "type": "bearer",
+        "api_key": ""
+      },
+      "max_concurrent_submissions": 1,
+      "request_timeout_seconds": 120
+    },
+    "backup-newapi": {
+      "display_name": "My NewAPI",
+      "platform": "newapi",
+      "base_url": "https://your-newapi-host.example",
+      "auth": {
+        "type": "bearer",
+        "api_key": ""
+      },
+      "max_concurrent_submissions": 1,
+      "request_timeout_seconds": 120
+    },
+    "image-service": {
+      "display_name": "My image service",
+      "platform": "sub2api",
+      "base_url": "https://your-image-host.example",
+      "auth": {
+        "type": "bearer",
+        "api_key": ""
+      },
+      "max_concurrent_submissions": 1,
+      "request_timeout_seconds": 120
+    }
+  },
+  "bindings": {
+    "grok-on-sub2api": {
+      "enabled": false,
+      "setup_status": "needs-configuration-and-contract-check",
+      "model": "grok-imagine-video-1.5",
+      "upstream": "primary-sub2api",
+      "remote_model": "grok-imagine-video-1.5",
+      "adapter": "sub2api-json-v1",
+      "operations": [
+        "text-to-video",
+        "image-to-video"
+      ],
+      "capability_profile": "grok-sub2api-pending-verification",
+      "capability_overrides": {},
+      "adapter_options": {}
+    },
+    "grok-on-newapi": {
+      "enabled": false,
+      "setup_status": "needs-configuration-and-contract-check",
+      "model": "grok-imagine-video-1.5",
+      "upstream": "backup-newapi",
+      "remote_model": "grok-imagine-video-1.5",
+      "adapter": "newapi-multipart-v1",
+      "operations": [
+        "text-to-video",
+        "image-to-video"
+      ],
+      "capability_profile": "grok-newapi-pending-verification",
+      "capability_overrides": {},
+      "adapter_options": {}
+    },
+    "seedance-on-sub2api": {
+      "enabled": false,
+      "setup_status": "needs-configuration-and-contract-check",
+      "model": "seedance-2.0-mini-720p",
+      "upstream": "primary-sub2api",
+      "remote_model": "REPLACE_WITH_EXACT_REMOTE_SEEDANCE_MODEL_ID",
+      "adapter": "sub2api-json-v1",
+      "operations": [
+        "text-to-video",
+        "image-to-video"
+      ],
+      "capability_profile": "seedance-sub2api-pending-verification",
+      "capability_overrides": {},
+      "adapter_options": {}
+    },
+    "seedance-on-newapi": {
+      "enabled": false,
+      "setup_status": "needs-configuration-and-contract-check",
+      "model": "seedance-2.0-mini-720p",
+      "upstream": "backup-newapi",
+      "remote_model": "REPLACE_WITH_EXACT_REMOTE_SEEDANCE_MODEL_ID",
+      "adapter": "newapi-json-v1",
+      "operations": [
+        "text-to-video",
+        "image-to-video"
+      ],
+      "capability_profile": "seedance-newapi-pending-verification",
+      "capability_overrides": {},
+      "adapter_options": {}
+    },
+    "image-primary": {
+      "enabled": false,
+      "setup_status": "needs-configuration-and-contract-check",
+      "model": "gpt-image-2",
+      "upstream": "image-service",
+      "remote_model": "gpt-image-2",
+      "adapter": "openai-images-v1",
+      "operations": [
+        "text-to-image",
+        "image-edit"
+      ],
+      "capability_profile": "image-service-pending-verification",
+      "capability_overrides": {},
+      "adapter_options": {}
+    }
+  },
+  "routes": {
+    "grok-imagine-video-1.5": {
+      "policy": "fixed",
+      "preferred_binding": "grok-on-sub2api",
+      "candidates": [
+        "grok-on-sub2api",
+        "grok-on-newapi"
+      ]
+    },
+    "seedance-2.0-mini-720p": {
+      "policy": "automatic-same-model",
+      "preferred_binding": "seedance-on-sub2api",
+      "candidates": [
+        "seedance-on-sub2api",
+        "seedance-on-newapi"
+      ]
+    },
+    "gpt-image-2": {
+      "policy": "fixed",
+      "preferred_binding": "image-primary",
+      "candidates": [
+        "image-primary"
+      ]
+    }
+  },
+  "execution": {
+    "allow_cross_model_fallback": false,
+    "unknown_submission": "hold-and-reconcile",
+    "read_retry_attempts": 3,
+    "max_create_attempts_per_task": 3,
+    "require_binding_snapshot": true,
+    "paid_probe_on_install": false
+  },
+  "budget": {
+    "currency": "CNY",
+    "max_total": null,
+    "max_image_requests": 12,
+    "max_video_requests": 12,
+    "default_candidates_per_task": 1,
+    "unknown_price_policy": "report-unknown-and-apply-request-limit"
+  },
+  "review": {
+    "structural_is_content_approval": false,
+    "require_narrative_understanding_for_story": true,
+    "require_temporal_review_for_motion": true,
+    "require_audio_review_for_speech": true,
+    "unverified_output_label": "draft_preview"
+  }
+}

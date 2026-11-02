@@ -9,7 +9,7 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-SKILL_ROOT = REPO_ROOT / "grok-video-studio"
+SKILL_ROOT = REPO_ROOT / "videocreate"
 sys.path.insert(0, str(SKILL_ROOT / "scripts"))
 
 from chatcut_adapter import (  # noqa: E402

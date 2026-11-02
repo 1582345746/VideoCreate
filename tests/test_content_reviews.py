@@ -9,9 +9,9 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "grok-video-studio" / "scripts"))
+sys.path.insert(0, str(ROOT / "videocreate" / "scripts"))
 
-from gvs_common import SkillError  # noqa: E402
+from vc_common import SkillError  # noqa: E402
 from content_reviews import (  # noqa: E402
     LAYERS, apply_review_receipt, content_review_summary, create_review_template,
     review_asset_contract, validate_review_receipt,

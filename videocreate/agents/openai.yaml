@@ -1,0 +1,4 @@
+interface:
+  display_name: "VideoCreate"
+  short_description: "Plan, generate, edit and review videos across models and upstreams"
+  default_prompt: "Use $videocreate to configure independent model/upstream bindings, develop a causal story and motivated shots, preview offline, generate within the active authorization, edit selected footage and audio, and review actual video evidence before accepting delivery."

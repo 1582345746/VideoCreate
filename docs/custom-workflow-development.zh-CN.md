@@ -1,6 +1,6 @@
 # 二次开发与自定义工作流（v2.4.0 chatcut-adapter）
 
-Grok Video Studio 把“产品路线”和“内部工作流预设”分开。T2V、I2V、连续剧和新闻视频是稳定产品路线；`assets/workflow-templates/*.json` 是可编辑的问答和提示词指导。新增一个创意模板通常不需要修改 Python；新增上游、媒体类型或状态语义才需要代码和合同变更。
+VideoCreate 把“产品路线”和“内部工作流预设”分开。T2V、I2V、连续剧和新闻视频是稳定产品路线；`assets/workflow-templates/*.json` 是可编辑的问答和提示词指导。新增一个创意模板通常不需要修改 Python；新增上游、媒体类型或状态语义才需要代码和合同变更。
 
 推荐的二开分层是：产品路线（T2V/I2V/series/news）→ 导演模式（single-shot、cinematic-short、dialogue-scene、silent-cinema、action-scene、comedy-scene 等）→ 题材包（historical、wuxia、sci-fi、family、romance、comedy、disaster、rural、suspense）。用户可以组合导演模式和题材包，形成自己的“武打片、科幻片、家庭片、搞笑片、新闻解说”等工作流，而不必复制一套 CLI。
 
@@ -18,7 +18,7 @@ Grok Video Studio 把“产品路线”和“内部工作流预设”分开。T2
 
 ## 预设模板开发
 
-模板位于 `grok-video-studio/assets/workflow-templates/<id>.json`，至少包含：
+模板位于 `videocreate/assets/workflow-templates/<id>.json`，至少包含：
 
 - `id`、`title`、`summary`；
 - `default_shots`、`preferred_clip_seconds`；
@@ -38,8 +38,8 @@ Grok Video Studio 把“产品路线”和“内部工作流预设”分开。T2
 加入模板后运行：
 
 ```powershell
-python grok-video-studio/scripts/grok_video_studio.py capabilities
-python grok-video-studio/scripts/grok_video_studio.py describe <new-workflow-id>
+python videocreate/scripts/videocreate_engine.py capabilities
+python videocreate/scripts/videocreate_engine.py describe <new-workflow-id>
 ```
 
 模板只改变规划指导，不会自动改变产品路线、上游选择、重试次数或预算门禁。
@@ -107,7 +107,7 @@ T2V 请求不得因为 state 中存在旧关键帧而携带参考图；I2V 只�
 
 ```powershell
 python -m unittest discover -s tests -p "test_*.py" -v
-Get-ChildItem grok-video-studio\scripts -Filter *.py -Recurse | ForEach-Object { python -m py_compile $_.FullName }
+Get-ChildItem videocreate\scripts -Filter *.py -Recurse | ForEach-Object { python -m py_compile $_.FullName }
 git diff --check
 ```
 

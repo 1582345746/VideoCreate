@@ -9,8 +9,8 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-SKILL_ROOT = REPO_ROOT / "grok-video-studio"
-CLI = SKILL_ROOT / "scripts" / "grok_video_studio.py"
+SKILL_ROOT = REPO_ROOT / "videocreate"
+CLI = SKILL_ROOT / "scripts" / "videocreate_engine.py"
 sys.path.insert(0, str(SKILL_ROOT / "scripts"))
 
 from visual_profiles import (  # noqa: E402
@@ -20,7 +20,7 @@ from visual_profiles import (  # noqa: E402
     validate_visual_profile,
     visual_prompt_direction,
 )
-import grok_video_studio as gvs  # noqa: E402
+import videocreate_engine as gvs  # noqa: E402
 
 
 class VisualProfileTests(unittest.TestCase):

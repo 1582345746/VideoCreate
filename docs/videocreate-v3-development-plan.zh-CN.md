@@ -3,7 +3,7 @@
 日期：2026-11-02（Asia/Shanghai）  
 目标仓库：https://github.com/1582345746/VideoCreate.git  
 审计基线：`da3e01c022e99697b080a67ce9e2d20674dfeba2`  
-本文状态：**开发设计，尚未实施运行时代码改名或 v3 重构**。配套 JSON 是拟议配置格式，不可直接交给现有 v2 CLI。
+本文状态：v3 本地核心已实现并迁移安装；未勾选项为后续增强或真实模型质量验收。勾选表示代码与对应本地证据成立，不表示模型输出已达到电影质量。详见 [实施与验收](v3-implementation-and-acceptance.zh-CN.md)。
 
 ## 1. 核心判断
 
@@ -454,7 +454,7 @@ project/
 10. 同步 origin、README、badge、CI、install/build、文档、示例、OpenAI UI 元数据；发布包检查不包含旧活跃 skill。
 11. 验证旧任务仍能恢复、新项目能初始化、回滚可用；最后清理兼容周期允许移除的旧入口。
 
-本轮按“先列开发框架和详细清单”的要求先交设计；未移动当前工作目录，未迁移实际凭据，未批量改写现有项目。
+本节保留迁移约束。实际本机迁移、兼容策略与验收结果见 [v3 实施与验收](v3-implementation-and-acceptance.zh-CN.md)。旧项目不机械转写创作合同，写入兼容迁移回执并继续保留原任务恢复。
 
 ## 14. 建议目录结构
 
@@ -506,85 +506,85 @@ CLI 的包导入路径由 pyproject 或薄入口明确建立；不能复制一�
 
 - [x] A01：完成代码/成片样本审计，保留 F01–F18 证据与限制。
 - [x] A02：运行现有测试，记录 293 项通过的基线。
-- [ ] A03〔P0〕：建立模块依赖图，定位入口中规划、请求、QA、CLI 的抽离边界；验收：导入模块不触网、不修改用户配置。
-- [ ] A04〔P0〕：冻结可复现失败样例，包括喜剧被判非叙事、错位转场理由、残留徽标、空表演合同；验收：失败能被新流程识别，旧素材不变。
-- [ ] A05〔P0〕：建立开发分支、迁移备份和 release checklist；验收：每阶段可回滚，不依赖重新付费生成。
+- [x] A03：建立 config/catalog/adapters/planning/runtime/timeline/review 模块边界与依赖图；薄 CLI、导入无网络与无用户配置写入回归通过。
+- [x] A04：保留旧失败素材与哈希；新回归覆盖喜剧叙事、空表演、过载反应、任意状态理由、静帧不足及失败优先。
+- [x] A05：开发分支、pre-v3 源码备份、发行检查清单和回滚路径已建立。
 
 ### B. VideoCreate 品牌与迁移
 
-- [ ] B01〔P0〕：实现第 13 节命名映射，更新仓库内全部活跃入口/文档/CI；验收：旧名称仅出现在批准的迁移兼容及历史记录位置。
-- [ ] B02〔P0〕：建立 `videocreate` 包和 CLI，原入口临时 shim；验收：新入口功能与原命令等价，shim 不重复执行任务。
-- [ ] B03〔P0〕：更新 install/build/uninstall/repair；验收：干净安装、旧版升级、安装失败回滚均可用。
-- [ ] B04〔P0〕：迁移配置和 DPAPI/环境变量；验收：用户无需重填现有凭据，日志/快照不含值。
-- [ ] B05〔P0〕：迁移 state/lock/task handle；验收：未知提交仍未知、旧 task 不重建、并发旧新进程不能重复提交。
-- [ ] B06〔P0〕：迁移本机安装目录和工作区根路径；验收：绝对/相对资源都能解析，模型缓存不重下。
-- [ ] B07〔P0〕：单一版本来源、发行 manifest、兼容期说明；验收：README、CLI、安装器版本一致。
+- [x] B01：VideoCreate 活跃品牌/目录/frontmatter/入口/CI/脚本完成；旧名仅限兼容层与历史证据，发行无旧活跃技能。
+- [x] B02：videocreate 包、薄 CLI、旧入口 shim 与 wheel 资源封装完成；包外独立运行通过。
+- [x] B03：install/build/uninstall/repair 已更新；真实安装/保档位升级/卸载与升级失败回滚通过。
+- [x] B04：v2 配置转换和本机 DPAPI 密文字节迁移完成；旧源保留，凭据未输出。
+- [x] B05：v3 ledger/snapshot/锁/unknown/reconcile 完成；旧项目写兼容迁移回执，原任务与签名保持，不机械转写旧导演合同。
+- [x] B06：本机技能安装和物理仓库迁至 VideoCreate；旧根仅为 junction，原项目/密文/成片哈希保持。
+- [x] B07：单一版本来源、manifest、wheel/ZIP 与兼容期说明完成；均为 3.0.0.dev1。
 
 ### C. JSON 配置与首次使用
 
-- [ ] C01〔P0〕：实现用户配置 JSON Schema 与跨字段验证；验收：非法引用、重复 ID、未知字段能定位到 JSON path。
-- [ ] C02〔P0〕：实现 `config init/open/validate/show --redacted`；验收：新用户只编辑一个主要 JSON 文件。
-- [ ] C03〔P0〕：实现 inline key、env、secret_ref 三种互斥来源及统一脱敏；验收：错误、repr、HTTP body 诊断都不泄露凭据。
-- [ ] C04〔P0〕：实现首次安装引导与 setup_required 状态；验收：缺 Key 时准确提示文件/字段，不发起生成。
-- [ ] C05〔P0〕：实现离线校验与只读 doctor 分离；验收：validate 零网络，doctor 零付费 create。
-- [ ] C06〔P0〕：实现优先级解析和 effective-config 展示；验收：用户能看懂每个有效值来源。
+- [x] C01：实现用户配置 schema 与跨字段验证；非法字段/引用/协议组合被拒绝。
+- [x] C02：实现 `config init/open/validate/show/import`；主要模型/上游配置为一个 JSON 文件。
+- [x] C03：inline/env/DPAPI secret_ref、互斥验证、脱敏 show/attempt/error 完成；源码和发行包 Key 形态扫描通过。
+- [x] C04：首次安装创建单一 JSON 并返回配置位置；未启用默认视频路由时 ready/doctor 报 setup_required，不生成。
+- [x] C05：离线 validate 与显式 `doctor --read-only` 分离，二者均不创建媒体。
+- [x] C06：config effective 展示配置/项目/job/显式绑定的值与来源；已知 task 继续按原快照恢复。
 - [ ] C07〔P1〕：支持配置备份、版本迁移、编辑器补全与中文说明；验收：未知新版本不被旧程序破坏。
 
 ### D. 模型/上游/协议能力
 
-- [ ] D01〔P0〕：建立 models、upstreams、bindings、routes 数据模型；验收：四格组合及同类多个实例都可表示。
-- [ ] D02〔P0〕：建立 binding operation 能力合同与条件限制；验收：例如某分辨率时长超限会在提交前失败。
-- [ ] D03〔P0〕：实现 configured/catalog/contract/smoke/quality 状态和证据；验收：模型目录命中不等于可生成。
-- [ ] D04〔P0〕：抽离现有 Sub2API JSON、NewAPI JSON、NewAPI multipart adapter；验收：保留各自字段与响应语义，不混写协议。
-- [ ] D05〔P0〕：把图片生成也纳入独立绑定；验收：切视频上游不改变图片配置。
-- [ ] D06〔P0〕：实现标准请求和 PreparedRequest，以及参数消费报告；验收：未支持字段明确报错/提示降级，不静默丢弃音频开关。
-- [ ] D07〔P0〕：建立模型精确名映射和 base URL 拼接规则；验收：大小写/特殊别名保持，重复 `/v1` 被防止。
-- [ ] D08〔P0〕：实现 task ID 与 trace/request ID 的协议级解析；验收：跟踪号不能被误记为远端任务 ID。
+- [x] D01：models/upstreams/bindings/routes 与四格模型/上游表示。
+- [x] D02：binding operation 和 capability 条件限制在请求前校验。
+- [x] D03：configured/catalog/contract/smoke/quality 独立哈希证据与失效检查完成；目录可见不升级为生成或质量通过。
+- [x] D04：抽离三个视频 adapter wire paths；本地 payload fixture 覆盖各自字段。
+- [x] D05：独立图片 binding/adapter/预算/引用已实现；切视频路由不改变图片实际 URL/Key/model，未知图像输出可无网络恢复。
+- [x] D06：标准 prepared request、字段消费报告、参考哈希完成；未知参考阻断，Sub2API 音频明确为 model-default。
+- [x] D07：精确 remote_model 与统一 URL 拼接完成；本地 fixture 验证大小写、特殊别名和防重复 /v1。
+- [x] D08：默认排除 trace/request ID，仅协议显式列出字段才会接纳为 task ID。
 - [ ] D09〔P1〕：支持经过验证的首尾帧、多图/视频/音频参考扩展；验收：未验证组合仍不可宣称支持。
 - [ ] D10〔P1〕：能力/成本/延迟/质量的路由解释；验收：固定路由不被优化器覆盖。
 - [ ] D11〔P2〕：在有需求时加入新的官方协议 adapter；验收：不需要改导演或时间线模块。
 
 ### E. 运行、预算与恢复
 
-- [ ] E01〔P0〕：任务快照、attempt ledger、提交前持久化与原子写；验收：每个崩溃窗口都能恢复为确定状态或未知状态。
-- [ ] E02〔P0〕：原实例 task pinning；验收：默认模型/地址改变后旧任务不转投新实例。
-- [ ] E03〔P0〕：分离网络重试、内容重做和模型重规划；验收：三种计费与历史不同且可追踪。
-- [ ] E04〔P0〕：明确未知提交核查流程；验收：“查不到”不能变成拒绝已确认。
-- [ ] E05〔P0〕：预算预留、实际消费、未知费用、请求上限；验收：并发/重试不能越过上限，未知价格不记零。
-- [ ] E06〔P0〕：依赖图和增量重建；验收：仅改字幕不创建视频任务。
+- [x] E01：新 v3 job 使用原子快照、attempt ledger 与提交前持久化。
+- [x] E02：已知任务固定 model/remote ID/adapter/URL，凭据旋转不转移任务。
+- [x] E03：网络读重试/内容候选/剧本重规划分别建模与记账。
+- [x] E04：未知提交保持 hold；“查不到” receipt 不足以确认未接收。
+- [x] E05：原子次数/价格预留、未知价格硬 cap、并发测试及凭上游账单证据 jobs settle 完成；未自动拉取远端账单。
+- [x] E06：生成输入 hash 独立于标题/字幕/时间线；画幅/分辨率/参考字节变化要求本地 replan。
 - [ ] E07〔P1〕：每实例限流、短锁并发、轮询抖动、断点下载；验收：一个慢任务不锁死其他状态读取。
-- [ ] E08〔P1〕：取消语义和工具不可用状态；验收：本地停止不误报远端已取消。
+- [x] E08：cancel-local 明确仅停止本地轮询；工具不可用保持 unverified，不声称远端已取消。
 
 ### F. 剧情与导演规划
 
-- [ ] F01〔P0〕：brief/story/director/editorial/generation 五层结构；验收：beat、shot、job、clip 和 segment 可独立追踪。
-- [ ] F02〔P0〕：按叙事意图启用事件合同，覆盖喜剧和剧情广告；验收：本次喜剧不再被判 non-narrative。
-- [ ] F03〔P0〕：产品功能→角色选择→可见结果的因果设计；验收：给出删除产品后故事为何不成立的具体证据。
-- [ ] F04〔P0〕：本镜信息目标与关键视觉证据覆盖；验收：障碍、决策、结果不能全部只在说明文字里。
-- [ ] F05〔P0〕：表演触发、视线/重心/手势、接触关系；验收：人物表演镜不再只有空 performance 和“自然”。
-- [ ] F06〔P0〕：空间地图、轴线、方向和道具状态；验收：车内/车外、行礼对象可解释。
-- [ ] F07〔P0〕：动作负荷评估与拆镜建议；验收：案例第四镜被识别为需要拆分或重新设计。
-- [ ] F08〔P0〕：镜头功能与画面覆盖的内容复核；验收：行车镜不靠 reaction 标签通过。
-- [ ] F09〔P1〕：喜剧、对话、悬疑、慢电影等节奏 profile；验收：允许有目的的静默、停顿与长镜，不强套快对白。
-- [ ] F10〔P1〕：低成本 animatic 与两个相邻镜头的小样验收；验收：先确认叙事和接续再扩量。
+- [x] F01：brief/story/director/generation-plan/timeline 分层可编辑；editorial 由独立 timeline segment 表示。
+- [x] F02：按 narrative_intent/brief.intent 验证因果；comedy-scene/comedy-action 不再被自动排除叙事。
+- [x] F03：产品 function→choice→visible_result 与 removal counterfactual 验证完成；选择/结果指向实际 beat。
+- [x] F04：每镜信息目标与关键视觉证据覆盖完成；内容通过另需实际视频盲答。
+- [x] F05：表演 trigger/attention/visible_response/decision、视线/方向和接触字段实现并校验；空 performance 阻断。
+- [x] F06：场景 map/axis、可见位置与 entry/exit state 进入当前镜提示词；状态变化需因果 beat 和证据镜。
+- [x] F07：声明动作负荷超过 pace profile 时阻断/建议拆分。
+- [x] F08：reaction 必须声明实际反应动作及覆盖，不能仅靠标签。
+- [x] F09：喜剧/对话/悬疑/慢电影/产品展示/动作六种 pace profile；静默与有目的停顿不强套对白密度。
+- [x] F10：零付费 HTML/文字卡 MP4 预演和 30 秒十段例子完成；真实视频小样另需实际生成与内容验收。
 
 ### G. 参考素材与模型提示词
 
-- [ ] G01〔P0〕：角色/道具/场景资产注册和实际使用引用；验收：母版仅在实际有帮助时生成，不浪费未使用资源。
-- [ ] G02〔P0〕：局部提示词成为新叙事项目默认路径；验收：下镜人物/结局不泄漏进本镜生成。
-- [ ] G03〔P0〕：明确开场关键帧、身份参考、出口帧的不同作用；验收：反打不会被错误出口构图锁住。
-- [ ] G04〔P0〕：冲突检测与按 binding 计算长度；验收：现代产品例外能覆盖历史题材通用禁令。
-- [ ] G05〔P0〕：提示词编译追踪与不可丢字段；验收：压缩前后用户能看到保留/删除内容。
+- [x] G01：资产注册/哈希、独立图像 binding、job 参考与图片恢复完成；当前视频只支持 opening-frame 角色，多参考语义仍未知。
+- [x] G02：仅当前 job shots 与可见资产投影；未来演员、结局与无关状态排除，编译 trace 可审阅。
+- [x] G03：opening-frame 与 identity/prop/scene 区分；当前 adapter 不支持的参考角色明确阻断，先合成开场关键帧。
+- [x] G04：现代产品允许例外、具体排除项与全局禁令冲突检查；按 binding 计 UTF-8 长度，不截断关键字段。
+- [x] G05：编译 trace/hash/bytes/保留/排除范围齐备；超限报错不静默丢必需字段。
 - [ ] G06〔P1〕：Grok/Seedance 独立模型 profile 与实测基准；验收：改进基于对照素材，而非假定能力。
 - [ ] G07〔P1〕：identity drift 与物品形态变化的对照板；验收：不把不变站姿当唯一身份保持手段。
 
 ### H. 剪辑、慢镜头与声音
 
-- [ ] H01〔P0〕：独立时间线，区分源片时长与保留区间；验收：可跳过坏开头/尾巴且不切断词。
-- [ ] H02〔P0〕：多轨对白/环境/音乐/音效和 J/L cut；验收：说话声音可以连续覆盖反应/道具镜。
-- [ ] H03〔P0〕：局部片段变速、source→timeline 时间映射；验收：慢动作不拖慢台词/错位字幕。
-- [ ] H04〔P0〕：明确实际 fps、重复帧、插帧状态；验收：24→30 不能报告高帧率慢镜素材。
-- [ ] H05〔P0〕：原生/独立配音/画外声的每镜策略；验收：声音一致性问题可局部处理。
+- [x] H01：source 半开区间与独立 timeline segment 完成；可选择 edit window，自动 ASR 切点另属后续增强。
+- [x] H02：独立 dialogue/ambience/music/effect 自然速度音轨及 J/L 延迟覆盖完成；自动声音桥设计未实现。
+- [x] H03：segment 局部速度、字幕 source/timeline 映射、音频独立轨；说话源强制不随视频降速。
+- [x] H04：source fps、输出 fps、预计 unique source samples、插帧=none 逐段报告并测试。
+- [x] H05：native/offscreen/independent-voice/ambience/mute 每镜策略完成；独立声音不再同时请求模型朗读，未验证声音仍需听审。
 - [ ] H06〔P1〕：动态遮罩/必要屏幕图形合成；验收：本例 7.56s 徽标不再被漏过，遮罩不破坏主体。
 - [ ] H07〔P1〕：对白和音量验收、响度、切点声音连续性；验收：不是仅凭有 AAC 音轨通过。
 - [ ] H08〔P1〕：可选补帧/局部速度曲线和风险预览；验收：伪影明确展示，原片始终保留。
@@ -592,38 +592,38 @@ CLI 的包导入路径由 pyproject 或薄入口明确建立；不能复制一�
 
 ### I. 内容审核与可解释质量
 
-- [ ] I01〔P0〕：structural 与 narrative 分开；验收：100% 字段覆盖时内容仍可 unverified/fail。
-- [ ] I02〔P0〕：新增 motion/performance、identity、spatial、editorial 层；验收：每层有适用条件和实际证据。
-- [ ] I03〔P0〕：拒绝旧样片中的徽标、错位状态理由和无证据通过；验收：不是更改审核要求来放行。
-- [ ] I04〔P0〕：审核 hash/区间/方法绑定和失败优先；验收：派生文件更新后旧通过失效。
-- [ ] I05〔P0〕：final 盲读理解问题；验收：评审从成片复述，不直接照抄剧本。
-- [ ] I06〔P0〕：unknown/partial/rejected/accepted 明确展示；验收：缺声音工具不伪造听审。
+- [x] I01：结构 pass 只给 structural，不再由字段完整产生 narrative pass。
+- [x] I02：narrative/motion/identity/spatial/audio/clean-frame/editorial 分层、路径/哈希/保留区间与方法约束完成。
+- [x] I03：任意状态理由不放行；整段 clean-frame/motion 不能凭三张静帧通过，旧片徽标失败证据保留。
+- [x] I04：素材字节、契约和保留区间绑定；同字节同 scope 失败优先，过期证据失效。
+- [x] I05：final receipt 需实际盲答 goal/obstacle/choice/result 及适用产品/笑点字段。
+- [x] I06：review_pending/rejected/accepted_delivery 与 unverified 区分。
 - [ ] I07〔P1〕：动作/切点自适应取样与时序预览；验收：3 张静帧不再足以自动接受整个表演。
 - [ ] I08〔P1〕：缺陷→局部修复策略→复验闭环；验收：不因一个问题重生全片。
 - [ ] I09〔P1〕：统一“有效镜头率、每个合格镜头成本、盲评理解率”报告；验收：不给任意综合分伪装艺术质量。
 
 ### J. 测试与交付
 
-- [ ] J01〔P0〕：迁移现有 293 测试，改名称时保留行为；验收：旧关键能力不退化。
-- [ ] J02〔P0〕：四格模型/上游的纯本地协议 fixture 测试；验收：字段、状态、下载、未知提交分别覆盖。
-- [ ] J03〔P0〕：Windows 安装/升级/DPAPI/路径/回滚测试，Linux/macOS 路径和非 DPAPI 凭据来源测试。
-- [ ] J04〔P0〕：任务恢复故障注入、并发预算和锁测试；验收：无额外付费创建。
-- [ ] J05〔P0〕：只读/预演命令零 create 请求保证；验收：测试网络记录可证明。
+- [x] J01：原 293 回归全保留并通过，另增 v3 专项测试。
+- [ ] J02〔阶段性〕：四格协议的 create payload、task/trace、能力阻断已用本地 fixture；各 provider query/download 全矩阵待补。
+- [x] J03：Windows 真实安装/升级/DPAPI/工作区迁移/回滚已测，XDG 路径与非 DPAPI 凭据单测通过；Linux/macOS 实机尚未执行。
+- [x] J04：提交前持久化、unknown、task pin、并发预算、显式绑定不自动切备用与零付费故障测试完成。
+- [x] J05：CLI import/validate/compile/plan preview 本地实现并带零网络/零付费声明；完整客户端 spy 覆盖待加。
 - [ ] J06〔P1〕：在授权预算内做 Grok/Seedance × 两上游的小样实测；验收：报告模型名、能力、实际音视频、失败和费用，不能只看模型目录。
 - [ ] J07〔P1〕：人物反应、手与物接触、车轮、转身、反打、产品改状态、喜剧反转的内容基准集。
 - [ ] J08〔P1〕：旧流程与新流程同脚本/同参考/相近预算盲评；验收：看理解、自然度、连续性和成本，不仅看截图好看。
-- [ ] J09〔P0〕：发行包离仓库安装和脱敏扫描；验收：无密钥、用户项目、临时素材或旧活跃 skill。
-- [ ] J10〔P0〕：完整中文使用说明、安装配置范例、能力边界与未验收事项；验收：新人按一个 JSON 配置即可运行受控样例。
+- [x] J09：wheel/ZIP 构建及包外 version/config/plan/preview/legacy 运行通过，安装升级卸载与发行脱敏扫描通过。
+- [x] J10：中文安装配置/项目/恢复审核/实施验收说明完成；模板单 JSON 可运行受控离线样例，真实质量边界明确。
 
 ## 16. 开发顺序与里程碑
 
 | 阶段 | 依赖 | 交付物 | 退出条件 |
 |---|---|---|---|
 | M0 审计/设计 | 无 | 本文、配置草案、失败样例、测试基线 | 当前问题和重构范围可审阅；本轮已完成 |
-| M1 品牌/包边界/迁移 | M0 | VideoCreate 入口、安装器、旧数据读取 | 新旧项目可运行，原任务不重建，能够回滚 |
-| M2 用户 JSON/模型绑定 | M1 | config/schema、四格 bindings、adapter 接口 | 单文件配置、离线诊断、协议 fixture 测试通过 |
-| M3 导演/数据/预演 | M1–M2 | story/director/timeline/generation 分层、预演 | 本例事件与画面一一对应，动作负荷合理 |
-| M4 执行/剪辑/证据 | M2–M3 | 持久化任务、选段、多轨声音、局部变速 | 处理失败只重做必要部分，证据绑定正确 |
+| M1 品牌/包边界/迁移 | M0 | VideoCreate 入口、迁移器、兼容层 | 本地完成；本机安装、凭据和物理目录迁移完成，旧路径为兼容链接 |
+| M2 用户 JSON/模型绑定 | M1 | config/schema、四格 bindings、adapter 接口 | 本地完成；单 JSON、binding、协议与独立包测试通过，真实渠道合同保持待验证 |
+| M3 导演/数据/预演 | M1–M2 | story/director/timeline/generation 分层、预演 | 规划与 30 秒例子通过；身份、视觉参考实测未验证 |
+| M4 执行/剪辑/证据 | M2–M3 | 持久化任务、选段、多轨声音、局部变速 | 本地运行/剪辑/证据闭环完成；完整生产外观/音频验收待真实小样 |
 | M5 内容质量小样 | M3–M4 | 两镜连续小样、四组合合同/质量报告 | 可用能力经实测，未测试项保持未知 |
 | M6 完整样片/发布 | M5 | 完整新样片、盲评、迁移演练、发行包 | 内容与工程验收同时通过，剩余限制清楚 |
 

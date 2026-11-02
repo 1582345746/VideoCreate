@@ -7,7 +7,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "grok-video-studio" / "scripts"))
+sys.path.insert(0, str(ROOT / "videocreate" / "scripts"))
 
 from event_flow import event_flow_policy, event_flow_report, speech_units  # noqa: E402
 

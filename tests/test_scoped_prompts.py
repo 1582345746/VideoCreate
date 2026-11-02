@@ -7,9 +7,9 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "grok-video-studio" / "scripts"))
+sys.path.insert(0, str(ROOT / "videocreate" / "scripts"))
 
-from gvs_common import SkillError  # noqa: E402
+from vc_common import SkillError  # noqa: E402
 from scoped_prompts import compile_scoped_prompt, scoped_prompt_variants, uses_scoped_prompt_compiler  # noqa: E402
 
 

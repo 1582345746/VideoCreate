@@ -8,7 +8,7 @@ from unittest import mock
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(REPO_ROOT / "grok-video-studio" / "scripts"))
+sys.path.insert(0, str(REPO_ROOT / "videocreate" / "scripts"))
 
 from director_contracts import (  # noqa: E402
     continuity_state_diff,
@@ -18,7 +18,7 @@ from director_contracts import (  # noqa: E402
 )
 from dialogue_workflow import validate_dialogue  # noqa: E402
 import media_tools  # noqa: E402
-import grok_video_studio as gvs  # noqa: E402
+import videocreate_engine as gvs  # noqa: E402
 
 
 class ProductQualityContractTests(unittest.TestCase):

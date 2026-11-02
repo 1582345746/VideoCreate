@@ -7,10 +7,10 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(REPO_ROOT / "grok-video-studio" / "scripts"))
+sys.path.insert(0, str(REPO_ROOT / "videocreate" / "scripts"))
 
 from comparison_contract import comparison_contract_report, validate_comparison_contract  # noqa: E402
-from grok_video_studio import composed_image_prompt, composed_video_prompt  # noqa: E402
+from videocreate_engine import composed_image_prompt, composed_video_prompt  # noqa: E402
 
 
 def _lock(label: str) -> dict[str, str]:

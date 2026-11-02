@@ -1,0 +1,529 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "VideoCreate user configuration",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "schema_version": {
+      "const": 3
+    },
+    "product": {
+      "const": "VideoCreate"
+    },
+    "defaults": {
+      "type": "object",
+      "properties": {
+        "video_model": {
+          "type": "string"
+        },
+        "image_model": {
+          "type": "string"
+        },
+        "aspect_ratio": {
+          "type": "string"
+        },
+        "resolution": {
+          "type": "string"
+        },
+        "audio_mode": {
+          "type": "string",
+          "enum": [
+            "native-dialogue",
+            "preserve",
+            "mute",
+            "narration",
+            "local-voice",
+            "local-lipsync",
+            "local-narration"
+          ]
+        },
+        "subtitle_source": {
+          "type": "string",
+          "enum": [
+            "none",
+            "project",
+            "upstream"
+          ]
+        },
+        "pace_profile": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "video_model"
+      ],
+      "additionalProperties": false
+    },
+    "models": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "video",
+              "image"
+            ]
+          },
+          "family": {
+            "type": "string"
+          },
+          "display_name": {
+            "type": "string"
+          },
+          "prompt_profile": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "family"
+        ],
+        "additionalProperties": false
+      },
+      "minProperties": 1
+    },
+    "upstreams": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "display_name": {
+            "type": "string"
+          },
+          "platform": {
+            "type": "string"
+          },
+          "base_url": {
+            "type": "string"
+          },
+          "auth": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "bearer"
+                ]
+              },
+              "api_key": {
+                "type": "string"
+              },
+              "env": {
+                "type": "string"
+              },
+              "secret_ref": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "type"
+            ],
+            "additionalProperties": false
+          },
+          "max_concurrent_submissions": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "request_timeout_seconds": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "base_url",
+          "auth"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "bindings": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "setup_status": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "upstream": {
+            "type": "string"
+          },
+          "remote_model": {
+            "type": "string"
+          },
+          "adapter": {
+            "type": "string",
+            "enum": [
+              "sub2api-json-v1",
+              "newapi-json-v1",
+              "newapi-multipart-v1",
+              "openai-images-v1"
+            ]
+          },
+          "operations": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "text-to-video",
+                "image-to-video",
+                "text-to-image",
+                "image-edit",
+                "video-edit",
+                "video-extend"
+              ]
+            },
+            "minItems": 1,
+            "uniqueItems": true
+          },
+          "capability_profile": {
+            "type": "string"
+          },
+          "capability_overrides": {
+            "type": "object",
+            "properties": {
+              "max_prompt_bytes": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "max_reference_images": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "reference_mime_types": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "uniqueItems": true
+              },
+              "duration": {
+                "type": "object",
+                "properties": {
+                  "minimum": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  },
+                  "maximum": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  },
+                  "step": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  }
+                },
+                "required": [
+                  "minimum",
+                  "maximum",
+                  "step"
+                ],
+                "additionalProperties": false
+              },
+              "resolutions": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "uniqueItems": true
+              },
+              "aspect_ratios": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "uniqueItems": true
+              },
+              "conditions": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "when": {
+                      "type": "object",
+                      "properties": {
+                        "resolution": {
+                          "type": "string"
+                        },
+                        "aspect_ratio": {
+                          "type": "string"
+                        },
+                        "operation": {
+                          "type": "string",
+                          "enum": [
+                            "text-to-video",
+                            "image-to-video",
+                            "text-to-image",
+                            "image-edit",
+                            "video-edit",
+                            "video-extend"
+                          ]
+                        }
+                      },
+                      "required": [],
+                      "additionalProperties": false
+                    },
+                    "max_seconds": {
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    }
+                  },
+                  "required": [
+                    "when",
+                    "max_seconds"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "audio_control": {
+                "type": "string",
+                "enum": [
+                  "explicit",
+                  "model-default",
+                  "unsupported",
+                  "unknown",
+                  "not-applicable"
+                ]
+              },
+              "native_fps": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "exclusiveMinimum": 0
+              },
+              "video_reference": {
+                "type": "string",
+                "enum": [
+                  "unknown",
+                  "unsupported"
+                ]
+              },
+              "audio_reference": {
+                "type": "string",
+                "enum": [
+                  "unknown",
+                  "unsupported"
+                ]
+              },
+              "last_frame": {
+                "type": "string",
+                "enum": [
+                  "unknown",
+                  "unsupported"
+                ]
+              },
+              "idempotency": {
+                "type": "string",
+                "enum": [
+                  "unknown",
+                  "unsupported"
+                ]
+              },
+              "cancel": {
+                "type": "string",
+                "enum": [
+                  "unsupported",
+                  "unknown"
+                ]
+              }
+            },
+            "required": [],
+            "additionalProperties": false
+          },
+          "adapter_options": {
+            "type": "object",
+            "properties": {
+              "task_id_fields": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "uniqueItems": true,
+                "minItems": 1
+              },
+              "include_generate_audio_field": {
+                "type": "boolean"
+              },
+              "confirmed_rejection_http_statuses": {
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "minimum": 400,
+                  "maximum": 499
+                },
+                "uniqueItems": true
+              }
+            },
+            "required": [],
+            "additionalProperties": false
+          },
+          "pricing": {
+            "type": "object",
+            "properties": {
+              "currency": {
+                "type": "string"
+              },
+              "per_request": {
+                "type": "number",
+                "minimum": 0
+              },
+              "per_second": {
+                "type": "number",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "currency"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "enabled",
+          "model",
+          "upstream",
+          "remote_model",
+          "adapter",
+          "operations"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "routes": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "policy": {
+            "type": "string",
+            "enum": [
+              "fixed",
+              "automatic-same-model"
+            ]
+          },
+          "preferred_binding": {
+            "type": "string"
+          },
+          "candidates": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "uniqueItems": true,
+            "minItems": 1
+          }
+        },
+        "required": [
+          "policy",
+          "preferred_binding",
+          "candidates"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "execution": {
+      "type": "object",
+      "properties": {
+        "allow_cross_model_fallback": {
+          "const": false
+        },
+        "unknown_submission": {
+          "const": "hold-and-reconcile"
+        },
+        "read_retry_attempts": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_create_attempts_per_task": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "require_binding_snapshot": {
+          "const": true
+        },
+        "paid_probe_on_install": {
+          "const": false
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    },
+    "budget": {
+      "type": "object",
+      "properties": {
+        "currency": {
+          "type": "string"
+        },
+        "max_total": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "max_image_requests": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_video_requests": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "default_candidates_per_task": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "unknown_price_policy": {
+          "type": "string",
+          "enum": [
+            "report-unknown-and-apply-request-limit",
+            "block"
+          ]
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    },
+    "review": {
+      "type": "object",
+      "properties": {
+        "structural_is_content_approval": {
+          "const": false
+        },
+        "require_narrative_understanding_for_story": {
+          "type": "boolean"
+        },
+        "require_temporal_review_for_motion": {
+          "type": "boolean"
+        },
+        "require_audio_review_for_speech": {
+          "type": "boolean"
+        },
+        "unverified_output_label": {
+          "const": "draft_preview"
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "schema_version",
+    "defaults",
+    "models",
+    "upstreams",
+    "bindings",
+    "routes"
+  ],
+  "additionalProperties": false
+}

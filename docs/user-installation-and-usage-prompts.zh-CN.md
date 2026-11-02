@@ -1,8 +1,8 @@
-# Grok Video Studio 用户安装与使用话术
+# VideoCreate 用户安装与使用话术
 
-本文面向第一次接触 Grok Video Studio 的用户。所有代码块都可以直接复制给 Codex，再把尖括号中的占位内容替换成自己的信息。模块级完整话术（包括所有内部预设和二次开发）见 [模块使用话术](module-usage-prompts.zh-CN.md)；字段和上游合同见 `grok-video-studio/references/`。
+本文面向第一次接触 VideoCreate 的用户。所有代码块都可以直接复制给 Codex，再把尖括号中的占位内容替换成自己的信息。模块级完整话术（包括所有内部预设和二次开发）见 [模块使用话术](module-usage-prompts.zh-CN.md)；字段和上游合同见 `videocreate/references/`。
 
-仓库：`https://github.com/1582345746/GrokVideoSkill.git`
+仓库：`https://github.com/1582345746/VideoCreate.git`
 稳定分支：`main`
 
 ## 一、上游选择规则
@@ -21,8 +21,8 @@
 ### 2.1 推荐：上游原生对白档位，不做付费测试
 
 ```text
-请开启目标模式，从 main 分支安装 Grok Video Studio：
-https://github.com/1582345746/GrokVideoSkill.git
+请开启目标模式，从 main 分支安装 VideoCreate：
+https://github.com/1582345746/VideoCreate.git
 
 Sub2Api 生图 Key：<SUB2API_IMAGE_KEY>
 Sub2Api 视频 Key：<SUB2API_VIDEO_KEY>
@@ -34,7 +34,7 @@ NewApi 视频 URL：<NEWAPI_VIDEO_BASE_URL>
 安装要求：
 1. 检查 Git、PowerShell、Python、FFmpeg 和 ffprobe；缺少系统依赖时先报告，不要静默修改系统。
 2. 使用仓库根目录 install.ps1 安装 upstream-dialogue 档位（新项目默认 `native-dialogue`、`generate_audio=true`、`subtitle_source=none`；需要静音或保留源音频时才使用 basic）。
-3. 使用用户提供的 URL，通过 grok_video_studio.py configure --credentials-stdin 把 Key 传给技能；Windows 使用当前用户 DPAPI 保存。
+3. 使用用户提供的 URL，通过 videocreate_engine.py configure --credentials-stdin 把 Key 传给技能；Windows 使用当前用户 DPAPI 保存。
 4. 不得把 Key 写进 Git 仓库、项目 JSON、源码、文档、命令行参数、日志或测试输出，也不要在回复中复述 Key。
 5. 安装后运行 version、install.ps1 -Check、doctor、capabilities 和 chatcut-capabilities。
 6. doctor 只允许查询模型和健康状态，不得发起生图、生视频或其他付费创建请求。
@@ -47,7 +47,7 @@ NewApi 视频 URL：<NEWAPI_VIDEO_BASE_URL>
 ### 2.2 安装并允许最小付费验收
 
 ```text
-按 upstream-dialogue 档位安装 Grok Video Studio，并先完成所有离线测试和 doctor。
+按 upstream-dialogue 档位安装 VideoCreate，并先完成所有离线测试和 doctor。
 
 离线检查全部通过后，允许执行以下最小真实 API 验收：
 - Sub2Api 生图最多 1 次；
@@ -69,8 +69,8 @@ NewApi 视频 URL：<NEWAPI_VIDEO_BASE_URL>
 ## 三、旧版升级话术
 
 ```text
-请把本机 Grok Video Studio 更新到仓库 main 分支最新版：
-https://github.com/1582345746/GrokVideoSkill.git
+请把本机 VideoCreate 更新到仓库 main 分支最新版：
+https://github.com/1582345746/VideoCreate.git
 
 先检查当前分支、远端和工作区状态。如果存在未提交修改，先说明来源和冲突风险，不要覆盖；工作区干净时只做 fast-forward 更新。
 
@@ -86,7 +86,7 @@ https://github.com/1582345746/GrokVideoSkill.git
 不写上游名称时，新项目默认优先使用 Sub2Api，并在安全分类失败时自动尝试 NewApi。需要完全禁止备用时显式选择 Sub2Api；需要固定 NewApi 时显式选择 NewApi。Sub2Api 和 NewApi 都支持 T2V/I2V；当前都不支持 MP4 视频参考、视频编辑/延展或 WAV/预设音色参考，预检会明确阻断。
 
 ```text
-使用 $grok-video-studio 制作 <视频主题>。
+使用 $videocreate 制作 <视频主题>。
 默认选择生视频上游：优先 Sub2Api，在安全分类失败时使用 NewApi。只有我明确固定 Sub2Api 或固定 NewApi 时，才关闭自动回退。
 
 先确认产品路线、画面比例、总时长、镜头数、是否使用参考图、音频模式和字幕来源。然后展示故事、分镜、最终提示词、图片/视频请求数、总视频秒数和预算，不要立即创建付费任务。
@@ -97,7 +97,7 @@ https://github.com/1582345746/GrokVideoSkill.git
 ### 4.2 显式选择 NewApi
 
 ```text
-使用 $grok-video-studio 制作 <视频主题>，生视频选择 NewApi。
+使用 $videocreate 制作 <视频主题>，生视频选择 NewApi。
 
 这个项目的文生视频和图生视频都必须固定直连 NewApi，不先调用 Sub2Api，也不自动切换其他视频上游。NewApi 使用显式 `generate_audio`；Sub2Api 的音频能力是模型默认生成。Sub2Api 只在确实需要生成关键帧时承担生图。
 
@@ -107,7 +107,7 @@ https://github.com/1582345746/GrokVideoSkill.git
 ### 4.3 显式选择 Sub2Api
 
 ```text
-使用 $grok-video-studio 制作 <视频主题>，生视频固定选择 Sub2Api。
+使用 $videocreate 制作 <视频主题>，生视频固定选择 Sub2Api。
 
 文生视频和图生视频都不要回退到 NewApi。创建失败或任务失败时保留状态并停止，说明失败类别和再次付费风险，除非我明确给出重试原因，否则不要创建替代任务。
 ```
@@ -117,7 +117,7 @@ https://github.com/1582345746/GrokVideoSkill.git
 ### 5.1 文生视频
 
 ```text
-使用 $grok-video-studio 做一个 <30> 秒、<9:16> 的文生视频，主题是：<主题>。
+使用 $videocreate 做一个 <30> 秒、<9:16> 的文生视频，主题是：<主题>。
 
 不要生成关键帧，不要把旧图片自动带入视频请求。先给我故事、人物设定、风格约束、逐镜头动作、镜头运动、每镜头时长、最终提示词、视频请求数和预算。
 
@@ -127,7 +127,7 @@ https://github.com/1582345746/GrokVideoSkill.git
 ### 5.2 用户现成图片直接动画
 
 ```text
-使用 $grok-video-studio 把我提供的图片制作成 <8> 秒、<9:16> 图生视频。
+使用 $videocreate 把我提供的图片制作成 <8> 秒、<9:16> 图生视频。
 
 不要重新生图。把图片复制到项目 assets/references，记录原图 SHA-256；锁定人物身份、脸型、服装、产品外形、构图和背景，只增加 <自然眨眼、呼吸、发丝轻动和轻微转头>。
 
@@ -137,7 +137,7 @@ https://github.com/1582345746/GrokVideoSkill.git
 ### 5.3 先生成关键帧再做图生视频
 
 ```text
-使用 $grok-video-studio 做一个 <主题> 图生视频项目。
+使用 $videocreate 做一个 <主题> 图生视频项目。
 
 先用 Sub2Api 为每个镜头生成关键帧。每张图片生成后停下来展示并等待我接受或拒绝；接受的图片必须记录哈希并锁定。只有关键帧全部批准后，才按已选视频上游逐镜头做图生视频。
 
@@ -147,7 +147,7 @@ https://github.com/1582345746/GrokVideoSkill.git
 ### 5.4 多镜头故事
 
 ```text
-使用 $grok-video-studio 把下面故事拆成最少必要镜头：<故事>。
+使用 $videocreate 把下面故事拆成最少必要镜头：<故事>。
 
 每个镜头只描述一段可连续完成的动作，单镜头不超过上游时长限制。先建立角色和风格圣经，列出镜头 ID、shot_role、地点、时间、天气、光线、道具、角色、连续性、首帧、动作、镜头运动、环境声音、结束状态、对白、字幕来源和时长。提示词按 UTF-8 字节计数，硬上限 4096、工作上限 3800；预检必须展示完整/精简/最小版本与压缩建议。
 
@@ -157,7 +157,7 @@ https://github.com/1582345746/GrokVideoSkill.git
 ### 5.5 连续剧
 
 ```text
-使用 $grok-video-studio 规划一部 <20> 集连续短剧，每集 <60-90> 秒，题材是：<题材>。
+使用 $videocreate 规划一部 <20> 集连续短剧，每集 <60-90> 秒，题材是：<题材>。
 
 先创建系列合同，写季主题、冲突升级、中点、高潮、结尾钩子、世界观、角色身份和服装、关系、固定场景、每集剧情和当前连续性状态，不生成图片或视频。
 
@@ -167,7 +167,7 @@ https://github.com/1582345746/GrokVideoSkill.git
 ### 5.6 当前新闻视频
 
 ```text
-使用 $grok-video-studio 检索最近 <24 小时> 的热点新闻，制作 <60> 秒、<9:16> 新闻视频。
+使用 $videocreate 检索最近 <24 小时> 的热点新闻，制作 <60> 秒、<9:16> 新闻视频。
 
 先浏览当前原始来源，优先使用官方或一手来源；重要主张至少需要一个权威一手来源或两个独立来源。展示链接、发布时间、事件发生时间、事实主张、冲突项、证据对应、旁白和分镜，不要生成。
 
@@ -203,7 +203,7 @@ https://github.com/1582345746/GrokVideoSkill.git
 ### 7.1 继续中断任务
 
 ```text
-继续这个 Grok Video Studio 项目：<项目路径>。
+继续这个 VideoCreate 项目：<项目路径>。
 
 先读取 project.json、state.json、series.json 或 news.json，不要重新创建已经有 task_id 的任务。优先恢复轮询和下载，跳过已完成且哈希一致的素材。
 

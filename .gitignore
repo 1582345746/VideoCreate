@@ -9,3 +9,5 @@ projects/
 dist/
 .tmp-reference-frames/
 analysis-frames/
+build/
+*.egg-info/

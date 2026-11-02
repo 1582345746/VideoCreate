@@ -1,0 +1,8 @@
+include README.md
+include videocreate/SKILL.md
+recursive-include videocreate/scripts *.py *.ps1
+recursive-include videocreate/assets *.json *.Dockerfile
+recursive-include videocreate/references *.md
+recursive-include videocreate/agents *.yaml
+global-exclude *.pyc
+global-exclude *.pyo

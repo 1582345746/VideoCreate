@@ -1,4 +1,4 @@
-name: Grok Video Studio CI
+name: VideoCreate CI
 
 on:
   push:
@@ -33,9 +33,13 @@ jobs:
         run: choco install ffmpeg -y --no-progress
       - name: Compile Python modules
         shell: bash
-        run: python -m compileall -q grok-video-studio/scripts
+        run: python -m compileall -q videocreate/scripts videocreate/src
       - name: Run tests
         run: python -m unittest discover -s tests -p "test_*.py" -v
+      - name: Build and inspect standalone wheel
+        run: |
+          python -m pip wheel . --no-deps --wheel-dir dist
+          python tools/check_release.py --archive-directory dist
 
   installer:
     name: PowerShell installer checks
@@ -57,8 +61,8 @@ jobs:
       - name: Run read-only installed-plan smoke test
         shell: pwsh
         run: |
-          python .\grok-video-studio\scripts\grok_video_studio.py version
-          python .\grok-video-studio\scripts\grok_video_studio.py install-plan --profile basic
+          python .\videocreate\scripts\videocreate.py version
+          python .\videocreate\scripts\videocreate.py install-plan --profile basic
 
   secrets:
     name: Secret pattern scan

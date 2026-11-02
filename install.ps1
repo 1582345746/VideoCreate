@@ -35,7 +35,7 @@ if ($Repair) {
     $Force = $true
 }
 $repoRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
-$source = Join-Path $repoRoot "grok-video-studio"
+$source = Join-Path $repoRoot "videocreate"
 if (-not (Test-Path -LiteralPath (Join-Path $source "SKILL.md") -PathType Leaf)) {
     throw "Skill source is incomplete: $source"
 }
@@ -46,7 +46,7 @@ if ([string]::IsNullOrWhiteSpace($Destination)) {
     } else {
         $env:CODEX_HOME
     }
-    $Destination = Join-Path (Join-Path $codexRoot "skills") "grok-video-studio"
+    $Destination = Join-Path (Join-Path $codexRoot "skills") "videocreate"
 }
 
 $sourcePath = [IO.Path]::GetFullPath($source)
@@ -56,7 +56,7 @@ if ($Check) {
     if (-not (Test-Path -LiteralPath $destinationPath -PathType Container)) {
         throw "Installed Skill was not found at $destinationPath"
     }
-    $installedCli = Join-Path $destinationPath "scripts\grok_video_studio.py"
+    $installedCli = Join-Path $destinationPath "scripts\videocreate.py"
     & $Python $installedCli version
     if ($LASTEXITCODE -ne 0) {
         throw "Installed Skill did not pass the version check."
@@ -65,18 +65,18 @@ if ($Check) {
     if ($LASTEXITCODE -ne 0) {
         throw "Installed Skill install-plan check failed."
     }
-    Write-Host "Grok Video Studio installation is readable at $destinationPath"
+    Write-Host "VideoCreate installation is readable at $destinationPath"
     exit 0
 }
 
 if ($Uninstall) {
     if (-not (Test-Path -LiteralPath $destinationPath -PathType Container)) {
-        Write-Host "Grok Video Studio is not installed at $destinationPath"
+        Write-Host "VideoCreate is not installed at $destinationPath"
         exit 0
     }
     $resolvedParent = [IO.Path]::GetFullPath((Split-Path -Parent $destinationPath))
     if (-not $destinationPath.StartsWith($resolvedParent + [IO.Path]::DirectorySeparatorChar) -or
-        [IO.Path]::GetFileName($destinationPath) -ne "grok-video-studio") {
+        [IO.Path]::GetFileName($destinationPath) -ne "videocreate") {
         throw "Refusing to remove an unexpected destination: $destinationPath"
     }
     $existingItem = Get-Item -LiteralPath $destinationPath -Force
@@ -108,7 +108,7 @@ if ($Uninstall) {
         }
     }
     Remove-Item -LiteralPath $destinationPath -Recurse -Force
-    Write-Host "Removed the Grok Video Studio Skill files from $destinationPath"
+    Write-Host "Removed the VideoCreate Skill files from $destinationPath"
     Write-Host "User credentials, projects, component sources, and model weights were preserved."
     exit 0
 }
@@ -122,15 +122,19 @@ if ($sourcePath -eq $destinationPath) {
 
 $installProfileExplicit = $PSBoundParameters.ContainsKey("InstallProfile") -or $PSBoundParameters.ContainsKey("ComponentProfile")
 $selectedInstallProfile = $InstallProfile
-if (-not $Interactive -and -not $installProfileExplicit -and (Test-Path -LiteralPath $destinationPath -PathType Container)) {
-    $profileConfigRoot = if (-not [string]::IsNullOrWhiteSpace($env:GVS_CONFIG_DIR)) {
-        $env:GVS_CONFIG_DIR
+if (-not $Interactive -and -not $installProfileExplicit) {
+    $profileConfigRoot = if (-not [string]::IsNullOrWhiteSpace($env:VIDEOCREATE_CONFIG_DIR)) {
+        $env:VIDEOCREATE_CONFIG_DIR
     } elseif (-not [string]::IsNullOrWhiteSpace($env:LOCALAPPDATA)) {
-        Join-Path $env:LOCALAPPDATA "GrokVideoSkill"
+        Join-Path $env:LOCALAPPDATA "VideoCreate"
     } else {
-        Join-Path (Join-Path $env:USERPROFILE ".config") "GrokVideoSkill"
+        Join-Path (Join-Path $env:USERPROFILE ".config") "VideoCreate"
     }
     $savedProfilePath = Join-Path $profileConfigRoot "install-profile.json"
+    if (-not (Test-Path -LiteralPath $savedProfilePath) -and [string]::IsNullOrWhiteSpace($env:VIDEOCREATE_CONFIG_DIR)) {
+        $legacyProfile = Join-Path (Join-Path $env:LOCALAPPDATA "GrokVideoSkill") "install-profile.json"
+        if (Test-Path -LiteralPath $legacyProfile) { $savedProfilePath = $legacyProfile }
+    }
     if (Test-Path -LiteralPath $savedProfilePath -PathType Leaf) {
         try {
             $savedProfile = (Get-Content -LiteralPath $savedProfilePath -Raw | ConvertFrom-Json).profile
@@ -214,7 +218,7 @@ if (Test-Path -LiteralPath $destinationPath) {
     }
     $resolvedParent = [IO.Path]::GetFullPath($destinationParent)
     if (-not $destinationPath.StartsWith($resolvedParent + [IO.Path]::DirectorySeparatorChar) -or
-        [IO.Path]::GetFileName($destinationPath) -ne "grok-video-studio") {
+        [IO.Path]::GetFileName($destinationPath) -ne "videocreate") {
         throw "Refusing to replace an unexpected destination: $destinationPath"
     }
     $existingItem = Get-Item -LiteralPath $destinationPath -Force
@@ -222,13 +226,15 @@ if (Test-Path -LiteralPath $destinationPath) {
         throw "Refusing to replace a reparse-point destination: $destinationPath"
     }
     $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
-    $backupPath = Join-Path $destinationParent ".grok-video-studio-backup-$stamp"
+    $backupRoot = Join-Path (Split-Path -Parent $destinationParent) "skill-backups"
+    New-Item -ItemType Directory -Path $backupRoot -Force | Out-Null
+    $backupPath = Join-Path $backupRoot "videocreate-$stamp-$([guid]::NewGuid().ToString('N').Substring(0,8))"
     Move-Item -LiteralPath $destinationPath -Destination $backupPath
 }
 
 try {
     Copy-Item -LiteralPath $sourcePath -Destination $destinationPath -Recurse -Force
-    $cli = Join-Path $destinationPath "scripts\grok_video_studio.py"
+    $cli = Join-Path $destinationPath "scripts\videocreate.py"
     & $Python $cli version
     if ($LASTEXITCODE -ne 0) {
         throw "Installed Skill did not pass the version check."
@@ -268,16 +274,37 @@ if ($InstallSystemDependencies) {
     }
 }
 if ($Configure -or $ConfigureFromStdin) {
-    $arguments = @($cli, "configure")
+    $arguments = @($cli, "config", "open")
     if ($ConfigureFromStdin) {
-        $arguments += "--credentials-stdin"
+        $arguments = @($cli, "config", "import", "--replace")
     }
-    if ($SkipProviderTest) {
-        $arguments += "--skip-test"
-    }
+    & $Python $cli config init
     & $Python @arguments
     if ($LASTEXITCODE -ne 0) {
         throw "Skill configuration failed."
+    }
+}
+else {
+    $newConfigRoot = if (-not [string]::IsNullOrWhiteSpace($env:VIDEOCREATE_CONFIG_DIR)) {
+        $env:VIDEOCREATE_CONFIG_DIR
+    } elseif (-not [string]::IsNullOrWhiteSpace($env:LOCALAPPDATA)) {
+        Join-Path $env:LOCALAPPDATA "VideoCreate"
+    } else {
+        Join-Path (Join-Path $env:USERPROFILE ".config") "VideoCreate"
+    }
+    $legacyConfigRoot = if (-not [string]::IsNullOrWhiteSpace($env:GVS_CONFIG_DIR)) {
+        $env:GVS_CONFIG_DIR
+    } else {
+        Join-Path $env:LOCALAPPDATA "GrokVideoSkill"
+    }
+    if (-not (Test-Path -LiteralPath (Join-Path $newConfigRoot "videocreate.config.json")) -and
+        [string]::IsNullOrWhiteSpace($env:VIDEOCREATE_CONFIG_DIR) -and
+        (Test-Path -LiteralPath (Join-Path $legacyConfigRoot "config.json"))) {
+        & $Python $cli config migrate --source $legacyConfigRoot --destination $newConfigRoot --apply
+        if ($LASTEXITCODE -ne 0) { throw "Configuration migration failed; original configuration is preserved." }
+    } else {
+        & $Python $cli config init
+        if ($LASTEXITCODE -ne 0) { throw "Configuration initialization failed." }
     }
 }
 
@@ -336,14 +363,28 @@ if ($StartComponents) {
     }
 }
 
-Write-Host "Installed Grok Video Studio to $destinationPath"
+Write-Host "Installed VideoCreate to $destinationPath"
 Write-Host "Install profile: $selectedInstallProfile"
 Write-Host "Component profile: $selectedComponentProfile"
 if (-not $Configure -and -not $ConfigureFromStdin) {
-    Write-Host "Next: Codex can run python `"$cli`" configure --credentials-stdin --skip-test and provide the credential JSON through process stdin."
+    Write-Host "Next: videocreate config open; fill URLs/auth/remote_model and enable bindings, then config validate --ready."
 }
 if ($backupPath) {
     Write-Host "Previous installation preserved at $backupPath"
+}
+$legacySkillPath = Join-Path $destinationParent "grok-video-studio"
+if ((Test-Path -LiteralPath $legacySkillPath -PathType Container) -and
+    [IO.Path]::GetFileName($destinationPath) -eq "videocreate" -and
+    [IO.Path]::GetFileName($destinationParent) -eq "skills") {
+    $legacyItem = Get-Item -LiteralPath $legacySkillPath -Force
+    if (($legacyItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+        throw "Refusing to archive a legacy skill through a reparse point."
+    }
+    $archiveRoot = Join-Path (Split-Path -Parent $destinationParent) "skill-backups"
+    New-Item -ItemType Directory -Path $archiveRoot -Force | Out-Null
+    $legacyArchive = Join-Path $archiveRoot ("legacy-v2-" + [guid]::NewGuid().ToString("N"))
+    Move-Item -LiteralPath $legacySkillPath -Destination $legacyArchive
+    Write-Host "Legacy skill archived outside discovery paths at $legacyArchive"
 }
 }
 catch {
