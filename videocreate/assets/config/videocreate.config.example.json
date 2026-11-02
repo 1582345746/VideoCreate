@@ -8,7 +8,8 @@
     "resolution": "720p",
     "audio_mode": "native-dialogue",
     "subtitle_source": "none",
-    "pace_profile": "story-adaptive"
+    "pace_profile": "story-adaptive",
+    "workflow": "api-image-api-video"
   },
   "models": {
     "grok-imagine-video-1.5": {
@@ -188,5 +189,97 @@
     "require_temporal_review_for_motion": true,
     "require_audio_review_for_speech": true,
     "unverified_output_label": "draft_preview"
+  },
+  "browser_services": {
+    "museai": {
+      "enabled": false,
+      "display_name": "Muse browser (generation unverified)",
+      "driver": "codex-browser",
+      "base_url": "https://muse.ai/",
+      "allowed_origins": [
+        "https://muse.ai"
+      ],
+      "requested_operations": [
+        "text-to-image",
+        "image-edit",
+        "text-to-video",
+        "image-to-video"
+      ]
+    }
+  },
+  "workflows": {
+    "api-image-api-video": {
+      "description": "API image then API image-to-video",
+      "stages": [
+        {
+          "id": "image",
+          "executor": "api",
+          "operation": "text-to-image"
+        },
+        {
+          "id": "video",
+          "executor": "api",
+          "operation": "image-to-video",
+          "input_from": "image"
+        }
+      ]
+    },
+    "muse-image": {
+      "description": "Muse text-to-image (requires live verification)",
+      "stages": [
+        {
+          "id": "image",
+          "executor": "browser",
+          "operation": "text-to-image",
+          "service": "museai"
+        }
+      ]
+    },
+    "muse-video": {
+      "description": "Muse text-to-video (requires live verification)",
+      "stages": [
+        {
+          "id": "video",
+          "executor": "browser",
+          "operation": "text-to-video",
+          "service": "museai"
+        }
+      ]
+    },
+    "muse-image-video": {
+      "description": "Muse image then Muse image-to-video (requires live verification)",
+      "stages": [
+        {
+          "id": "image",
+          "executor": "browser",
+          "operation": "text-to-image",
+          "service": "museai"
+        },
+        {
+          "id": "video",
+          "executor": "browser",
+          "operation": "image-to-video",
+          "service": "museai",
+          "input_from": "image"
+        }
+      ]
+    },
+    "api-image-muse-video": {
+      "description": "API image then Muse image-to-video (requires live verification)",
+      "stages": [
+        {
+          "id": "image",
+          "executor": "api",
+          "operation": "text-to-image"
+        },
+        {
+          "id": "video",
+          "executor": "browser",
+          "operation": "image-to-video",
+          "service": "museai",
+          "input_from": "image"
+        }
+      ]
+    }
   }
 }

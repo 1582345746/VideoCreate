@@ -1,6 +1,6 @@
 ---
 name: videocreate
-description: Plan, generate, edit and review resumable AI videos with independently configured models and upstreams. Use for text/image-to-video, historical character and product comedy, short drama, character references, storyboards, native dialogue, slow motion, multi-shot editing, subtitles, series and existing video projects. Supports binding-specific Sub2API/NewAPI protocols and independent image generation. Does not publish videos.
+description: Plan, generate, edit and review resumable AI videos with independently configured models and upstreams. Use for text/image-to-video, historical character and product comedy, short drama, character references, storyboards, native dialogue, slow motion, multi-shot editing, subtitles, series and existing video projects. Supports Sub2API/NewAPI, independent image generation, and Muse browser workflow preparation and assisted execution when browser controls are available. Does not publish videos.
 ---
 
 # VideoCreate
@@ -9,13 +9,17 @@ Turn a brief into a story viewers can follow, motivated performances, purposeful
 
 Use `python scripts/videocreate.py` from this skill directory (or installed `videocreate`). The current version comes from `version`. Commands ending in legacy project names are retained for existing projects; new work uses `plan`, `assets`, `jobs`, `timeline` and `review`.
 
-For new video/media creation requests, load the local JSON with `config init/show`, create and validate an appropriate v3 plan, compile and preview it offline, generate only within the active authorization, then locally edit and truthfully review the resulting media. Do not use the legacy v2 create path for new projects just because it is more complete. Existing v2 project recovery remains in scope.
+For new video/media creation requests, load the local JSON with `config init/show`, choose the requested API or browser workflow, create and validate an appropriate v3 plan, compile and preview it offline, generate only within the active authorization, then locally edit and truthfully review the resulting media. Do not use the legacy v2 create path for new projects just because it is more complete. Existing v2 project recovery remains in scope.
+
+## Muse and mixed workflows
+
+For Muse/browser generation, read [muse-browser.md](references/muse-browser.md). `browser_services` and `workflows` share the existing user JSON. Use `workflow list/describe/prepare` for API-image/API-video, Muse image or video, Muse-image/Muse-video, and API-image/Muse-video routes. Browser preparation is offline; it does not certify website capabilities or execute a full workflow. Prefer the user's chosen built-in browser, verify actual operation tools before asking for login, and do not silently switch to Edge. Keep unavailable tools, login status and untested generation capabilities explicit.
 
 ## Setup
 
 Run `config init` when a user configuration is missing. Tell the user its exact returned path and ask them to edit URL/auth/remote_model/enabled bindings in that single JSON; use `config open` when requested. Never ask them to paste a key into chat. Existing Windows credentials can be migrated with `config migrate --apply`, which preserves encrypted bytes and old settings.
 
-`config validate --ready` is offline. `doctor` checks local configuration; `doctor --read-only` additionally queries catalogs without creating media. Catalog visibility does not verify video, audio, likeness or reference semantics. Installation and inspection do not authorize paid probes or optional model downloads.
+`config validate --ready` is an offline API readiness check, not a browser readiness check. `doctor` checks local configuration; `doctor --read-only` additionally queries catalogs without creating media. Catalog visibility does not verify video, audio, likeness or reference semantics. Installation and inspection do not authorize paid probes or optional model downloads.
 
 Each binding selects one canonical model, one named upstream instance, one exact remote model ID and one versioned adapter. Grok/Seedance are model families; Sub2API/NewAPI are platforms. Do not infer a wire protocol from a model name. Read [configuration.md](references/configuration.md) for the single JSON and its limits.
 

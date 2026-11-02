@@ -179,7 +179,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if not argv or argv in (["--help"], ["-h"]):
             print("VideoCreate " + __version__ + "\n\n"
-                  "Commands: config, doctor, capabilities, plan, assets, jobs, timeline, review, version\n"
+                  "Commands: config, doctor, capabilities, workflow, plan, assets, jobs, timeline, review, version\n"
                   "Start: config init; config open; config validate --ready\n"
                   "Offline preview: plan init PROJECT --example smart-car; plan preview PROJECT --video\n"
                   "Each command accepts --help. Existing project commands remain available; use legacy COMMAND to select the retained engine explicitly.")
@@ -191,7 +191,7 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         if argv and argv[0] == "config":
             return configuration_command(argv[1:])
-        if argv and argv[0] in {"plan", "jobs", "timeline", "review", "assets", "capabilities"}:
+        if argv and argv[0] in {"plan", "jobs", "timeline", "review", "assets", "capabilities", "workflow"}:
             from . import commands
             return getattr(commands, argv[0] + "_command")(argv[1:])
         if argv and argv[0] == "doctor":

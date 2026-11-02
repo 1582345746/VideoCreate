@@ -23,6 +23,7 @@ POS = {"type": "integer", "minimum": 1}
 STRING_LIST = {"type": "array", "items": STR, "uniqueItems": True}
 OPEN_OBJECT = {"type": "object"}
 OPERATIONS = ("text-to-video", "image-to-video", "text-to-image", "image-edit", "video-edit", "video-extend")
+WORKFLOW_OPERATIONS = ("text-to-video", "image-to-video", "text-to-image", "image-edit")
 ADAPTERS = ("sub2api-json-v1", "newapi-json-v1", "newapi-multipart-v1", "openai-images-v1")
 
 
@@ -48,7 +49,7 @@ def configuration_schema() -> dict[str, Any]:
     defaults = obj({
         "video_model": STR, "image_model": STR, "aspect_ratio": STR, "resolution": STR,
         "audio_mode": enum("native-dialogue", "preserve", "mute", "narration", "local-voice", "local-lipsync", "local-narration"),
-        "subtitle_source": enum("none", "project", "upstream"), "pace_profile": STR,
+        "subtitle_source": enum("none", "project", "upstream"), "pace_profile": STR, "workflow": STR,
     }, ("video_model",))
     auth = obj({"type": enum("bearer"), "api_key": STR, "env": STR, "secret_ref": STR}, ("type",))
     model = obj({"kind": enum("video", "image"), "family": STR, "display_name": STR, "prompt_profile": STR}, ("kind", "family"))
@@ -74,6 +75,19 @@ def configuration_schema() -> dict[str, Any]:
         "upstreams": {"type": "object", "additionalProperties": upstream},
         "bindings": {"type": "object", "additionalProperties": binding},
         "routes": {"type": "object", "additionalProperties": route},
+        "browser_services": {"type": "object", "additionalProperties": obj({
+            "enabled": BOOL, "display_name": STR, "driver": enum("codex-browser", "playwright-local"),
+            "base_url": STR, "allowed_origins": {**STRING_LIST, "minItems": 1},
+            "requested_operations": {"type": "array", "items": enum(*WORKFLOW_OPERATIONS), "minItems": 1, "uniqueItems": True},
+            "profile_directory": STR, "max_prompt_bytes": POS,
+        }, ("enabled", "driver", "base_url", "allowed_origins", "requested_operations"))},
+        "workflows": {"type": "object", "additionalProperties": obj({
+            "description": STR,
+            "stages": {"type": "array", "minItems": 1, "items": obj({
+                "id": STR, "executor": enum("api", "browser"), "operation": enum(*WORKFLOW_OPERATIONS),
+                "model": STR, "binding": STR, "service": STR, "input_from": STR,
+            }, ("id", "executor", "operation"))},
+        }, ("stages",))},
         "execution": obj({"allow_cross_model_fallback": {"const": False}, "unknown_submission": {"const": "hold-and-reconcile"},
             "read_retry_attempts": POS, "max_create_attempts_per_task": POS, "require_binding_snapshot": {"const": True},
             "paid_probe_on_install": {"const": False}}),
@@ -142,6 +156,8 @@ def validate_config(config: dict[str, Any], *, ready: bool = False, store_root=N
     _walk(config, configuration_schema(), "$", errors)
     if errors:
         return errors
+    from ..workflows import validate_workflows
+    errors.extend(validate_workflows(config))
     models, upstreams, bindings = config["models"], config["upstreams"], config["bindings"]
     for group_name, group in (("models", models), ("upstreams", upstreams), ("bindings", bindings)):
         for key in group:

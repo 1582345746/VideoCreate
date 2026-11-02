@@ -1,6 +1,5 @@
 {
   "schema_version": 3,
-  "config_status": "design-example-not-supported-by-v2",
   "product": "VideoCreate",
   "defaults": {
     "video_model": "grok-imagine-video-1.5",
@@ -9,7 +8,8 @@
     "resolution": "720p",
     "audio_mode": "native-dialogue",
     "subtitle_source": "none",
-    "pace_profile": "story-adaptive"
+    "pace_profile": "story-adaptive",
+    "workflow": "api-image-api-video"
   },
   "models": {
     "grok-imagine-video-1.5": {
@@ -73,7 +73,10 @@
       "upstream": "primary-sub2api",
       "remote_model": "grok-imagine-video-1.5",
       "adapter": "sub2api-json-v1",
-      "operations": ["text-to-video", "image-to-video"],
+      "operations": [
+        "text-to-video",
+        "image-to-video"
+      ],
       "capability_profile": "grok-sub2api-pending-verification",
       "capability_overrides": {},
       "adapter_options": {}
@@ -85,7 +88,10 @@
       "upstream": "backup-newapi",
       "remote_model": "grok-imagine-video-1.5",
       "adapter": "newapi-multipart-v1",
-      "operations": ["text-to-video", "image-to-video"],
+      "operations": [
+        "text-to-video",
+        "image-to-video"
+      ],
       "capability_profile": "grok-newapi-pending-verification",
       "capability_overrides": {},
       "adapter_options": {}
@@ -97,7 +103,10 @@
       "upstream": "primary-sub2api",
       "remote_model": "REPLACE_WITH_EXACT_REMOTE_SEEDANCE_MODEL_ID",
       "adapter": "sub2api-json-v1",
-      "operations": ["text-to-video", "image-to-video"],
+      "operations": [
+        "text-to-video",
+        "image-to-video"
+      ],
       "capability_profile": "seedance-sub2api-pending-verification",
       "capability_overrides": {},
       "adapter_options": {}
@@ -109,7 +118,10 @@
       "upstream": "backup-newapi",
       "remote_model": "REPLACE_WITH_EXACT_REMOTE_SEEDANCE_MODEL_ID",
       "adapter": "newapi-json-v1",
-      "operations": ["text-to-video", "image-to-video"],
+      "operations": [
+        "text-to-video",
+        "image-to-video"
+      ],
       "capability_profile": "seedance-newapi-pending-verification",
       "capability_overrides": {},
       "adapter_options": {}
@@ -121,7 +133,10 @@
       "upstream": "image-service",
       "remote_model": "gpt-image-2",
       "adapter": "openai-images-v1",
-      "operations": ["text-to-image", "image-edit"],
+      "operations": [
+        "text-to-image",
+        "image-edit"
+      ],
       "capability_profile": "image-service-pending-verification",
       "capability_overrides": {},
       "adapter_options": {}
@@ -131,17 +146,25 @@
     "grok-imagine-video-1.5": {
       "policy": "fixed",
       "preferred_binding": "grok-on-sub2api",
-      "candidates": ["grok-on-sub2api", "grok-on-newapi"]
+      "candidates": [
+        "grok-on-sub2api",
+        "grok-on-newapi"
+      ]
     },
     "seedance-2.0-mini-720p": {
       "policy": "automatic-same-model",
       "preferred_binding": "seedance-on-sub2api",
-      "candidates": ["seedance-on-sub2api", "seedance-on-newapi"]
+      "candidates": [
+        "seedance-on-sub2api",
+        "seedance-on-newapi"
+      ]
     },
     "gpt-image-2": {
       "policy": "fixed",
       "preferred_binding": "image-primary",
-      "candidates": ["image-primary"]
+      "candidates": [
+        "image-primary"
+      ]
     }
   },
   "execution": {
@@ -166,5 +189,97 @@
     "require_temporal_review_for_motion": true,
     "require_audio_review_for_speech": true,
     "unverified_output_label": "draft_preview"
+  },
+  "browser_services": {
+    "museai": {
+      "enabled": false,
+      "display_name": "Muse browser (generation unverified)",
+      "driver": "codex-browser",
+      "base_url": "https://muse.ai/",
+      "allowed_origins": [
+        "https://muse.ai"
+      ],
+      "requested_operations": [
+        "text-to-image",
+        "image-edit",
+        "text-to-video",
+        "image-to-video"
+      ]
+    }
+  },
+  "workflows": {
+    "api-image-api-video": {
+      "description": "API image then API image-to-video",
+      "stages": [
+        {
+          "id": "image",
+          "executor": "api",
+          "operation": "text-to-image"
+        },
+        {
+          "id": "video",
+          "executor": "api",
+          "operation": "image-to-video",
+          "input_from": "image"
+        }
+      ]
+    },
+    "muse-image": {
+      "description": "Muse text-to-image (requires live verification)",
+      "stages": [
+        {
+          "id": "image",
+          "executor": "browser",
+          "operation": "text-to-image",
+          "service": "museai"
+        }
+      ]
+    },
+    "muse-video": {
+      "description": "Muse text-to-video (requires live verification)",
+      "stages": [
+        {
+          "id": "video",
+          "executor": "browser",
+          "operation": "text-to-video",
+          "service": "museai"
+        }
+      ]
+    },
+    "muse-image-video": {
+      "description": "Muse image then Muse image-to-video (requires live verification)",
+      "stages": [
+        {
+          "id": "image",
+          "executor": "browser",
+          "operation": "text-to-image",
+          "service": "museai"
+        },
+        {
+          "id": "video",
+          "executor": "browser",
+          "operation": "image-to-video",
+          "service": "museai",
+          "input_from": "image"
+        }
+      ]
+    },
+    "api-image-muse-video": {
+      "description": "API image then Muse image-to-video (requires live verification)",
+      "stages": [
+        {
+          "id": "image",
+          "executor": "api",
+          "operation": "text-to-image"
+        },
+        {
+          "id": "video",
+          "executor": "browser",
+          "operation": "image-to-video",
+          "service": "museai",
+          "input_from": "image"
+        }
+      ]
+    }
   }
 }

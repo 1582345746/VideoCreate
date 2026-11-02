@@ -2,12 +2,16 @@
 
 配置默认位于 `%LOCALAPPDATA%/VideoCreate/videocreate.config.json`。运行 `config init` 创建一次；直接编辑该文件即可。配置示例和 JSON Schema 与技能随附。URL、auth 密钥、精确 remote_model、启用绑定是接入必填项；安装、validate 和 show 不调用付费生成，show 总是脱敏。
 
-五类对象不能混为一谈：
+API 对象不能混为一谈：
 
 - `models` 是内部 canonical model 和 family，比如 Grok 或 Seedance。
 - `upstreams` 是可有多个实例的服务器 URL、凭据、并发上限和超时。
 - `bindings` 指定每个模型在具体实例上的精确远端 model ID 和一个 adapter。
 - `routes` 对每个 canonical model 选择 preferred binding 与同模型候选。`fixed` 不切备用；`automatic-same-model` 只允许明确列出的同模型 binding。
+
+可选的 `browser_services` 和 `workflows` 与这些 API 对象位于同一个 JSON。网页服务填写 `enabled`、`driver`、`base_url`、精确 `allowed_origins` 和 `requested_operations`；不填写 API key、cookies 或密码。`codex-browser` 表示偏好内置浏览器，不代表当前会话一定有页面操作工具。`playwright-local` 仅用于用户选择的独立会话，当前尚未打包站点执行器。`requested_operations` 只是希望使用的操作，不是能力验证。
+
+每个 workflow 的有序 `stages` 用 `executor: api/browser` 选择执行方式。API 阶段可指定 canonical `model` 和候选 `binding`，省略时使用对应图片/视频默认模型及其首选 binding；浏览器阶段指定 `service`，不能同时指定 API 模型。`input_from` 只可引用前面的图片阶段，且当前操作必须消费图片。`defaults.workflow` 可选；未指定时调用命令需明确 `--workflow`。旧配置不含这些字段仍保持兼容。`workflow prepare` 只写本地交接包，不自动执行阶段或宣称已提交。详情见 [muse-browser.md](muse-browser.md)。
 
 目前的 adapter 是 Sub2API JSON、NewAPI JSON 和 NewAPI multipart；图片是独立 binding。新增服务器实例只填 JSON；新增 wire protocol 必须实现 adapter 和 fixture tests。remote_model 保留大小写。Sub2API JSON 的音频是 model default，不能通过本适配器控制；能力未验证前，参考音频/视频、首尾帧、原生高帧率保持 unknown 并阻断。
 

@@ -10,6 +10,34 @@ from .config.storage import ConfigError, atomic_json, load_json, user_config_pat
 from .planning.project import LAYERS, compile_job, load_project, save_bundle, validate_plan
 
 
+def workflow_command(argv: list[str]) -> int:
+    from .cli import print_result, read_config
+    from .workflows import describe, prepare
+    parser = argparse.ArgumentParser(prog="videocreate workflow")
+    parser.add_argument("action", choices=["list", "describe", "prepare"])
+    parser.add_argument("project", nargs="?", type=Path)
+    parser.add_argument("--config", type=Path)
+    parser.add_argument("--workflow")
+    parser.add_argument("--stage")
+    parser.add_argument("--job")
+    parser.add_argument("--prompt-file", type=Path)
+    parser.add_argument("--reference", action="append", type=Path, default=[])
+    args = parser.parse_args(argv)
+    config = read_config(user_config_path(args.config))
+    if args.action == "list":
+        print_result({"ok": True, "default": config["defaults"].get("workflow"),
+            "workflows": [{"id": key, "description": value.get("description", ""), "stages": len(value["stages"])}
+                          for key, value in config.get("workflows", {}).items()], "paid_creates": 0})
+    elif args.action == "describe":
+        print_result(describe(config, args.workflow))
+    else:
+        if not args.project or not args.stage:
+            raise ConfigError("Prepare requires PROJECT and --stage")
+        print_result(prepare(args.project, config, args.workflow, args.stage, job_id=args.job,
+                             prompt_file=args.prompt_file, references=args.reference))
+    return 0
+
+
 def plan_command(argv: list[str]) -> int:
     from .cli import print_result, read_config
     parser = argparse.ArgumentParser(prog="videocreate plan")

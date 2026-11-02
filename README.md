@@ -2,11 +2,13 @@
 
 [![VideoCreate CI](https://github.com/1582345746/VideoCreate/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/1582345746/VideoCreate/actions/workflows/ci.yml)
 
-面向 Codex 的可恢复、多模型、多上游 AI 视频制作技能。产品名、技能入口和 Python 包统一为 **VideoCreate**。当前开发版为 `3.0.0.dev1`；这不是生产质量认证。
+面向 Codex 的可恢复、多模型、多上游 AI 视频制作技能。产品名、技能入口和 Python 包统一为 **VideoCreate**。当前开发版为 `3.0.0.dev2`；这不是生产质量认证。
 
 新工作使用分层 v3 计划：brief、story、director、generation-plan 和 timeline。旧的 v2 项目/任务仍保留兼容入口。v3 结构检查不会代替真实的视觉、动作和音频验收；模型和上游未通过实际样片验证时维持 unknown/unverified。
 
 新用户配置一个 `%LOCALAPPDATA%/VideoCreate/videocreate.config.json`，把模型、上游实例、adapter 和路由分开配置。Sub2API/NewAPI 可以作为 Grok、Seedance 等模型的不同 binding；这表示架构可配置，不代表每种模型/渠道合同都经真实生成验证。安装和离线预演不创建付费任务。详见 [VideoCreate v3 开发计划与实施清单](docs/videocreate-v3-development-plan.zh-CN.md)、[技能运行说明](videocreate/SKILL.md)、[配置说明](videocreate/references/configuration.md) 和 [v3 项目说明](videocreate/references/v3-project.md)。
+
+Muse 路线新增同一 JSON 中的 `browser_services/workflows`，支持描述 API 生图＋API 生视频、Muse 独立生图或视频、Muse 生图＋视频、API 生图＋Muse 视频。`workflow list/describe/prepare` 可离线校验并输出当前镜的浏览器交接包；当前未交付无人值守站点运行器，也未验证账号内 Muse 生成。默认优先内置浏览器，操作接口不足时明确阻塞，不自动换浏览器。详见 [Muse 接入与实测清单](docs/muse-browser-workflows.zh-CN.md)。
 
 开始使用：`python videocreate/scripts/videocreate.py config init`，编辑返回路径的 JSON 后运行 `config validate --ready`。无付费测试：`plan init <项目目录> --example smart-car`、`plan validate`、`plan preview --video`。样片任务由明确的 `jobs run` 命令执行；结果默认仍需人工观片/听审后才可接受交付。
 

@@ -49,6 +49,9 @@
         },
         "pace_profile": {
           "type": "string"
+        },
+        "workflow": {
+          "type": "string"
         }
       },
       "required": [
@@ -427,6 +430,128 @@
           "policy",
           "preferred_binding",
           "candidates"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "browser_services": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "display_name": {
+            "type": "string"
+          },
+          "driver": {
+            "type": "string",
+            "enum": [
+              "codex-browser",
+              "playwright-local"
+            ]
+          },
+          "base_url": {
+            "type": "string"
+          },
+          "allowed_origins": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "uniqueItems": true,
+            "minItems": 1
+          },
+          "requested_operations": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "text-to-video",
+                "image-to-video",
+                "text-to-image",
+                "image-edit"
+              ]
+            },
+            "minItems": 1,
+            "uniqueItems": true
+          },
+          "profile_directory": {
+            "type": "string"
+          },
+          "max_prompt_bytes": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "enabled",
+          "driver",
+          "base_url",
+          "allowed_origins",
+          "requested_operations"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "workflows": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "stages": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "executor": {
+                  "type": "string",
+                  "enum": [
+                    "api",
+                    "browser"
+                  ]
+                },
+                "operation": {
+                  "type": "string",
+                  "enum": [
+                    "text-to-video",
+                    "image-to-video",
+                    "text-to-image",
+                    "image-edit"
+                  ]
+                },
+                "model": {
+                  "type": "string"
+                },
+                "binding": {
+                  "type": "string"
+                },
+                "service": {
+                  "type": "string"
+                },
+                "input_from": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "executor",
+                "operation"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "stages"
         ],
         "additionalProperties": false
       }
