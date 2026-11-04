@@ -36,13 +36,16 @@ def contracts(root: Path, bundle: dict, *, output_name: str = "preview.mp4") -> 
                 (layer != "performance_motion" or any(s.get("actions") for s in selected)) and
                 (layer != "identity" or bool(selected_assets)) and
                 (layer != "spatial_continuity" or len(selected) > 1 or any(s.get("contacts") for s in selected)) and
-                (layer != "audio" or any(s.get("audio", {}).get("mode") != "mute" for s in selected))]}
+                (layer != "audio" or any(s.get("audio", {}).get("mode") != "mute" for s in selected)
+                 or selected is all_shots and bool(bundle["timeline"].get("audio_tracks")))]}
     all_shots = list(shots.values())
     clip_jobs = {clip["id"]: clip["job_id"] for clip in bundle["timeline"]["clips"]}
     retained = {}
     for segment in bundle["timeline"]["segments"]:
         retained.setdefault(clip_jobs[segment["clip_id"]], []).append([segment["source_in"], segment["source_out"]])
     for jid, record in state["jobs"].items():
+        from ..runtime.candidates import selected
+        record = selected(record)
         if record.get("status") != "completed" or jid not in jobs or jid not in retained:
             continue
         artifact = record.get("artifact", {})
@@ -59,8 +62,16 @@ def contracts(root: Path, bundle: dict, *, output_name: str = "preview.mp4") -> 
         if manifest.get("sha256") != file_hash(final_path) or manifest.get("timeline_hash") != content_hash(bundle["timeline"]):
             raise ConfigError("Final edit/manifest is stale; rerender before reviewing")
         duration = manifest["media"]["duration"]
+        from ..timeline.render import resolve_clips
+        current_hashes = {cid: file_hash(path) for cid, path in resolve_clips(root, bundle["timeline"], state).items()}
+        if manifest.get("source_hashes") != current_hashes:
+            raise ConfigError("Final edit uses a different candidate; rerender before reviewing")
+        from ..timeline.render import auxiliary_hashes
+        if manifest.get("auxiliary_hashes", {}) != auxiliary_hashes(root, bundle["timeline"]):
+            raise ConfigError("Final edit audio/overlay bytes changed; rerender before reviewing")
         result["final"] = make(final_path, duration, all_shots,
-            {"story": bundle["story"], "director": bundle["director"], "timeline": bundle["timeline"]}, [[0.0, duration]])
+            {"story": bundle["story"], "director": bundle["director"], "timeline": bundle["timeline"],
+             "research": bundle.get("research", {})}, [[0.0, duration]])
     return result
 
 

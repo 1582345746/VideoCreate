@@ -8,7 +8,7 @@ import uuid
 from contextlib import nullcontext
 from pathlib import Path
 
-from ..catalog.bindings import Binding, route_bindings
+from ..catalog.bindings import Binding, route_bindings, validate_request
 from ..config.storage import ConfigError, atomic_json, resolve_key, safe_error
 from ..planning.project import compile_job, content_hash, load_project, validate_plan, within
 from .budget import estimate, reserve, summary
@@ -119,7 +119,16 @@ def generate(root: Path, config: dict, *, store_root: Path, job_ids: list[str] |
             preferred = (binding_override or {}).get(jid, job.get("binding_id"))
             candidates = route_bindings(config, model, operation=job["operation"], preferred=preferred, store_root=store_root)
             binding = candidates[0]
-        compilation = compile_job(bundle, job, max_bytes=binding.capabilities["max_prompt_bytes"])
+        if bundle["brief"].get("workflow_profile") == "explainer":
+            from ..education import validate_research
+            research = validate_research(bundle, root=root, ready=True, shot_ids=job["shot_ids"])
+            if not research["ok"]:
+                raise ConfigError("; ".join(research["errors"]))
+        from ..routing import require_quality
+        require_quality(store_root, binding, job)
+        from ..series import check_episode_context
+        check_episode_context(root, bundle)
+        compilation = compile_job(bundle, job, max_bytes=binding.capabilities["max_prompt_bytes"], root=root)
         input_hash = content_hash({"job_inputs": job_inputs(bundle, job, compilation),
             "resolution": bundle["brief"]["resolution"], "aspect_ratio": bundle["brief"]["aspect_ratio"]})
         refs = [within(root, ref["path"]) for ref in job.get("references", [])]
@@ -127,6 +136,12 @@ def generate(root: Path, config: dict, *, store_root: Path, job_ids: list[str] |
         kwargs = {"seconds": job["seconds"], "size": "auto", "resolution": bundle["brief"]["resolution"],
             "aspect_ratio": bundle["brief"]["aspect_ratio"],
             "generate_audio": any(s.get("audio", {}).get("mode", "ambience") in {"native-dialogue", "offscreen", "ambience"} for s in actor_shots), "references": refs}
+        request = validate_request(binding, {"operation": job["operation"], "prompt": compilation["prompt"],
+            "seconds": kwargs["seconds"], "resolution": kwargs["resolution"],
+            "aspect_ratio": kwargs["aspect_ratio"], "generate_audio": kwargs["generate_audio"],
+            "references": kwargs["references"]})
+        if not request["ok"]:
+            raise ConfigError(jid + ": " + "; ".join(request["errors"]))
         video_client = client(binding)
         prepared = video_client.prepare(compilation["prompt"], **kwargs)
         input_hash = content_hash({"generation": input_hash, "references": [
@@ -176,6 +191,8 @@ def generate(root: Path, config: dict, *, store_root: Path, job_ids: list[str] |
                         "binding_snapshot": binding.snapshot(), "prepared_request": prepared, "compilation": compilation,
                         "history": history, "retry_kind": retry or "initial", "retry_reason": reason,
                         "pid": os.getpid(), "host": socket.gethostname(), "created_at": int(time.time())}
+                    if prior.get("selection"):
+                        current["selection"] = prior["selection"]
                     state["jobs"][jid] = current
                     save_state(root, state)  # Durable intent before the only billable call.
                     job_dir = root / "jobs" / jid / attempt_id

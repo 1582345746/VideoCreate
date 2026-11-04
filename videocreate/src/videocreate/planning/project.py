@@ -38,6 +38,8 @@ def load_project(root: Path) -> dict[str, Any]:
     result = {"project": project}
     for name in LAYERS:
         result[name] = load_json(within(root, project.get("files", {}).get(name, name + ".json")))
+    if project.get("files", {}).get("research"):
+        result["research"] = load_json(within(root, project["files"]["research"]))
     return result
 
 
@@ -152,6 +154,18 @@ def validate_plan(bundle: dict[str, Any], root: Path | None = None) -> dict[str,
         if not isinstance(actions, list) or not actions or any(not isinstance(a, dict) or not a.get("description") for a in actions):
             errors.append(sid + ": explicit visible actions are required")
             actions = []
+        cursor = 0
+        for phase in shot.get("action_phases", []):
+            if not 0 <= phase["start"] < phase["end"] <= shot["planned_seconds"] or phase["start"] < cursor:
+                errors.append(sid + ": action phases must be ordered, non-overlapping and inside source duration")
+            if not phase["description"].strip():
+                errors.append(sid + ": action phase description cannot be empty")
+            cursor = phase["end"]
+        policy = brief.get("audio_policy")
+        if policy in {"silent", "voiceover"} and shot.get("audio", {}).get("mode") in {"native-dialogue", "offscreen"}:
+            errors.append(sid + ": source dialogue contradicts selected audio policy")
+        if policy == "silent" and shot.get("audio", {}).get("lines"):
+            errors.append(sid + ": silent workflow cannot include spoken lines")
         if shot.get("role") == "reaction" and not any(a.get("kind") == "reaction" for a in actions):
             errors.append(sid + ": reaction tag has no declared observable reaction")
         for contact in shot.get("contacts", []):
@@ -238,6 +252,27 @@ def validate_plan(bundle: dict[str, Any], root: Path | None = None) -> dict[str,
             errors.append(cid + ": unknown source job")
     from ..timeline.model import validate_timeline
     errors.extend(validate_timeline(timeline))
+    target = brief.get("target_seconds")
+    if target and not validate_timeline(timeline):
+        from ..timeline.model import mapping
+        if abs(mapping(timeline)["duration"] - target) > 0.05:
+            errors.append("timeline: retained duration differs from brief.target_seconds")
+    if brief.get("workflow_profile") == "explainer":
+        from ..education import validate_research
+        research_report = validate_research(bundle, root=root, ready=False)
+        errors.extend(research_report["errors"])
+        warnings.extend(research_report["warnings"])
+    for reference in brief.get("reference_profiles", []):
+        if root:
+            try:
+                path = within(root, reference["path"])
+                if hashlib.sha256(path.read_bytes()).hexdigest() != reference["sha256"]:
+                    errors.append("Reference profile bytes changed; reattach the reviewed profile")
+                else:
+                    from ..references import validate_profile
+                    errors.extend(validate_profile(path))
+            except ConfigError as error:
+                errors.append(str(error))
     clip_to_job = {cid: jobs.get(c.get("job_id"), {}) for cid, c in clips.items()}
     for seg in timeline.get("segments", []):
         sid = seg.get("shot_id")
@@ -269,7 +304,7 @@ def validate_plan(bundle: dict[str, Any], root: Path | None = None) -> dict[str,
             "coverage": coverage, "final_state": state, "paid_creates": 0}
 
 
-def compile_job(bundle: dict[str, Any], job: dict[str, Any], *, max_bytes: int) -> dict[str, Any]:
+def compile_job(bundle: dict[str, Any], job: dict[str, Any], *, max_bytes: int, root: Path | None = None) -> dict[str, Any]:
     """Project only this job's shots; nothing from the future story or cast."""
     shots = {shot["id"]: shot for shot in bundle["director"]["shots"]}
     assets = {asset["id"]: asset for asset in bundle["director"].get("assets", [])}
@@ -277,6 +312,12 @@ def compile_job(bundle: dict[str, Any], job: dict[str, Any], *, max_bytes: int) 
     sections, retained = [], []
     style = bundle["brief"].get("visual_style", "cinematic natural light")
     sections.append("Visual style: " + style)
+    if root and bundle["brief"].get("reference_profiles"):
+        from ..references import style_notes
+        notes = style_notes(root, bundle)
+        if notes:
+            sections.append("Observed reference style (adapt these visual observations): " + json.dumps(notes, ensure_ascii=False))
+            retained.append("brief.reference_profiles.observed_style")
     for sid in job["shot_ids"]:
         shot = shots[sid]
         sections.append("Current shot " + sid + ": " + shot["information_goal"])
@@ -293,12 +334,19 @@ def compile_job(bundle: dict[str, Any], job: dict[str, Any], *, max_bytes: int) 
         for aid in shot.get("asset_ids", []):
             asset = assets[aid]
             sections.append("Visible " + aid + ": " + asset["description"])
+            if asset.get("invariants"):
+                sections.append("Maintain identity/wardrobe: " + "; ".join(asset["invariants"]))
         for action in shot["actions"]:
             sections.append("Subject action: " + action["description"])
         if shot.get("performance"):
             sections.append("Acting: " + json.dumps(shot["performance"], ensure_ascii=False, separators=(",", ":")))
         if shot.get("contacts"):
             sections.append("Contacts: " + json.dumps(shot["contacts"], ensure_ascii=False, separators=(",", ":")))
+        if shot.get("action_phases"):
+            sections.append("Source-time action phases: " + json.dumps(shot["action_phases"], ensure_ascii=False, separators=(",", ":")))
+            retained.append(sid + ".action_phases")
+        if shot.get("visual_purpose"):
+            sections.append("Visual purpose: " + shot["visual_purpose"] + ". Exact maps, labels and statistics are added in postproduction.")
         audio = shot.get("audio", {"mode": "ambience"})
         sections.append("Audio strategy: " + str(audio.get("mode")))
         if audio.get("mode") == "independent-voice":
@@ -332,6 +380,6 @@ def save_bundle(root: Path, bundle: dict[str, Any]) -> None:
     if (root / "project.json").exists():
         raise ConfigError("Project already exists; edit its layer files in place")
     root.mkdir(parents=True, exist_ok=True)
-    for name in LAYERS:
+    for name in (*LAYERS, *(name for name in ("research",) if name in bundle)):
         atomic_json(root / (name + ".json"), bundle[name])
     atomic_json(root / "project.json", bundle["project"])

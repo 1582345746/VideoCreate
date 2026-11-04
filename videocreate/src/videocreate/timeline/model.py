@@ -85,6 +85,20 @@ def validate_timeline(timeline: dict[str, Any]) -> list[str]:
                     errors.append("timeline.subtitles: cue is cut by the retained source window")
         elif not all(number(cue.get(k)) for k in ("start", "end")) or not 0 <= cue["start"] < cue["end"] <= cursor + 0.001:
             errors.append("timeline.subtitles: invalid timeline cue")
+    overlay_ids = set()
+    for item in timeline.get("overlays", []):
+        if not isinstance(item, dict) or not isinstance(item.get("id"), str) or item["id"] in overlay_ids:
+            errors.append("timeline.overlays: unique id required")
+            continue
+        overlay_ids.add(item["id"])
+        if bool(item.get("text")) == bool(item.get("path")):
+            errors.append(item["id"] + ": overlay needs exactly one of text or image path")
+        if any(not isinstance(item[k], str) for k in ("text", "path") if k in item):
+            errors.append(item["id"] + ": text/path must be strings")
+        if not all(number(item.get(k)) for k in ("start", "end")) or not 0 <= item["start"] < item["end"] <= cursor+.001:
+            errors.append(item["id"] + ": overlay interval outside timeline")
+        if item.get("position", "bottom") not in {"top", "center", "bottom"}:
+            errors.append(item["id"] + ": invalid overlay position")
     return errors
 
 

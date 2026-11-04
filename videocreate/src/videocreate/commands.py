@@ -5,9 +5,10 @@ import json
 import sys
 from pathlib import Path
 
-from .catalog.bindings import Binding, capabilities, route_bindings
+from .catalog.bindings import Binding, capabilities, configured_binding, route_bindings, validate_request
 from .config.storage import ConfigError, atomic_json, load_json, user_config_path
 from .planning.project import LAYERS, compile_job, load_project, save_bundle, validate_plan
+from .planning.schema import plan_schema
 
 
 def workflow_command(argv: list[str]) -> int:
@@ -41,9 +42,14 @@ def workflow_command(argv: list[str]) -> int:
 def plan_command(argv: list[str]) -> int:
     from .cli import print_result, read_config
     parser = argparse.ArgumentParser(prog="videocreate plan")
-    parser.add_argument("action", choices=["init", "validate", "compile", "preview"])
-    parser.add_argument("project", type=Path)
+    parser.add_argument("action", choices=["init", "validate", "compile", "preview", "route", "schema"])
+    parser.add_argument("project", nargs="?", type=Path)
+    parser.add_argument("--output", type=Path, help="Output path for `plan schema`")
     parser.add_argument("--example", choices=["smart-car"])
+    parser.add_argument("--profile", choices=["portrait", "action-insert", "scenic", "explainer", "series-episode"])
+    parser.add_argument("--seconds", type=float)
+    parser.add_argument("--topic", default="")
+    parser.add_argument("--aspect-ratio", choices=["16:9", "9:16"], default="16:9")
     parser.add_argument("--title", default="未命名视频")
     parser.add_argument("--intent", choices=["narrative", "demonstration", "montage", "single-shot"], default="narrative")
     parser.add_argument("--pace", choices=["comedy", "dialogue", "slow-cinema", "suspense", "product-demo", "action"], default="comedy")
@@ -52,11 +58,25 @@ def plan_command(argv: list[str]) -> int:
     parser.add_argument("--job", action="append")
     parser.add_argument("--video", action="store_true", help="Render local text storyboard cards to MP4; no model calls")
     args = parser.parse_args(argv)
+    if args.action == "schema":
+        if not args.output:
+            raise ConfigError("plan schema requires --output")
+        destination = args.output.resolve()
+        atomic_json(destination, plan_schema())
+        print_result({"ok": True, "schema": str(destination), "paid_creates": 0})
+        return 0
+    if not args.project:
+        raise ConfigError("This plan action requires PROJECT")
     root = args.project.resolve()
     if args.action == "init":
         from .planning.examples import smart_car
         bundle = smart_car()
-        if not args.example:
+        if args.example and args.profile:
+            raise ConfigError("Choose either --example or --profile")
+        if args.profile:
+            from .planning.profiles import create
+            bundle = create(args.profile, title=args.title, seconds=args.seconds, topic=args.topic, aspect_ratio=args.aspect_ratio)
+        elif not args.example:
             bundle["project"]["title"] = args.title
             bundle["brief"].update(intent=args.intent, pace_profile=args.pace)
             bundle["brief"].pop("product", None)
@@ -70,6 +90,11 @@ def plan_command(argv: list[str]) -> int:
             "next": "Author brief/story/director/generation-plan/timeline, then plan validate and plan preview", "paid_creates": 0})
         return 0
     bundle = load_project(root)
+    if args.action == "route":
+        from .routing import recommend
+        path = user_config_path(args.config)
+        print_result(recommend(bundle, read_config(path), store_root=path.parent))
+        return 0
     report = validate_plan(bundle, root)
     if args.action == "validate":
         print_result(report)
@@ -92,7 +117,16 @@ def plan_command(argv: list[str]) -> int:
         item = config["bindings"].get(bid)
         if not item or item["model"] != mid:
             raise ConfigError("Compile binding must reference the job's model")
-        compiled = compile_job(bundle, job, max_bytes=capabilities(config, item)["max_prompt_bytes"])
+        compiled = compile_job(bundle, job, max_bytes=capabilities(config, item)["max_prompt_bytes"], root=root)
+        binding = configured_binding(config, bid)
+        shots = [shot for shot in bundle["director"]["shots"] if shot["id"] in job["shot_ids"]]
+        request = validate_request(binding, {"operation": job["operation"], "prompt": compiled["prompt"],
+            "seconds": job["seconds"], "resolution": bundle["brief"]["resolution"],
+            "aspect_ratio": bundle["brief"]["aspect_ratio"],
+            "generate_audio": any(shot.get("audio", {}).get("mode", "ambience") in {"native-dialogue", "offscreen", "ambience"} for shot in shots),
+            "references": [None] * len(job.get("references", []))})
+        if not request["ok"]:
+            raise ConfigError(job["id"] + ": " + "; ".join(request["errors"]))
         destination = root / "jobs" / job["id"] / "compiled.preview.json"
         atomic_json(destination, compiled)
         rows.append({"job_id": job["id"], "binding_id": bid, "enabled": item["enabled"],
@@ -108,17 +142,30 @@ def jobs_command(argv: list[str]) -> int:
     from .runtime.state import read_state
     from .runtime.budget import summary
     parser = argparse.ArgumentParser(prog="videocreate jobs")
-    parser.add_argument("action", choices=["run", "status", "cancel-local", "resolve", "settle"])
+    parser.add_argument("action", choices=["run", "status", "cancel-local", "resolve", "settle", "candidates", "select"])
     parser.add_argument("project", type=Path)
     parser.add_argument("--job", action="append")
     parser.add_argument("--config", type=Path)
     parser.add_argument("--poll-timeout", type=int, default=900)
     parser.add_argument("--retry", choices=["network", "content", "replan"])
     parser.add_argument("--reason", default="")
+    parser.add_argument("--attempt")
     parser.add_argument("--receipt", type=Path)
     args = parser.parse_args(argv)
     root = args.project.resolve()
     load_project(root)
+    if args.action in {"candidates", "select"}:
+        from .runtime.candidates import list_candidates, select
+        if args.action == "select":
+            if not args.job or len(args.job) != 1 or not args.attempt:
+                raise ConfigError("Select requires one --job and --attempt, plus --reason")
+            result = select(root, args.job[0], args.attempt, args.reason)
+        else:
+            if args.job and len(args.job) != 1:
+                raise ConfigError("List candidates for one --job or omit it for all jobs")
+            result = list_candidates(root, args.job[0] if args.job else None)
+        print_result(result)
+        return 0
     if args.action == "settle":
         if not args.receipt:
             raise ConfigError("Settlement requires a billing --receipt and actual upstream evidence")
@@ -201,14 +248,17 @@ def review_command(argv: list[str]) -> int:
     from .cli import print_result
     from .review.receipts import apply, summary, template
     parser = argparse.ArgumentParser(prog="videocreate review")
-    parser.add_argument("action", choices=["template", "apply", "status"])
+    parser.add_argument("action", choices=["template", "apply", "status", "packet"])
     parser.add_argument("project", type=Path)
     parser.add_argument("--receipt", type=Path)
     parser.add_argument("--output-name", default="preview.mp4")
     args = parser.parse_args(argv)
     root = args.project.resolve()
     bundle = load_project(root)
-    if args.action == "template":
+    if args.action == "packet":
+        from .review.packet import packet
+        print_result(packet(root, bundle, output_name=args.output_name))
+    elif args.action == "template":
         path = root / "reviews" / "content-review.template.json"
         atomic_json(path, template(root, bundle, output_name=args.output_name))
         print_result({"ok": True, "template": str(path), "status": "unverified"})
@@ -225,11 +275,13 @@ def assets_command(argv: list[str]) -> int:
     from .cli import print_result, read_config
     from .assets import generate_image, register, recover_image
     parser = argparse.ArgumentParser(prog="videocreate assets")
-    parser.add_argument("action", choices=["register", "image", "recover"])
+    parser.add_argument("action", choices=["register", "image", "recover", "handoff"])
     parser.add_argument("project", type=Path)
     parser.add_argument("--asset-id")
     parser.add_argument("--source", type=Path)
     parser.add_argument("--job-id")
+    parser.add_argument("--at", type=float)
+    parser.add_argument("--next-job")
     parser.add_argument("--prompt-file", type=Path)
     parser.add_argument("--reference", action="append", type=Path, default=[])
     parser.add_argument("--config", type=Path)
@@ -240,7 +292,12 @@ def assets_command(argv: list[str]) -> int:
     args = parser.parse_args(argv)
     root = args.project.resolve()
     load_project(root)
-    if args.action == "register":
+    if args.action == "handoff":
+        from .runtime.candidates import handoff
+        if not args.job_id or args.at is None:
+            raise ConfigError("Handoff requires --job-id and --at source timestamp")
+        print_result(handoff(root, args.job_id, args.at, next_job=args.next_job))
+    elif args.action == "register":
         if not args.asset_id or not args.source:
             raise ConfigError("Register requires --asset-id and --source")
         print_result(register(root, args.asset_id, args.source))

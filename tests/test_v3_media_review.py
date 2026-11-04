@@ -34,8 +34,13 @@ class ReviewTests(unittest.TestCase):
         final = self.root / "deliverables/preview.mp4"
         final.parent.mkdir()
         final.write_bytes(b"synthetic final contract fixture")
+        # This contract-only fixture represents all source clips using the same
+        # local bytes. A final manifest must account for every timeline input.
+        for clip in self.bundle["timeline"]["clips"]:
+            clip["path"] = raw.relative_to(self.root).as_posix()
         atomic_json(final.with_suffix(".manifest.json"), {"sha256": receipts.file_hash(final),
-            "timeline_hash": content_hash(self.bundle["timeline"]), "media": {"duration": 30}})
+            "timeline_hash": content_hash(self.bundle["timeline"]), "media": {"duration": 30},
+            "source_hashes": {clip["id"]: receipts.file_hash(raw) for clip in self.bundle["timeline"]["clips"]}})
         self.receipt = receipts.template(self.root, self.bundle)
         self.receipt["reviewer_id"] = "fixture-reviewer"
         for asset in self.receipt["assets"].values():

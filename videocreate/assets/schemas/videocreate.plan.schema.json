@@ -1,4 +1,6 @@
 {
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "VideoCreate v3 production plan",
   "type": "object",
   "properties": {
     "project": {
@@ -29,6 +31,9 @@
               "type": "string"
             },
             "timeline": {
+              "type": "string"
+            },
+            "research": {
               "type": "string"
             }
           },
@@ -89,6 +94,49 @@
             "type": "string"
           },
           "uniqueItems": true
+        },
+        "workflow_profile": {
+          "type": "string",
+          "enum": [
+            "portrait",
+            "action-insert",
+            "scenic",
+            "explainer",
+            "series-episode"
+          ]
+        },
+        "audio_policy": {
+          "type": "string",
+          "enum": [
+            "silent",
+            "ambience",
+            "voiceover",
+            "dialogue",
+            "native-experimental"
+          ]
+        },
+        "target_seconds": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "reference_profiles": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string"
+              },
+              "sha256": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "path",
+              "sha256"
+            ],
+            "additionalProperties": false
+          }
         },
         "product": {
           "type": "object",
@@ -228,6 +276,13 @@
               },
               "identity_origin": {
                 "type": "string"
+              },
+              "invariants": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "uniqueItems": true
               }
             },
             "required": [
@@ -383,6 +438,59 @@
               },
               "cut_motivation": {
                 "type": "string"
+              },
+              "action_phases": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "phase": {
+                      "type": "string",
+                      "enum": [
+                        "prepare",
+                        "anticipation",
+                        "action",
+                        "contact",
+                        "recovery",
+                        "settle"
+                      ]
+                    },
+                    "start": {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "end": {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "description": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "phase",
+                    "start",
+                    "end",
+                    "description"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "claim_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "uniqueItems": true
+              },
+              "visual_purpose": {
+                "type": "string",
+                "enum": [
+                  "illustration",
+                  "evidence",
+                  "map",
+                  "graphic"
+                ]
               },
               "contacts": {
                 "type": "array",
@@ -577,6 +685,13 @@
                   "type": "string"
                 },
                 "uniqueItems": true
+              },
+              "required_quality_checks": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "uniqueItems": true
               }
             },
             "required": [
@@ -761,6 +876,45 @@
             ],
             "additionalProperties": false
           }
+        },
+        "overlays": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "text": {
+                "type": "string"
+              },
+              "path": {
+                "type": "string"
+              },
+              "start": {
+                "type": "number",
+                "minimum": 0
+              },
+              "end": {
+                "type": "number",
+                "minimum": 0
+              },
+              "position": {
+                "type": "string",
+                "enum": [
+                  "top",
+                  "bottom",
+                  "center"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "start",
+              "end"
+            ],
+            "additionalProperties": false
+          }
         }
       },
       "required": [
@@ -769,6 +923,9 @@
         "segments"
       ],
       "additionalProperties": false
+    },
+    "research": {
+      "type": "object"
     }
   },
   "required": [

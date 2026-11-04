@@ -17,6 +17,8 @@ API 对象不能混为一谈：
 
 `capability_overrides` 是上游合同证据的人工配置入口，不是目录探测。只填已核实的条件限制。能力快照等级仍保持 `configured`。精确模型名在目录出现也不代表生成成功。
 
+`muse-video` 单次请求最多 10 秒。VideoCreate 会按模型身份强制该上限，能力覆盖不能把它提高；超出时长会在路由、编译和 `jobs run` 提交前被拒绝。需要更长成片时，将其拆成多个不超过 10 秒的任务，再在本地时间线上剪辑拼接。
+
 `auth` 必须且只能包含一种凭据来源：JSON 内的 `api_key`、环境变量名 `env`，或本机 DPAPI 的 `secret_ref`。`config show`、日志、项目快照不得输出凭据值。发布包不包含真实用户配置。
 
 受硬金额上限约束时，必须在对应 binding 添加经上游确认的 `pricing.currency`，以及按请求和/或秒的价格；否则阻断，不能把未知记为零。没有 hard cap 时仍受 max request 数限制。
@@ -36,6 +38,6 @@ python scripts/videocreate.py doctor
 
 `config effective` 不读取密钥，逐项显示值和来源。新生成采用项目 job 的 model/binding 优先于配置默认；显式 binding 选择固定到该候选。项目 brief 的画幅、分辨率和节奏优先于配置。已存在的 task 继续按原快照恢复，不因默认值变更搬到另一上游。声音以每个 shot.audio 为准，配置 audio_mode 是旧项目初始化默认，不能替代每镜策略。
 
-`capabilities status --binding <id>` 展示 configured、catalog、contract、smoke 和 quality。后四项分别有自己的证据；一个阶段通过不会替另一个阶段通过，也不会自动修改 capability_overrides。`doctor --read-only` 会保存目录响应及其哈希。其他证据用 `capabilities record --binding <id> --receipt <JSON>` 导入，字段为 binding_fingerprint、stage、result(pass/fail)、operation、reviewer_id、method、checks（布尔观察项）、evidence（绝对 path/sha256）。生成与质量通过还需原 attempt_id/task_id。证据过期或缺失维持 unverified；报告显示 reported_pass 表示已记录观察，不能推广为所有场景的能力保证。
+`capabilities status --binding <id>` 展示 configured、catalog、contract、smoke 和 quality。后四项分别有自己的证据；一个阶段通过不会替另一个阶段通过，也不会自动修改 capability_overrides。`doctor --read-only` 会保存目录响应及其哈希。其他证据用 `capabilities record --binding <id> --receipt <JSON>` 导入，字段为 binding_fingerprint、stage、result(pass/fail)、operation、reviewer_id、method、checks（布尔观察项）、evidence（绝对 path/sha256）。质量回执还需 `project_root`、原 attempt_id/task_id，并且证据必须包含该项目状态中同一 binding 下已完成任务的原始下载视频及匹配哈希。这样可阻止抽帧或文本文件被误记为动态质量观察。证据过期或缺失维持 unverified；报告显示 reported_pass 表示已记录观察，不能推广为所有场景的能力保证。
 
 升级迁移用 `config migrate --source <旧配置目录> --destination <新配置目录>` 先预览，追加 `--apply` 才写入，已有目标配置不会覆盖。旧项目用 `config migrate-project --project <旧项目>` 检查，`--apply` 只写兼容迁移回执，原 project/state/素材不转写。旧创作合同不能机械变成新的导演合同；通过 `legacy <原命令>` 恢复旧任务，新创作另建 v3 计划。

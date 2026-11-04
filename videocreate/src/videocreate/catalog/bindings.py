@@ -11,6 +11,12 @@ from ..config.storage import ConfigError, resolve_key
 
 ADAPTER_ALIASES = {"sub2api-json-v1": "sub2api-json", "newapi-json-v1": "newapi-json",
                    "newapi-multipart-v1": "newapi-multipart", "openai-images-v1": "openai-images"}
+MUSE_VIDEO_MAX_SECONDS = 10
+
+
+def _is_muse_video(binding: dict[str, Any]) -> bool:
+    return any(str(binding.get(key, "")).strip().casefold() == "muse-video"
+               for key in ("model", "remote_model"))
 
 
 @dataclass(frozen=True)
@@ -54,6 +60,11 @@ def capabilities(config: dict[str, Any], binding: dict[str, Any]) -> dict[str, A
     if set(overrides) - allowed:
         raise ConfigError("capability_overrides: unknown capability field or read-only verification level")
     result.update(copy.deepcopy(overrides))
+    if video and _is_muse_video(binding):
+        duration = result["duration"]
+        if duration["minimum"] > MUSE_VIDEO_MAX_SECONDS:
+            raise ConfigError("Muse Video duration minimum cannot exceed its 10-second request limit")
+        duration["maximum"] = min(duration["maximum"], MUSE_VIDEO_MAX_SECONDS)
     if binding.get("adapter_options", {}).get("include_generate_audio_field") is False:
         result["audio_control"] = "model-default"
     return result
@@ -116,8 +127,13 @@ def validate_request(binding: Binding, request: dict[str, Any]) -> dict[str, Any
     if seconds is not None:
         if not isinstance(seconds, (int, float)) or isinstance(seconds, bool) or not duration:
             errors.append("Duration constraint is unknown or invalid")
-        elif not duration["minimum"] <= seconds <= duration["maximum"] or abs((seconds-duration["minimum"])/duration["step"]-round((seconds-duration["minimum"])/duration["step"])) > 1e-6:
-            errors.append("Duration is outside this binding's supported range/step")
+        else:
+            maximum = duration["maximum"]
+            if _is_muse_video({"model": binding.model, "remote_model": binding.remote_model}):
+                maximum = min(maximum, MUSE_VIDEO_MAX_SECONDS)
+            if (not duration["minimum"] <= seconds <= maximum
+                    or abs((seconds-duration["minimum"])/duration["step"]-round((seconds-duration["minimum"])/duration["step"])) > 1e-6):
+                errors.append("Duration is outside this binding's supported range/step")
     for field, plural in (("resolution", "resolutions"), ("aspect_ratio", "aspect_ratios")):
         if field in request and request[field] not in caps.get(plural, []):
             errors.append(f"Unsupported {field} for this binding")

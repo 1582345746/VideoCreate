@@ -215,7 +215,7 @@ def prepare(root: Path, config: dict, workflow_id: str | None, stage_id: str, *,
             raise ConfigError("Unknown selected job")
         if job["operation"] != stage["operation"]:
             raise ConfigError("Selected job operation differs from workflow stage; explicitly update the job and its references first")
-        compiled = compile_job(bundle, job, max_bytes=byte_limit)
+        compiled = compile_job(bundle, job, max_bytes=byte_limit, root=root)
         prompt = compiled["prompt"]
         requested["seconds"] = job["seconds"]
         source.update(job_id=job_id, shot_ids=job["shot_ids"], compiled=compiled)

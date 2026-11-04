@@ -21,6 +21,7 @@ IDs 互不替代：beat 是状态事件，shot 是镜头覆盖，job 是 API cre
 ## 命令顺序
 
 ```powershell
+python scripts/videocreate.py plan schema --output .\videocreate.plan.schema.json
 python scripts/videocreate.py plan init project --example smart-car
 python scripts/videocreate.py plan validate project
 python scripts/videocreate.py plan compile project --config <config-file>
@@ -34,6 +35,8 @@ python scripts/videocreate.py review template project
 python scripts/videocreate.py review apply project --receipt project/reviews/observed.json
 python scripts/videocreate.py review status project
 ```
+
+人物/动作短片、科普和连续剧的生产步骤见 [production-workflows.md](production-workflows.md)。
 
 `plan compile/preview`, `timeline map/validate`, `jobs status` are local/read-only. `jobs run` creates billable tasks and must follow the active user authorization, configured request limits and pricing. Initially run two adjacent critical shots first, then inspect before expanding. Binding constraints are enforced before state reservation. Unknown submissions are held.
 

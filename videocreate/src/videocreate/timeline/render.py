@@ -52,7 +52,8 @@ def resolve_clips(root: Path, timeline: dict, state: dict) -> dict[str, Path]:
         if clip.get("path"):
             paths[clip["id"]] = within(root, clip["path"])
         else:
-            record = state.get("jobs", {}).get(clip["job_id"], {})
+            from ..runtime.candidates import selected
+            record = selected(state.get("jobs", {}).get(clip["job_id"], {}))
             artifact = record.get("artifact", {})
             if record.get("status") != "completed" or not artifact.get("path"):
                 raise ConfigError("Clip job is not completed: " + clip["job_id"])
@@ -70,6 +71,11 @@ def subtitle_file(path: Path, cues: list[dict]) -> None:
     path.write_text("\n\n".join(f"{i}\n{stamp(cue['start'])} --> {stamp(cue['end'])}\n{cue['text']}" for i, cue in enumerate(cues, 1)) + "\n", encoding="utf-8")
 
 
+def auxiliary_hashes(root: Path, timeline: dict) -> dict:
+    return {entry["path"]: hashlib.sha256(within(root, entry["path"]).read_bytes()).hexdigest()
+        for group in ("audio_tracks", "overlays") for entry in timeline.get(group, []) if entry.get("path")}
+
+
 def render(root: Path, bundle: dict, state: dict, *, output_name: str = "preview.mp4") -> dict:
     ffmpeg = shutil.which("ffmpeg")
     if not ffmpeg:
@@ -79,6 +85,7 @@ def render(root: Path, bundle: dict, state: dict, *, output_name: str = "preview
     timeline = bundle["timeline"]
     plan = mapping(timeline)
     clips = resolve_clips(root, timeline, state)
+    auxiliary = auxiliary_hashes(root, timeline)
     media = {cid: probe(path) for cid, path in clips.items()}
     width, height = timeline.get("width", 720), timeline.get("height", 1280)
     if not isinstance(width, int) or not isinstance(height, int) or width % 2 or height % 2 or not 64 <= width <= 4096 or not 64 <= height <= 4096:
@@ -138,6 +145,10 @@ def render(root: Path, bundle: dict, state: dict, *, output_name: str = "preview
             run(args)
         else:
             run([ffmpeg, "-v", "error", "-y", "-i", str(base), "-c", "copy", "-movflags", "+faststart", str(final_temp)])
+        if timeline.get("overlays"):
+            from .overlays import composite
+            composite(root, timeline, final_temp, folder / "composited.mp4", folder, ffmpeg, plan["duration"])
+            final_temp = folder / "composited.mp4"
         final_media = probe(final_temp)
         run([ffmpeg, "-v", "error", "-i", str(final_temp), "-f", "null", "-"])
         final_temp.replace(target)
@@ -145,6 +156,7 @@ def render(root: Path, bundle: dict, state: dict, *, output_name: str = "preview
     manifest = {"schema_version": 3, "status": "draft_preview", "path": str(target), "sha256": hashlib.sha256(target.read_bytes()).hexdigest(),
         "timeline_hash": content_hash(timeline), "mapping": plan, "media": final_media,
         "source_hashes": {cid: hashlib.sha256(path.read_bytes()).hexdigest() for cid, path in clips.items()},
+        "auxiliary_hashes": auxiliary,
         "fps_report": fps_notes, "technical_decode": "pass", "audio_content": "unverified", "content": "unverified", "paid_creates": 0}
     atomic_json(target.with_suffix(".manifest.json"), manifest)
     return {"ok": True, **manifest}
