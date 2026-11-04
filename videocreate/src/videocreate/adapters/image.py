@@ -30,7 +30,7 @@ class BindingImageClient:
             "references": [{"name": p.name, "sha256": hashlib.sha256(p.read_bytes()).hexdigest()} for p in references],
             "parameter_consumption": {k: "transmitted" for k in ("model", "prompt", "size", "quality", "references")}}
 
-    def create(self, prompt: str, references: list[Path], *, size: str, quality: str) -> bytes:
+    def create_payload(self, prompt: str, references: list[Path], *, size: str, quality: str) -> dict:
         self.prepare(prompt, references, size=size, quality=quality)
         from ..cli import legacy_engine
         legacy_engine()
@@ -45,4 +45,8 @@ class BindingImageClient:
                 body=body, content_type=content_type, **options)
         else:
             payload = wire.request_json("POST", wire.api_url(binding.base_url, "/v1/images/generations"), value=fields, **options)
-        return wire._extract_image(payload)
+        return payload
+
+    def create(self, prompt: str, references: list[Path], *, size: str, quality: str) -> bytes:
+        import media_client as wire
+        return wire._extract_image(self.create_payload(prompt, references, size=size, quality=quality))

@@ -7,12 +7,14 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import threading
+import time
 import unittest
 from unittest import mock
 
 from test_v3_config import ROOT, config
 from videocreate.adapters.image import BindingImageClient
-from videocreate.assets import generate_image, recover_image
+from videocreate.assets import generate_image, generate_images, recover_image
 from videocreate.catalog.bindings import configured_binding
 from videocreate.catalog.evidence import record, status
 from videocreate.config.effective import effective
@@ -25,6 +27,7 @@ from videocreate.runtime.budget import reserve
 from videocreate.runtime.limits import submission_slot
 from videocreate.runtime.settlement import settle
 from videocreate.runtime.state import read_state, save_state
+from videocreate.review.receipts import inbox, review_image
 
 
 class DeliveryTests(unittest.TestCase):
@@ -102,7 +105,7 @@ class DeliveryTests(unittest.TestCase):
         self.assertEqual(result, png)
         self.assertEqual(post.call_args.args[1], "https://images.example.test/v1/images/generations")
         self.assertEqual(post.call_args.kwargs["key"], "image-only-credential")
-        with mock.patch("videocreate.adapters.image.BindingImageClient.create", side_effect=TimeoutError("unknown")) as create:
+        with mock.patch("videocreate.adapters.image.BindingImageClient.create_payload", side_effect=TimeoutError("unknown")) as create:
             with self.assertRaises(ConfigError):
                 generate_image(self.root, self.config, store_root=self.root, job_id="image-1", prompt="Opening", references=[])
             with self.assertRaises(ConfigError):
@@ -120,10 +123,63 @@ class DeliveryTests(unittest.TestCase):
 
     def test_saturated_image_instance_reserves_no_attempt(self):
         save_bundle(self.root, smart_car())
+        self.config["upstreams"]["image-service"]["max_concurrent_submissions"] = 1
         with submission_slot(self.root, "image-service", 1):
             with self.assertRaisesRegex(ConfigError, "concurrency"):
                 generate_image(self.root, self.config, store_root=self.root, job_id="image-busy", prompt="Opening", references=[])
         self.assertFalse(read_state(self.root)["ledger"])
+
+    def test_image_batch_prevalidates_then_runs_with_configured_parallelism(self):
+        import base64
+        save_bundle(self.root, smart_car())
+        self.config["execution"]["max_concurrent_image_tasks"] = 2
+        self.config["upstreams"]["image-service"]["max_concurrent_submissions"] = 2
+        png = base64.b64encode(b"not-a-real-png").decode()
+        active = 0
+        peak = 0
+        guard = threading.Lock()
+        def create_payload(*args, **kwargs):
+            nonlocal active, peak
+            with guard:
+                active += 1
+                peak = max(peak, active)
+            time.sleep(0.08)
+            with guard:
+                active -= 1
+            return {"data": [{"b64_json": png}]}
+        items = [{"job_id": f"image-{index}", "prompt": f"Frame {index}", "references": []} for index in range(3)]
+        with mock.patch("videocreate.adapters.image.BindingImageClient.create_payload", side_effect=create_payload), \
+             mock.patch("media_client._extract_image", return_value=b"fake-image-bytes"), \
+             mock.patch("media_client.save_image_bytes", side_effect=lambda data, target: target.with_suffix(".png")):
+            result = generate_images(self.root, self.config, store_root=self.root, items=items)
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(peak, 2)
+        self.assertEqual(len(read_state(self.root)["ledger"]), 3)
+        invalid = [{"job_id": "image-4", "prompt": "valid", "references": []},
+                   {"job_id": "image-5", "prompt": "   ", "references": []}]
+        with mock.patch("videocreate.adapters.image.BindingImageClient.create_payload") as create:
+            with self.assertRaises(ConfigError):
+                generate_images(self.root, self.config, store_root=self.root, items=invalid)
+            create.assert_not_called()
+
+    def test_review_inbox_orders_completed_assets_and_image_receipt_updates_state(self):
+        image = self.root / "assets" / "generated" / "image-1.png"
+        image.parent.mkdir(parents=True)
+        image.write_bytes(b"reviewable image")
+        state = read_state(self.root)
+        state["jobs"] = {
+            "image-1": {"kind": "image", "status": "completed", "completed_at": 20,
+                "content_status": "unverified", "artifact": {"path": image.relative_to(self.root).as_posix(),
+                    "sha256": hashlib.sha256(image.read_bytes()).hexdigest()}},
+            "video-1": {"kind": "video", "status": "completed", "completed_at": 10,
+                "content_status": "unverified", "artifact": {"path": "jobs/video-1/source.mp4", "sha256": "x"}},
+            "video-2": {"kind": "video", "status": "queued", "created_at": 1}}
+        save_state(self.root, state)
+        self.assertEqual([item["job_id"] for item in inbox(self.root)["items"]], ["video-1", "image-1"])
+        result = review_image(self.root, job_id="image-1", status="pass", reviewer_id="reviewer",
+            observation="The image has the intended subject and no visible artifact")
+        self.assertEqual(result["status"], "reviewed")
+        self.assertEqual([item["job_id"] for item in inbox(self.root, pending_only=True)["items"]], ["video-1"])
 
     def test_modern_product_exception_and_independent_voice_do_not_conflict(self):
         bundle = smart_car()

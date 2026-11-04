@@ -31,6 +31,8 @@ def capability_schema() -> dict[str, Any]:
     positive = {"type": "number", "exclusiveMinimum": 0}
     return obj({
         "max_prompt_bytes": POS, "max_reference_images": {"type": "integer", "minimum": 0},
+        "max_additional_reference_images": {"type": "integer", "minimum": 0},
+        "image_to_video_requires_primary": BOOL,
         "reference_mime_types": STRING_LIST,
         "duration": obj({"minimum": positive, "maximum": positive, "step": positive}, ("minimum", "maximum", "step")),
         "resolutions": STRING_LIST, "aspect_ratios": STRING_LIST,
@@ -88,7 +90,9 @@ def configuration_schema() -> dict[str, Any]:
                 "model": STR, "binding": STR, "service": STR, "input_from": STR,
             }, ("id", "executor", "operation"))},
         }, ("stages",))},
-        "execution": obj({"allow_cross_model_fallback": {"const": False}, "unknown_submission": {"const": "hold-and-reconcile"},
+        "execution": obj({"max_concurrent_image_tasks": {"type": "integer", "minimum": 1, "maximum": 50},
+            "max_concurrent_video_tasks": {"type": "integer", "minimum": 1, "maximum": 50},
+            "allow_cross_model_fallback": {"const": False}, "unknown_submission": {"const": "hold-and-reconcile"},
             "read_retry_attempts": POS, "max_create_attempts_per_task": POS, "require_binding_snapshot": {"const": True},
             "paid_probe_on_install": {"const": False}}),
         "budget": obj({"currency": STR, "max_total": {"type": ["number", "null"], "minimum": 0},

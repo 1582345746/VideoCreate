@@ -39,7 +39,7 @@
         "type": "bearer",
         "api_key": ""
       },
-      "max_concurrent_submissions": 1,
+      "max_concurrent_submissions": 50,
       "request_timeout_seconds": 120
     },
     "backup-newapi": {
@@ -50,7 +50,7 @@
         "type": "bearer",
         "api_key": ""
       },
-      "max_concurrent_submissions": 1,
+      "max_concurrent_submissions": 50,
       "request_timeout_seconds": 120
     },
     "image-service": {
@@ -61,7 +61,7 @@
         "type": "bearer",
         "api_key": ""
       },
-      "max_concurrent_submissions": 1,
+      "max_concurrent_submissions": 50,
       "request_timeout_seconds": 120
     }
   },
@@ -168,6 +168,8 @@
     }
   },
   "execution": {
+    "max_concurrent_image_tasks": 6,
+    "max_concurrent_video_tasks": 6,
     "allow_cross_model_fallback": false,
     "unknown_submission": "hold-and-reconcile",
     "read_retry_attempts": 3,

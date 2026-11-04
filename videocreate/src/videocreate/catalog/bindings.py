@@ -47,6 +47,7 @@ def capabilities(config: dict[str, Any], binding: dict[str, Any]) -> dict[str, A
     result: dict[str, Any] = {
         "verification_level": "configured", "operations": list(binding["operations"]),
         "max_prompt_bytes": 4096, "max_reference_images": 1,
+        "max_additional_reference_images": 0, "image_to_video_requires_primary": False,
         "reference_mime_types": ["image/jpeg", "image/png", "image/webp"],
         "audio_control": "model-default" if adapter == "sub2api-json-v1" else "explicit" if video else "not-applicable",
         "native_fps": None, "idempotency": "unknown", "cancel": "unsupported",
@@ -148,8 +149,22 @@ def validate_request(binding: Binding, request: dict[str, Any]) -> dict[str, Any
     elif caps.get("audio_control") == "model-default":
         warnings.append("Audio switch is not transmitted: provider/model default controls the output; review actual audio")
     refs = request.get("references", [])
-    if len(refs) > caps.get("max_reference_images", 0):
+    primary = request.get("primary_reference")
+    additional = list(request.get("reference_images", []))
+    if refs and (primary is not None or additional):
+        errors.append("Use either legacy references or explicit primary/reference_images fields")
+    elif refs:
+        primary, additional = refs[0], refs[1:]
+    if additional and primary is None:
+        errors.append("Additional reference images require a primary image")
+    if (request["operation"] == "image-to-video" and
+            caps.get("image_to_video_requires_primary") and primary is None):
+        errors.append("Image-to-video requires one primary image")
+    total_images = int(primary is not None) + len(additional)
+    if total_images > caps.get("max_reference_images", 0):
         errors.append("Too many reference images for this binding")
+    if request["operation"] in {"text-to-video", "image-to-video"} and len(additional) > caps.get("max_additional_reference_images", 0):
+        errors.append("Too many additional reference images for this binding")
     for field in ("video_reference", "audio_reference", "last_frame", "native_fps"):
         if request.get(field) and caps.get(field) in {None, "unknown", "unsupported"}:
             errors.append(f"{field} has not been verified for this binding")

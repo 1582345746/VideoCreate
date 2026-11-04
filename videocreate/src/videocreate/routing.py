@@ -51,10 +51,12 @@ def recommend(bundle, config, *, store_root):
             checks = quality_checks(store_root, binding, job["operation"])
             missing = sorted(set(job.get("required_quality_checks", [])) - set(checks["passed"]))
             shots = [shot for shot in bundle["director"]["shots"] if shot["id"] in job["shot_ids"]]
+            references = job.get("references", [])
             request = validate_request(binding, {"operation": job["operation"], "prompt": "", "seconds": job["seconds"],
                 "resolution": bundle["brief"]["resolution"], "aspect_ratio": bundle["brief"]["aspect_ratio"],
                 "generate_audio": any(shot.get("audio", {}).get("mode", "ambience") in {"native-dialogue", "offscreen", "ambience"} for shot in shots),
-                "references": [None] * len(job.get("references", []))})
+                "primary_reference": object() if any(ref["role"] == "opening-frame" for ref in references) else None,
+                "reference_images": [object() for ref in references if ref["role"] != "opening-frame"]})
             candidates.append({"binding": binding.id, "fingerprint": binding.snapshot()["fingerprint"],
                 "missing_quality_checks": missing, "request_errors": request["errors"], "quality": checks,
                 "eligible": not missing and request["ok"],

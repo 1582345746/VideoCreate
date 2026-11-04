@@ -3,7 +3,9 @@ from __future__ import annotations
 import base64
 import copy
 import hashlib
+import io
 import json
+from contextlib import redirect_stdout
 from pathlib import Path
 import subprocess
 import sys
@@ -14,8 +16,10 @@ from unittest import mock
 from test_v3_config import ROOT, config
 from videocreate.config.schema import configuration_schema, validate_config
 from videocreate.config.storage import ConfigError, atomic_json, load_json
+from videocreate.commands import plan_command
 from videocreate.planning.examples import smart_car
-from videocreate.planning.project import save_bundle
+from videocreate.planning.project import load_project, save_bundle
+from videocreate.routing import recommend
 from videocreate.workflows import describe, prepare
 
 PNG = base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==')
@@ -28,6 +32,43 @@ class WorkflowTests(unittest.TestCase):
         self.root = Path(self.temp.name)
         self.config = config()
         save_bundle(self.root, smart_car())
+
+    def test_plan_compile_and_route_preflight_count_opening_and_guidance_images(self):
+        value = self.config
+        value["models"]["muse-video"] = copy.deepcopy(value["models"]["grok-imagine-video-1.5"])
+        value["models"]["muse-video"].update(family="muse-video", display_name="Muse Video")
+        binding = copy.deepcopy(value["bindings"]["grok-on-sub2api"])
+        binding.update(model="muse-video", remote_model="muse-video", operations=["text-to-video", "image-to-video"],
+            capability_overrides={"duration": {"minimum": 1, "maximum": 10, "step": 1},
+                "max_reference_images": 7, "max_additional_reference_images": 6,
+                "image_to_video_requires_primary": True})
+        value["bindings"]["muse-video-on-sub2api"] = binding
+        value["routes"]["muse-video"] = {"policy": "fixed", "preferred_binding": "muse-video-on-sub2api",
+            "candidates": ["muse-video-on-sub2api"]}
+        bundle = load_project(self.root)
+        opening = self.root / "opening.jpg"
+        identity = self.root / "identity.jpg"
+        style = self.root / "style.jpg"
+        opening.write_bytes(b"opening")
+        identity.write_bytes(b"identity")
+        style.write_bytes(b"style")
+        job = bundle["generation-plan"]["jobs"][0]
+        job.update(operation="image-to-video", seconds=6, model="muse-video", binding_id="muse-video-on-sub2api",
+            references=[
+                {"path": opening.name, "sha256": hashlib.sha256(opening.read_bytes()).hexdigest(), "role": "opening-frame"},
+                {"path": identity.name, "sha256": hashlib.sha256(identity.read_bytes()).hexdigest(), "role": "identity"},
+                {"path": style.name, "sha256": hashlib.sha256(style.read_bytes()).hexdigest(), "role": "scene"},
+            ])
+        atomic_json(self.root / "generation-plan.json", bundle["generation-plan"])
+        config_path = self.root / "config.json"
+        atomic_json(config_path, value)
+        output = io.StringIO()
+        with redirect_stdout(output):
+            self.assertEqual(plan_command(["compile", str(self.root), "--config", str(config_path), "--job", "job-001"]), 0)
+        self.assertTrue((self.root / "jobs/job-001/compiled.preview.json").is_file())
+        routed = recommend(load_project(self.root), value, store_root=self.root)
+        row = next(item for item in routed["jobs"] if item["job"] == "job-001")
+        self.assertTrue(row["candidates"][0]["eligible"], row["candidates"][0]["request_errors"])
 
     def test_published_schema_matches_runtime_and_old_configs_are_compatible(self):
         self.assertEqual(configuration_schema(), load_json(ROOT / 'videocreate/assets/schemas/videocreate.config.schema.json'))

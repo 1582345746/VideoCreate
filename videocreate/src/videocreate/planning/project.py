@@ -214,6 +214,9 @@ def validate_plan(bundle: dict[str, Any], root: Path | None = None) -> dict[str,
         refs = job.get("references", [])
         if job.get("operation") == "image-to-video" and not refs:
             errors.append(jid + ": image-to-video needs actual references")
+        primary_refs = [ref for ref in refs if isinstance(ref, dict) and ref.get("role") == "opening-frame"]
+        if job.get("operation") == "image-to-video" and len(primary_refs) != 1:
+            errors.append(jid + ": image-to-video needs exactly one opening-frame primary image")
         for ref in refs:
             if not isinstance(ref, dict) or ref.get("role") not in {"opening-frame", "identity", "prop", "scene"} or not ref.get("path"):
                 errors.append(jid + ": reference needs a supported role and path")
@@ -224,8 +227,6 @@ def validate_plan(bundle: dict[str, Any], root: Path | None = None) -> dict[str,
                         errors.append(jid + ": reference hash is missing or stale")
                 except ConfigError:
                     errors.append(jid + ": reference is missing or outside project")
-            if ref.get("role") != "opening-frame":
-                errors.append(jid + ": current video adapters transmit opening-frame references only; compose a keyframe from identity/prop/scene assets first")
         if len(selected) > 1:
             warnings.append(jid + ": multi-shot generation requires actual cut-point identification and separate coverage review")
         for dep in job.get("depends_on", []):
@@ -331,6 +332,10 @@ def compile_job(bundle: dict[str, Any], job: dict[str, Any], *, max_bytes: int, 
             if shot.get(key):
                 sections.append(key + ": " + str(shot[key]))
                 retained.append(sid + "." + key)
+        camera_view = " ".join(str(shot.get(key, "")) for key in ("framing", "camera_position")).lower()
+        if re.search(r"\bfirst[ -]person\b|\bpov\b|第一人称", camera_view):
+            sections.append("POV continuity lock: keep the camera at the wearer's literal viewpoint for the entire shot; never cut to third-person, over-the-shoulder, reverse, drone or another camera. Never show the wearer from outside. Keep wearer-owned hands or forearms near the lower frame edge when physically plausible; all other characters remain in this viewpoint.")
+            retained.append(sid + ".pov_continuity_lock")
         for aid in shot.get("asset_ids", []):
             asset = assets[aid]
             sections.append("Visible " + aid + ": " + asset["description"])
@@ -349,6 +354,8 @@ def compile_job(bundle: dict[str, Any], job: dict[str, Any], *, max_bytes: int, 
             sections.append("Visual purpose: " + shot["visual_purpose"] + ". Exact maps, labels and statistics are added in postproduction.")
         audio = shot.get("audio", {"mode": "ambience"})
         sections.append("Audio strategy: " + str(audio.get("mode")))
+        if audio.get("ambience") and audio.get("mode") not in {"mute", "ambience"}:
+            sections.append("Location sound and voice direction: " + str(audio["ambience"]))
         if audio.get("mode") == "independent-voice":
             sections.append("Voice is supplied on an independent soundtrack. Do not generate audible dialogue.")
         else:

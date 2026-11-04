@@ -13,9 +13,6 @@ def state_lock(root: Path, *, timeout: float = 15):
     """Only protect state transitions. Network and media work happen outside."""
     root.mkdir(parents=True, exist_ok=True)
     handle = (root / ".videocreate-state.lock").open("a+b")
-    if handle.seek(0, 2) == 0:
-        handle.write(b"0")
-        handle.flush()
     deadline = time.monotonic() + timeout
     acquired = False
     try:
@@ -33,6 +30,11 @@ def state_lock(root: Path, *, timeout: float = 15):
                 if time.monotonic() >= deadline:
                     raise ConfigError("Project state is busy; no request was submitted") from None
                 time.sleep(0.03)
+        # Initialize under the lock: concurrent writers to a new Windows lock
+        # file can otherwise fail before entering the cleanup block.
+        if handle.seek(0, 2) == 0:
+            handle.write(b"0")
+            handle.flush()
         yield
     finally:
         if acquired:

@@ -202,6 +202,13 @@
                 "type": "integer",
                 "minimum": 0
               },
+              "max_additional_reference_images": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "image_to_video_requires_primary": {
+                "type": "boolean"
+              },
               "reference_mime_types": {
                 "type": "array",
                 "items": {
@@ -559,6 +566,16 @@
     "execution": {
       "type": "object",
       "properties": {
+        "max_concurrent_image_tasks": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 50
+        },
+        "max_concurrent_video_tasks": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 50
+        },
         "allow_cross_model_fallback": {
           "const": false
         },

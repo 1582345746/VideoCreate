@@ -50,7 +50,7 @@ A performance shot declares trigger, attention, visible response and decision, p
 
 ### References and likeness
 
-`assets register` copies and hashes local image references. It does not prove a real person's likeness rights or output identity. Keep character identity, pose/opening composition, prop and scene references separate. Current adapters only transmit supported opening-frame/image references. Asset schemas preserve their roles, but an unsupported role cannot be silently converted into a generation hint.
+`assets register` copies and hashes local image references. It does not prove a real person's likeness rights or output identity. Keep character identity, pose/opening composition, prop and scene references separate. For Sub2Api image-to-video, exactly one `opening-frame` reference becomes the primary `image.url`; configured additional references with identity/prop/scene roles become `reference_images[].url`. The binding must explicitly declare its total and additional-image limits. Muse Video is configured for one primary plus six additional images from user-provided model information; upstream acceptance remains unverified until a live create succeeds. Last-frame, MP4 and audio reference roles remain unsupported or unverified.
 
 ### Job recovery
 

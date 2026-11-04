@@ -46,7 +46,7 @@
 | Subtitle text is garbled in generated footage | Generation prompt | Keep upstream clean-frame rules enabled. Export SRT and use local `subtitles --burn` instead of asking the model to draw text. |
 | Native video has no audible dialogue or has burned captions | Native audio QA | Treat sound, exact wording, mouth timing, and model-baked captions as generated results requiring human review. Keep `final.mp4` clean; use `subtitle_source=project` only for an explicitly reviewed local derivative. |
 | Subtitle timing is inaccurate after adding voice | Post-production | Replace shot-level cues with word/sentence timestamps from the final TTS or voice track, then burn a new subtitled copy. |
-| I2V reference field rejected | Provider contract | Verify Sub2Api JSON uses `image.url` for one first-frame image or `reference_images[].url` for multiple guidance images; NewApi uses repeated multipart `input_reference`. |
+| I2V reference field rejected | Provider contract | Verify Sub2Api JSON uses `image.url` for the primary frame and `reference_images[].url` for configured guidance images; NewApi uses repeated multipart `input_reference`. |
 | `ffprobe` or assembly validation fails | Local media QA | Install FFmpeg/FFprobe, inspect the reported stream metadata, and normalize clips before assembling. |
 | Browser history lacks the task | Expected direct mode behavior | The local project is the source of truth; direct Skill tasks do not enter Canvas IndexedDB. |
 

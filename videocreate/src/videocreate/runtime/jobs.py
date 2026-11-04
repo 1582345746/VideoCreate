@@ -5,11 +5,12 @@ import os
 import socket
 import time
 import uuid
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import nullcontext
 from pathlib import Path
 
 from ..catalog.bindings import Binding, route_bindings, validate_request
-from ..config.storage import ConfigError, atomic_json, resolve_key, safe_error
+from ..config.storage import ConfigError, atomic_json, load_json, resolve_key, safe_error
 from ..planning.project import compile_job, content_hash, load_project, validate_plan, within
 from .budget import estimate, reserve, summary
 from .state import read_state, save_state, state_lock
@@ -72,15 +73,17 @@ def _owner_alive(record: dict) -> bool:
         return False
 
 
-def generate(root: Path, config: dict, *, store_root: Path, job_ids: list[str] | None = None,
+def _generate_serial(root: Path, config: dict, *, store_root: Path, job_ids: list[str] | None = None,
              poll_timeout: int = 900, retry: str | None = None, reason: str = "", progress=None,
-             binding_override: dict[str, str] | None = None) -> dict:
+             binding_override: dict[str, str] | None = None, wait_for_slot: bool = False,
+             include_dependencies: bool = True, explicit_job_ids: set[str] | None = None) -> dict:
     bundle = load_project(root)
     validation = validate_plan(bundle, root)
     if not validation["ok"]:
         raise ConfigError("; ".join(validation["errors"]))
     jobs = {job["id"]: job for job in bundle["generation-plan"]["jobs"]}
     requested = list(jobs) if not job_ids else list(dict.fromkeys(job_ids))
+    explicitly_requested = set(requested) if explicit_job_ids is None else explicit_job_ids
     if any(jid not in jobs for jid in requested):
         raise ConfigError("Unknown job ID")
     if retry and (retry not in {"network", "content", "replan"} or not reason.strip() or not job_ids):
@@ -93,8 +96,11 @@ def generate(root: Path, config: dict, *, store_root: Path, job_ids: list[str] |
         for dep in jobs[jid].get("depends_on", []):
             add(dep)
         ordered.append(jid)
-    for jid in requested:
-        add(jid)
+    if include_dependencies:
+        for jid in requested:
+            add(jid)
+    else:
+        ordered = requested
     results = []
     for jid in ordered:
         job = jobs[jid]
@@ -112,7 +118,7 @@ def generate(root: Path, config: dict, *, store_root: Path, job_ids: list[str] |
             if prior.get("status") == "submission_unknown":
                 raise ConfigError(jid + ": submission unknown; 查不到记录 is not proof of rejection. Reconcile the original attempt")
             snapshot = prior.get("binding_snapshot")
-        if snapshot and not (retry in {"content", "replan"} and jid in requested) and not (binding_override and jid in binding_override):
+        if snapshot and not (retry in {"content", "replan"} and jid in explicitly_requested) and not (binding_override and jid in binding_override):
             binding = pinned_binding(config, snapshot, store_root)
         else:
             model = job.get("model") or config["defaults"]["video_model"]
@@ -131,15 +137,20 @@ def generate(root: Path, config: dict, *, store_root: Path, job_ids: list[str] |
         compilation = compile_job(bundle, job, max_bytes=binding.capabilities["max_prompt_bytes"], root=root)
         input_hash = content_hash({"job_inputs": job_inputs(bundle, job, compilation),
             "resolution": bundle["brief"]["resolution"], "aspect_ratio": bundle["brief"]["aspect_ratio"]})
-        refs = [within(root, ref["path"]) for ref in job.get("references", [])]
+        reference_entries = job.get("references", [])
+        primary_entry = next((ref for ref in reference_entries if ref["role"] == "opening-frame"), None)
+        primary_reference = within(root, primary_entry["path"]) if primary_entry else None
+        reference_images = [within(root, ref["path"]) for ref in reference_entries if ref["role"] != "opening-frame"]
+        refs = ([primary_reference] if primary_reference else []) + reference_images
         actor_shots = [s for s in bundle["director"]["shots"] if s["id"] in job["shot_ids"]]
         kwargs = {"seconds": job["seconds"], "size": "auto", "resolution": bundle["brief"]["resolution"],
             "aspect_ratio": bundle["brief"]["aspect_ratio"],
-            "generate_audio": any(s.get("audio", {}).get("mode", "ambience") in {"native-dialogue", "offscreen", "ambience"} for s in actor_shots), "references": refs}
+            "generate_audio": any(s.get("audio", {}).get("mode", "ambience") in {"native-dialogue", "offscreen", "ambience"} for s in actor_shots),
+            "primary_reference": primary_reference, "reference_images": reference_images}
         request = validate_request(binding, {"operation": job["operation"], "prompt": compilation["prompt"],
             "seconds": kwargs["seconds"], "resolution": kwargs["resolution"],
             "aspect_ratio": kwargs["aspect_ratio"], "generate_audio": kwargs["generate_audio"],
-            "references": kwargs["references"]})
+            "primary_reference": kwargs["primary_reference"], "reference_images": kwargs["reference_images"]})
         if not request["ok"]:
             raise ConfigError(jid + ": " + "; ".join(request["errors"]))
         video_client = client(binding)
@@ -147,9 +158,10 @@ def generate(root: Path, config: dict, *, store_root: Path, job_ids: list[str] |
         input_hash = content_hash({"generation": input_hash, "references": [
             {"path": path.relative_to(root).as_posix(), "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
             for path in refs]})
-        needs_slot = not prior.get("task_id") or (retry in {"content", "replan"} and jid in requested)
+        needs_slot = not prior.get("task_id") or (retry in {"content", "replan"} and jid in explicitly_requested)
         maximum = config["upstreams"][binding.upstream_id].get("max_concurrent_submissions", 1)
-        gate = submission_slot(store_root, binding.upstream_id, maximum) if needs_slot else nullcontext()
+        gate = submission_slot(store_root, binding.upstream_id, maximum, wait=wait_for_slot,
+            timeout_seconds=config["upstreams"][binding.upstream_id].get("request_timeout_seconds", 120)) if needs_slot else nullcontext()
         create_error = None
         with gate:
             attempt_id, task_id, should_create = "", "", False
@@ -161,7 +173,7 @@ def generate(root: Path, config: dict, *, store_root: Path, job_ids: list[str] |
                 if current and current.get("input_hash") != input_hash and retry != "replan":
                     raise ConfigError(jid + ": generation inputs changed; explicitly replan only this job")
                 task_id = current.get("task_id", "")
-                if current.get("status") == "completed" and not (retry in {"content", "replan"} and jid in requested):
+                if current.get("status") == "completed" and not (retry in {"content", "replan"} and jid in explicitly_requested):
                     artifact = current.get("artifact", {})
                     target = within(root, artifact.get("path", ""), exists=False)
                     if target.is_file() and hashlib.sha256(target.read_bytes()).hexdigest() == artifact.get("sha256"):
@@ -169,7 +181,7 @@ def generate(root: Path, config: dict, *, store_root: Path, job_ids: list[str] |
                         continue
                 if retry == "network" and task_id:
                     pass  # Retry reads on the original task, never create another.
-                elif retry in {"content", "replan"} and jid in requested:
+                elif retry in {"content", "replan"} and jid in explicitly_requested:
                     if current.get("status") not in {"completed", "rejected", "failed"}:
                         raise ConfigError(jid + ": cannot content-retry a pending or ambiguous task")
                     task_id = ""
@@ -247,16 +259,34 @@ def generate(root: Path, config: dict, *, store_root: Path, job_ids: list[str] |
                     save_state(root, state)
                 if progress:
                     progress({"job_id": jid, "phase": "poll", "status": status})
-            payload = video_client.poll(task_id, timeout_seconds=poll_timeout, on_status=status_update)
             destination = root / "jobs" / jid / attempt_id / "source.mp4"
             destination.parent.mkdir(parents=True, exist_ok=True)
+            result_path = destination.parent / "provider-result.json"
+            payload = None
+            if current.get("provider_completed_at") and result_path.is_file():
+                try:
+                    saved = load_json(result_path)
+                    if isinstance(saved, dict):
+                        payload = saved
+                except (ConfigError, OSError, UnicodeError):
+                    pass  # A damaged local receipt can fall back to the known task's read path.
+            if payload is None:
+                payload = video_client.poll(task_id, timeout_seconds=poll_timeout, on_status=status_update)
+                atomic_json(result_path, payload)
+            with state_lock(root):
+                state = read_state(root)
+                state["jobs"][jid].update(status="downloading", provider_completed_at=int(time.time()))
+                save_state(root, state)
+            if progress:
+                progress({"job_id": jid, "phase": "download", "task_id": task_id})
             video_client.download(task_id, payload, destination)
             from ..timeline.render import probe
             media = probe(destination)
             artifact = {"path": destination.relative_to(root).as_posix(), "sha256": hashlib.sha256(destination.read_bytes()).hexdigest(), "media": media}
             with state_lock(root):
                 state = read_state(root)
-                state["jobs"][jid].update(status="completed", artifact=artifact, content_status="unverified")
+                state["jobs"][jid].update(status="completed", artifact=artifact, content_status="unverified",
+                    completed_at=time.time())
                 next(e for e in state["ledger"] if e["attempt_id"] == attempt_id)["status"] = "completed"
                 save_state(root, state)
             results.append({"job_id": jid, "status": "completed", "artifact": artifact, "content": "unverified"})
@@ -269,3 +299,79 @@ def generate(root: Path, config: dict, *, store_root: Path, job_ids: list[str] |
                 save_state(root, state)
             raise ConfigError(safe_error(error, [binding.key])) from None
     return {"ok": True, "jobs": results, "budget": summary(read_state(root)), "content": "unverified"}
+
+
+def generate(root: Path, config: dict, *, store_root: Path, job_ids: list[str] | None = None,
+             poll_timeout: int = 900, retry: str | None = None, reason: str = "", progress=None,
+             binding_override: dict[str, str] | None = None) -> dict:
+    bundle = load_project(root)
+    validation = validate_plan(bundle, root)
+    if not validation["ok"]:
+        raise ConfigError("; ".join(validation["errors"]))
+    jobs = {job["id"]: job for job in bundle["generation-plan"]["jobs"]}
+    requested = list(jobs) if not job_ids else list(dict.fromkeys(job_ids))
+    if any(jid not in jobs for jid in requested):
+        raise ConfigError("Unknown job ID")
+    ordered, seen = [], set()
+    def add(jid):
+        if jid in seen:
+            return
+        seen.add(jid)
+        for dep in jobs[jid].get("depends_on", []):
+            add(dep)
+        ordered.append(jid)
+    for jid in requested:
+        add(jid)
+    maximum = min(50, max(1, int(config.get("execution", {}).get("max_concurrent_video_tasks", 1))))
+    if maximum == 1 or len(ordered) < 2:
+        return _generate_serial(root, config, store_root=store_root, job_ids=requested, poll_timeout=poll_timeout,
+            retry=retry, reason=reason, progress=progress, binding_override=binding_override)
+
+    remaining, completed, levels = set(ordered), set(), []
+    while remaining:
+        ready = [jid for jid in ordered if jid in remaining and set(jobs[jid].get("depends_on", [])).issubset(completed)]
+        if not ready:
+            raise ConfigError("Generation job dependencies contain a cycle")
+        levels.append(ready)
+        completed.update(ready)
+        remaining.difference_update(ready)
+
+    results, failures = [], []
+    for level in levels:
+        level_results = {}
+        current_state = read_state(root)
+        runnable = []
+        for jid in level:
+            dependencies = jobs[jid].get("depends_on", [])
+            if any(current_state["jobs"].get(dep, {}).get("status") != "completed" for dep in dependencies):
+                level_results[jid] = {"job_id": jid, "status": "blocked", "blocked_by": dependencies}
+                failures.append(jid)
+            else:
+                runnable.append(jid)
+        with ThreadPoolExecutor(max_workers=min(maximum, max(1, len(runnable)))) as pool:
+            futures = {pool.submit(_generate_serial, root, config, store_root=store_root, job_ids=[jid],
+                poll_timeout=poll_timeout, retry=retry, reason=reason, progress=progress,
+                binding_override=binding_override, wait_for_slot=True, include_dependencies=False,
+                explicit_job_ids=set(requested)): jid for jid in runnable}
+            for future in as_completed(futures):
+                jid = futures[future]
+                try:
+                    items = future.result().get("jobs", [])
+                    level_results[jid] = next((item for item in reversed(items) if item.get("job_id") == jid),
+                        {"job_id": jid, "status": "unknown"})
+                except Exception as error:
+                    level_results[jid] = {"job_id": jid, "status": "error", "error": str(error)}
+                    failures.append(jid)
+        results.extend(level_results[jid] for jid in level)
+    state = read_state(root)
+    for jid in ordered:
+        status = state["jobs"].get(jid, {}).get("status")
+        if status not in {"completed"}:
+            result = next((item for item in results if item["job_id"] == jid), None)
+            if result and result.get("status") == "completed":
+                continue
+            if result is None:
+                results.append({"job_id": jid, "status": status or "blocked"})
+    results.sort(key=lambda item: ordered.index(item["job_id"]))
+    return {"ok": not failures and all(item.get("status") == "completed" for item in results),
+        "jobs": results, "errors": failures, "budget": summary(state), "content": "unverified"}

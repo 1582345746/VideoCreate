@@ -229,6 +229,14 @@ def _model_ids(payload: dict[str, Any]) -> list[str]:
     return sorted(set(result))
 
 
+def _video_result_location(base_url: str, result_url: str, key: str) -> tuple[str, str]:
+    """Resolve gateway-relative media paths; credentials stay on their origin."""
+    location = urllib.parse.urljoin(base_url.rstrip("/") + "/", result_url)
+    upstream, target = urllib.parse.urlsplit(base_url), urllib.parse.urlsplit(location)
+    same_origin = (upstream.scheme.casefold(), upstream.netloc.casefold()) == (target.scheme.casefold(), target.netloc.casefold())
+    return location, key if same_origin else ""
+
+
 def _read_url_image(url: str) -> bytes:
     parsed = urllib.parse.urlsplit(url)
     loopback = parsed.hostname in {"127.0.0.1", "localhost", "::1"}
@@ -264,10 +272,14 @@ def _extract_image(payload: dict[str, Any]) -> bytes:
         raise SkillError("image provider returned an unsupported result")
     encoded = item.get("b64_json") or item.get("base64")
     if isinstance(encoded, str) and encoded:
-        try:
-            result = base64.b64decode(encoded, validate=True)
-        except ValueError as error:
-            raise SkillError("image provider returned invalid base64") from error
+        if encoded.startswith("data:"):
+            result = decode_data_url(encoded)
+        else:
+            normalized = "".join(encoded.split())
+            try:
+                result = base64.b64decode(normalized, validate=True)
+            except ValueError as error:
+                raise SkillError("image provider returned invalid base64") from error
         image_extension(result)
         return result
     url = item.get("url") or item.get("image_url")
@@ -461,7 +473,8 @@ class NewApiVideoClient:
                 destination.unlink()
         for result_url in result_urls(status_payload):
             try:
-                safe_operation(lambda: download_file(result_url, destination, timeout=300), breaker=self.breaker)
+                location, result_key = _video_result_location(self.base_url, result_url, self.key)
+                safe_operation(lambda: download_file(location, destination, key=result_key, timeout=300), breaker=self.breaker)
                 assert_mp4(destination)
                 return
             except (APIError, SkillError) as error:
@@ -596,7 +609,8 @@ class Sub2ApiVideoClient:
                 destination.unlink()
         for result_url in result_urls(status_payload):
             try:
-                safe_operation(lambda: download_file(result_url, destination, timeout=300), breaker=self.breaker)
+                location, result_key = _video_result_location(self.base_url, result_url, self.key)
+                safe_operation(lambda: download_file(location, destination, key=result_key, timeout=300), breaker=self.breaker)
                 assert_mp4(destination)
                 return
             except (APIError, SkillError) as error:

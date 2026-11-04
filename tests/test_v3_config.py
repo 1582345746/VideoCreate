@@ -34,6 +34,12 @@ def config() -> dict:
 
 
 class ConfigurationTests(unittest.TestCase):
+    def test_sample_concurrency_matches_documented_fifty_upstream_and_six_worker_defaults(self):
+        sample = load_json(ROOT / "videocreate/assets/config/videocreate.config.example.json")
+        self.assertEqual({item["max_concurrent_submissions"] for item in sample["upstreams"].values()}, {50})
+        self.assertEqual(sample["execution"]["max_concurrent_image_tasks"], 6)
+        self.assertEqual(sample["execution"]["max_concurrent_video_tasks"], 6)
+
     def test_example_and_enabled_four_combinations_validate(self):
         self.assertEqual(validate_config(config(), ready=True), [])
         for mid in ("grok-imagine-video-1.5", "seedance-2.0-mini-720p"):

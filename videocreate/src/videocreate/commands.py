@@ -120,11 +120,13 @@ def plan_command(argv: list[str]) -> int:
         compiled = compile_job(bundle, job, max_bytes=capabilities(config, item)["max_prompt_bytes"], root=root)
         binding = configured_binding(config, bid)
         shots = [shot for shot in bundle["director"]["shots"] if shot["id"] in job["shot_ids"]]
+        references = job.get("references", [])
         request = validate_request(binding, {"operation": job["operation"], "prompt": compiled["prompt"],
             "seconds": job["seconds"], "resolution": bundle["brief"]["resolution"],
             "aspect_ratio": bundle["brief"]["aspect_ratio"],
             "generate_audio": any(shot.get("audio", {}).get("mode", "ambience") in {"native-dialogue", "offscreen", "ambience"} for shot in shots),
-            "references": [None] * len(job.get("references", []))})
+            "primary_reference": object() if any(ref["role"] == "opening-frame" for ref in references) else None,
+            "reference_images": [object() for ref in references if ref["role"] != "opening-frame"]})
         if not request["ok"]:
             raise ConfigError(job["id"] + ": " + "; ".join(request["errors"]))
         destination = root / "jobs" / job["id"] / "compiled.preview.json"
@@ -195,9 +197,10 @@ def jobs_command(argv: list[str]) -> int:
     from .runtime.jobs import generate
     def progress(value):
         print(json.dumps(value, ensure_ascii=False), file=sys.stderr, flush=True)
-    print_result(generate(root, config, store_root=config_path.parent, job_ids=args.job,
-        poll_timeout=args.poll_timeout, retry=args.retry, reason=args.reason, progress=progress))
-    return 0
+    result = generate(root, config, store_root=config_path.parent, job_ids=args.job,
+        poll_timeout=args.poll_timeout, retry=args.retry, reason=args.reason, progress=progress)
+    print_result(result)
+    return int(not result.get("ok", False))
 
 
 def capabilities_command(argv: list[str]) -> int:
@@ -246,18 +249,31 @@ def timeline_command(argv: list[str]) -> int:
 
 def review_command(argv: list[str]) -> int:
     from .cli import print_result
-    from .review.receipts import apply, summary, template
+    from .review.receipts import apply, inbox, review_image, summary, template
     parser = argparse.ArgumentParser(prog="videocreate review")
-    parser.add_argument("action", choices=["template", "apply", "status", "packet"])
+    parser.add_argument("action", choices=["template", "apply", "status", "packet", "inbox", "image"])
     parser.add_argument("project", type=Path)
     parser.add_argument("--receipt", type=Path)
     parser.add_argument("--output-name", default="preview.mp4")
+    parser.add_argument("--pending-only", action="store_true")
+    parser.add_argument("--job")
+    parser.add_argument("--status", choices=["pass", "fail"])
+    parser.add_argument("--reviewer")
+    parser.add_argument("--observation")
     args = parser.parse_args(argv)
     root = args.project.resolve()
+    if args.action == "inbox":
+        print_result(inbox(root, pending_only=args.pending_only))
+        return 0
     bundle = load_project(root)
     if args.action == "packet":
         from .review.packet import packet
         print_result(packet(root, bundle, output_name=args.output_name))
+    elif args.action == "image":
+        if not args.job or not args.status or not args.reviewer or not args.observation:
+            raise ConfigError("Image review needs --job, --status, --reviewer and --observation")
+        print_result(review_image(root, job_id=args.job, status=args.status,
+            reviewer_id=args.reviewer, observation=args.observation))
     elif args.action == "template":
         path = root / "reviews" / "content-review.template.json"
         atomic_json(path, template(root, bundle, output_name=args.output_name))
@@ -273,9 +289,9 @@ def review_command(argv: list[str]) -> int:
 
 def assets_command(argv: list[str]) -> int:
     from .cli import print_result, read_config
-    from .assets import generate_image, register, recover_image
+    from .assets import generate_image, generate_images, register, recover_image, reprocess_image
     parser = argparse.ArgumentParser(prog="videocreate assets")
-    parser.add_argument("action", choices=["register", "image", "recover", "handoff"])
+    parser.add_argument("action", choices=["register", "image", "batch", "recover", "reprocess", "handoff"])
     parser.add_argument("project", type=Path)
     parser.add_argument("--asset-id")
     parser.add_argument("--source", type=Path)
@@ -283,11 +299,14 @@ def assets_command(argv: list[str]) -> int:
     parser.add_argument("--at", type=float)
     parser.add_argument("--next-job")
     parser.add_argument("--prompt-file", type=Path)
+    parser.add_argument("--manifest", type=Path)
     parser.add_argument("--reference", action="append", type=Path, default=[])
     parser.add_argument("--config", type=Path)
     parser.add_argument("--binding")
     parser.add_argument("--size", default="1024x1024")
     parser.add_argument("--quality", default="auto")
+    parser.add_argument("--retry", choices=["content", "replan"])
+    parser.add_argument("--reason", default="")
     parser.add_argument("--receipt", type=Path)
     args = parser.parse_args(argv)
     root = args.project.resolve()
@@ -301,15 +320,39 @@ def assets_command(argv: list[str]) -> int:
         if not args.asset_id or not args.source:
             raise ConfigError("Register requires --asset-id and --source")
         print_result(register(root, args.asset_id, args.source))
+    elif args.action == "reprocess":
+        if not args.job_id:
+            raise ConfigError("Image reprocessing requires --job-id")
+        result = reprocess_image(root, args.job_id)
+        print_result(result)
+        return int(not result.get("ok", False))
     elif args.action == "recover":
         if not args.job_id or not args.source or not args.receipt:
             raise ConfigError("Image recovery requires --job-id, --source and --receipt")
         print_result(recover_image(root, args.job_id, args.source.resolve(), load_json(args.receipt)))
+    elif args.action == "batch":
+        if not args.manifest:
+            raise ConfigError("Image batch requires --manifest")
+        manifest = load_json(args.manifest)
+        items = manifest.get("images")
+        if not isinstance(items, list):
+            raise ConfigError("Image batch manifest must be an object with an images list")
+        prepared_items = []
+        for item in items:
+            if not isinstance(item, dict) or not isinstance(item.get("references", []), list):
+                raise ConfigError("Each image manifest entry must contain references as a list")
+            references = [(root / Path(reference)).resolve() for reference in item.get("references", [])]
+            prepared_items.append({**item, "references": references})
+        path = user_config_path(args.config)
+        result = generate_images(root, read_config(path, ready=True), store_root=path.parent, items=prepared_items)
+        print_result(result)
+        return int(not result.get("ok", False))
     else:
         if not args.job_id or not args.prompt_file:
             raise ConfigError("Image generation requires --job-id and --prompt-file")
         path = user_config_path(args.config)
         print_result(generate_image(root, read_config(path, ready=True), store_root=path.parent,
             job_id=args.job_id, prompt=args.prompt_file.read_text(encoding="utf-8-sig"),
-            references=[(root / p).resolve() for p in args.reference], binding_id=args.binding, size=args.size, quality=args.quality))
+            references=[(root / p).resolve() for p in args.reference], binding_id=args.binding, size=args.size,
+            quality=args.quality, retry=args.retry, reason=args.reason))
     return 0
