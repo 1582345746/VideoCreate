@@ -4,11 +4,12 @@ Choose the profile by the viewer's task. Profiles create editable starting plans
 
 ## Photorealistic shorts
 
-Use `portrait` for one quiet human performance, `action-insert` for one readable physical action, and `scenic` for a landscape or vehicle movement. These profiles target 10–20 seconds and split jobs into clips of at most 10 seconds. `muse-video` has a hard 10-second maximum per request, so longer edits use multiple jobs and are assembled locally. A 10-second action stays in one shot with distinct preparation, contact, recovery and settle phases; longer edits separate the main action from recovery/detail coverage. Keep one primary subject action and build a new opening image only when the actor, costume, pose, or composition needs stronger control.
+Use `portrait` for one quiet human performance, `action-insert` for a controlled single-action demonstration, and `scenic` for a landscape or vehicle movement. For brisk exchanges use `action-montage`; for a pet/action reversal use `animal-comedy`. These profiles target 10–20 seconds with jobs of at most 10 seconds. `muse-video` has a hard 10-second maximum per request, so longer edits use multiple jobs and are assembled locally. The demonstration profile holds preparation, contact and recovery for inspection; it is not a fast fight preset. The new coverage profiles create seven editable source takes with shorter retained windows. Read [fast-action-and-animal-comedy.md](fast-action-and-animal-comedy.md) before adapting them. Keep one primary subject action per take and build a new opening image only when identity, pose or composition needs stronger control.
 
 ```powershell
 python scripts/videocreate.py plan init projects/my-short --profile portrait --seconds 15 --aspect-ratio 9:16
 python scripts/videocreate.py plan validate projects/my-short
+python scripts/videocreate.py plan audit projects/my-short
 python scripts/videocreate.py plan route projects/my-short --config <config-file>
 python scripts/videocreate.py plan compile projects/my-short --config <config-file>
 python scripts/videocreate.py plan preview projects/my-short
@@ -18,7 +19,7 @@ Before generation, replace the starter action and setting with the requested sub
 
 After generation, use `jobs candidates` and `jobs select` to record which completed attempt is being edited. Selection preserves the original and is not approval. Choose source in/out windows from the actual clip, validate and render the timeline, then open `review packet` and review moving footage and audio. Keep the deliverable labeled `draft_preview` while applicable review layers remain unverified.
 
-For a reference video, first run `reference analyze <video> --output <study-folder>`. Inspect its contact sheet and measurements, then record human observations against sampled frame IDs or the actual video interval. Static frames can support composition, color, wardrobe, and visible subjects; they cannot verify camera motion, action timing, cuts, or sound. Create and attach a profile only after those observations are accurate.
+For a reference video, first run `reference analyze <video> --output <study-folder>`. Landscape, square and portrait sources use matching thumbnail canvases. For a screen recording, inspect an original frame then use `--crop X Y WIDTH HEIGHT` with an even, in-bounds content rectangle to exclude player UI. Cropping is explicit and hash-bound; it does not rewrite the source. Sampling fills long gaps when scene candidates are sparse, but remains incomplete. Inspect the contact sheet and measurements, then record observations against sampled frame IDs or the actual video interval. Static frames can support composition, color, wardrobe, and visible subjects; they cannot verify camera motion, action timing, cuts, or sound. Create and attach a profile only after those observations are accurate.
 
 ## Source-grounded explainers
 

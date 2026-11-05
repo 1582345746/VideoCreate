@@ -9,6 +9,10 @@ PROFILES = {
                  "audio": "silent", "focus": "眼神、重心、呼吸与克制的反应"},
     "action-insert": {"title": "动作插镜", "seconds": 10, "intent": "demonstration", "pace": "action",
                       "audio": "ambience", "focus": "准备、发力、接触或避让、收势；一次主要动作"},
+    "action-montage": {"title": "快速动作组接", "seconds": 15, "intent": "narrative", "pace": "action",
+                       "audio": "ambience", "focus": "一次交锋的空间、预备、接触、结果与反应"},
+    "animal-comedy": {"title": "动物动作反转", "seconds": 15, "intent": "narrative", "pace": "comedy",
+                      "audio": "ambience", "focus": "严肃铺垫、一次动作、清楚结果与生活化反转"},
     "scenic": {"title": "环境电影镜头", "seconds": 15, "intent": "single-shot", "pace": "slow-cinema",
                "audio": "ambience", "focus": "空间层次与一个明确的摄影机运动"},
     "explainer": {"title": "有来源的科普", "seconds": 45, "intent": "montage", "pace": "slow-cinema",
@@ -26,7 +30,7 @@ def create(profile: str, *, title: str = "", seconds: float | None = None, topic
     seconds = p["seconds"] if seconds is None else seconds
     if isinstance(seconds, bool) or not isinstance(seconds, (int, float)) or not 5 <= seconds <= 120:
         raise ConfigError("Profile duration must be 5–120 seconds")
-    if profile in {"portrait", "action-insert", "scenic"} and not 10 <= seconds <= 20:
+    if profile in {"portrait", "action-insert", "action-montage", "animal-comedy", "scenic"} and not 10 <= seconds <= 20:
         raise ConfigError("Short profiles use 10–20 seconds; author a custom plan for other lengths")
     if aspect_ratio not in {"16:9", "9:16"}:
         raise ConfigError("Profile canvas must be 16:9 or 9:16")
@@ -45,6 +49,9 @@ def create(profile: str, *, title: str = "", seconds: float | None = None, topic
                      "height": 720 if aspect_ratio == "16:9" else 1280,
                      "clips": [], "segments": [], "audio_tracks": [], "subtitles": [], "overlays": []},
     }
+    if profile in {"action-montage", "animal-comedy"}:
+        from .short_coverage import build
+        return build(bundle, profile, seconds)
     if profile == "series-episode":
         bundle["story"].update(goal="待写：主角本集要达成的可见目标", obstacle="待写：具体阻碍",
                               choice="待写：有代价的选择", consequence="待写：实际结果")

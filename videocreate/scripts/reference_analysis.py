@@ -83,9 +83,11 @@ def _statistics(intervals: list[float]) -> dict[str, float]:
     }
 
 
-def _scene_measurements(source: Path, ffmpeg: str, duration: float, threshold: float, min_interval: float) -> dict[str, Any]:
+def _scene_measurements(source: Path, ffmpeg: str, duration: float, threshold: float, min_interval: float,
+                        crop: tuple[int, int, int, int] | None = None) -> dict[str, Any]:
+    region = f"crop={crop[2]}:{crop[3]}:{crop[0]}:{crop[1]}," if crop else ""
     result = _run([ffmpeg, "-hide_banner", "-nostats", "-i", str(source), "-an", "-vf",
-                   f"select='gt(scene,{threshold:.8g})',showinfo", "-f", "null", "-"], "scene candidate detection")
+                   region + f"select='gt(scene,{threshold:.8g})',showinfo", "-f", "null", "-"], "scene candidate detection")
     candidates = [float(t) for t in re.findall(r"pts_time:(" + _NUMBER + r")", result.stderr)]
     filtered, discarded = _filter_candidates(candidates, duration, min_interval)
     points = [0.0, *filtered, duration]
@@ -151,19 +153,26 @@ def _sample_times(boundaries: list[float], duration: float, maximum: int) -> lis
     points = [0.0, *boundaries, duration]
     centers = [(left+right)/2 for left, right in zip(points, points[1:])]
     if len(centers) <= maximum:
-        return centers
+        desired = min(maximum, max(len(centers), math.ceil(duration/2)))
+        while len(centers) < desired:
+            gaps = list(zip([0.0, *sorted(centers)], [*sorted(centers), duration]))
+            left, right = max(gaps, key=lambda gap: gap[1]-gap[0])
+            centers.append((left+right)/2)
+        return sorted(centers)
     indices = [round(i*(len(centers)-1)/(maximum-1)) for i in range(maximum)] if maximum > 1 else [len(centers)//2]
     return [centers[i] for i in indices]
 
 
-def _frames(source: Path, ffmpeg: str, destination: Path, times: list[float]) -> tuple[list[dict[str, Any]], dict[str, str]]:
+def _frames(source: Path, ffmpeg: str, destination: Path, times: list[float], *,
+            width: int = 240, height: int = 426, crop: tuple[int, int, int, int] | None = None) -> tuple[list[dict[str, Any]], dict[str, str]]:
     frame_root = destination / "frames"
     frame_root.mkdir(parents=True, exist_ok=True)
     frames: list[dict[str, Any]] = []
     for index, at in enumerate(times, 1):
         path = frame_root / f"frame-{index:03d}.jpg"
         _run([ffmpeg, "-hide_banner", "-loglevel", "error", "-y", "-ss", f"{at:.6f}", "-i", str(source),
-              "-frames:v", "1", "-vf", "scale=240:426:force_original_aspect_ratio=decrease,pad=240:426:(ow-iw)/2:(oh-ih)/2",
+              "-frames:v", "1", "-vf", (f"crop={crop[2]}:{crop[3]}:{crop[0]}:{crop[1]}," if crop else "") +
+              f"scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,setsar=1",
               "-q:v", "3", str(path)], "evidence frame extraction", timeout=60)
         if not path.is_file() or path.stat().st_size == 0:
             raise SkillError(f"reference evidence extraction produced no frame at {at:.3f}s")
@@ -186,6 +195,7 @@ def analyze_reference(
     scene_threshold: float = 0.25,
     min_interval: float = 0.5,
     max_frames: int = 12,
+    crop: tuple[int, int, int, int] | None = None,
 ) -> dict[str, Any]:
     """Measure a local video; evidence always remains unreviewed until Codex/human review."""
     source = Path(path).expanduser().resolve()
@@ -202,27 +212,36 @@ def analyze_reference(
         raise SkillError("min_interval must be positive and finite")
     if isinstance(max_frames, bool) or not isinstance(max_frames, int) or not 1 <= max_frames <= 48:
         raise SkillError("max_frames must be an integer from 1 to 48")
+    if crop is not None and (not isinstance(crop, (list, tuple)) or len(crop) != 4 or
+            any(isinstance(v, bool) or not isinstance(v, int) for v in crop) or
+            min(crop[:2]) < 0 or min(crop[2:]) <= 0 or any(v % 2 for v in crop)):
+        raise SkillError("crop requires even integer X Y WIDTH HEIGHT, with nonnegative origin and positive size")
     ffmpeg, ffprobe = shutil.which("ffmpeg"), shutil.which("ffprobe")
     if not ffmpeg or not ffprobe:
         raise SkillError("ffmpeg and ffprobe are required for reference video analysis")
     source_sha = _digest(source)
-    settings = {"scene_threshold": threshold, "min_interval": spacing, "max_frames": max_frames}
+    media = _probe(source, ffprobe)
+    if crop and (crop[0]+crop[2] > media["width"] or crop[1]+crop[3] > media["height"]):
+        raise SkillError("crop exceeds source dimensions")
+    view_width, view_height = (crop[2], crop[3]) if crop else (media["width"], media["height"])
+    thumb = (480, 270) if view_width > view_height else (320, 320) if view_width == view_height else (240, 426)
+    settings = {"scene_threshold": threshold, "min_interval": spacing, "max_frames": max_frames,
+                "crop_xywh": list(crop) if crop else None, "thumbnail_size": list(thumb), "sampling_version": 2}
     analysis_id = f"{source_sha[:16]}-{_json_digest(settings)[:8]}"
     destination = output_root / analysis_id
     destination.mkdir(parents=True, exist_ok=True)
-    media = _probe(source, ffprobe)
     duration = media["duration_seconds"]
-    scenes = _scene_measurements(source, ffmpeg, duration, threshold, spacing)
+    scenes = _scene_measurements(source, ffmpeg, duration, threshold, spacing, crop)
     audio = _audio_measurements(source, ffmpeg, duration, media["has_audio"])
     times = _sample_times(scenes["filtered_candidates_seconds"], duration, max_frames)
-    frames, contact = _frames(source, ffmpeg, destination, times)
+    frames, contact = _frames(source, ffmpeg, destination, times, width=thumb[0], height=thumb[1], crop=crop)
     if _digest(source) != source_sha:
         raise SkillError("reference source changed during analysis; rerun on a stable file")
     report: dict[str, Any] = {
         "version": ANALYSIS_VERSION, "analysis_id": analysis_id,
         "source": {"filename": source.name, "sha256": source_sha, "bytes": source.stat().st_size},
         "settings": settings, "media": media, "scene_measurements": scenes, "audio_measurements": audio,
-        "sampling": {"method": "candidate-interval-centers-or-uniform", "actual_frames": len(frames),
+        "sampling": {"method": "candidate-centers-with-gap-filling-or-uniform", "actual_frames": len(frames),
                      "limit": "A small sample is evidence for review, not exhaustive video QA."},
         "frames": frames, "contact_sheet": contact,
         "semantic_review": {"status": "unverified", "narrative_pass": None, "speaker_pass": None,

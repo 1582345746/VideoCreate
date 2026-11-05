@@ -42,11 +42,12 @@ def workflow_command(argv: list[str]) -> int:
 def plan_command(argv: list[str]) -> int:
     from .cli import print_result, read_config
     parser = argparse.ArgumentParser(prog="videocreate plan")
-    parser.add_argument("action", choices=["init", "validate", "compile", "preview", "route", "schema"])
+    parser.add_argument("action", choices=["init", "validate", "audit", "compile", "preview", "route", "schema"])
     parser.add_argument("project", nargs="?", type=Path)
-    parser.add_argument("--output", type=Path, help="Output path for `plan schema`")
+    parser.add_argument("--output", type=Path, help="Output path for plan schema or advisory audit")
     parser.add_argument("--example", choices=["smart-car"])
-    parser.add_argument("--profile", choices=["portrait", "action-insert", "scenic", "explainer", "series-episode"])
+    from .planning.profiles import PROFILES
+    parser.add_argument("--profile", choices=sorted(PROFILES))
     parser.add_argument("--seconds", type=float)
     parser.add_argument("--topic", default="")
     parser.add_argument("--aspect-ratio", choices=["16:9", "9:16"], default="16:9")
@@ -90,6 +91,13 @@ def plan_command(argv: list[str]) -> int:
             "next": "Author brief/story/director/generation-plan/timeline, then plan validate and plan preview", "paid_creates": 0})
         return 0
     bundle = load_project(root)
+    if args.action == "audit":
+        from .planning.creative_audit import audit
+        result = audit(bundle)
+        if args.output:
+            atomic_json(args.output.resolve(), result)
+        print_result(result)
+        return 0
     if args.action == "route":
         from .routing import recommend
         path = user_config_path(args.config)

@@ -100,6 +100,8 @@
           "enum": [
             "portrait",
             "action-insert",
+            "action-montage",
+            "animal-comedy",
             "scenic",
             "explainer",
             "series-episode"

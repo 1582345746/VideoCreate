@@ -13,6 +13,8 @@ def reference_command(argv):
     analyze.add_argument("source", type=Path)
     analyze.add_argument("--output", required=True, type=Path)
     analyze.add_argument("--max-frames", type=int, default=24)
+    analyze.add_argument("--crop", type=int, nargs=4, metavar=("X", "Y", "WIDTH", "HEIGHT"),
+                         help="Analyze an observed content rectangle in source pixels; preserve original source")
     profile = sub.add_parser("profile")
     profile.add_argument("report", type=Path)
     profile.add_argument("--observations", type=Path)
@@ -21,7 +23,7 @@ def reference_command(argv):
     attach.add_argument("--profile", required=True, type=Path)
     args = parser.parse_args(argv)
     if args.action == "analyze":
-        result = references.analyze(args.source.resolve(), args.output.resolve(), max_frames=args.max_frames)
+        result = references.analyze(args.source.resolve(), args.output.resolve(), max_frames=args.max_frames, crop=args.crop)
     elif args.action == "profile":
         result = references.profile(args.report.resolve(), load_json(args.observations) if args.observations else None)
     else:

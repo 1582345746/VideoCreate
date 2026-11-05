@@ -18,12 +18,22 @@ from vc_common import SkillError  # noqa: E402
 from reference_analysis import (  # noqa: E402
     _filter_candidates,
     _parse_silence,
+    _sample_times,
     analyze_reference,
     validate_reference_analysis,
 )
 
 
 class ReferenceMeasurementTests(unittest.TestCase):
+    def test_few_cut_candidates_do_not_leave_long_intervals_unsampled(self):
+        times = _sample_times([1, 2], 60, 24)
+        self.assertEqual(len(times), 24)
+        self.assertEqual(times, sorted(set(times)))
+        self.assertIn(.5, times)
+        self.assertIn(1.5, times)
+        self.assertLess(max(b-a for a,b in zip([0, *times], [*times, 60])), 4)
+        self.assertEqual(_sample_times([1, 2], 3, 12), [.5, 1.5, 2.5])
+
     def test_candidate_spacing_rejects_motion_bursts_without_calling_them_shots(self) -> None:
         accepted, discarded = _filter_candidates([1.0, 1.05, 2.0, 2.97, -1, 0, 3], 3.0, 0.5)
         self.assertEqual(accepted, [1.0, 2.0])
@@ -48,7 +58,9 @@ class ReferenceMeasurementTests(unittest.TestCase):
             source.write_bytes(b"temporary fixture")
             output = root / "output"
             for kwargs in [{"scene_threshold": float("nan")}, {"scene_threshold": 0},
-                           {"min_interval": float("inf")}, {"max_frames": True}, {"max_frames": 49}]:
+                           {"min_interval": float("inf")}, {"max_frames": True}, {"max_frames": 49},
+                           {"crop": [0, 0, 100]}, {"crop": [0, 0, 101, 100]},
+                           {"crop": [True, 0, 100, 100]}, {"crop": [-2, 0, 100, 100]}]:
                 with self.subTest(kwargs=kwargs), patch("reference_analysis._run") as runner:
                     with self.assertRaises(SkillError):
                         analyze_reference(source, output, **kwargs)
@@ -58,6 +70,25 @@ class ReferenceMeasurementTests(unittest.TestCase):
 
 @unittest.skipUnless(shutil.which("ffmpeg") and shutil.which("ffprobe"), "ffmpeg and ffprobe are required")
 class ReferenceAnalysisIntegrationTests(unittest.TestCase):
+    def test_crop_preserves_original_hash_separates_evidence_and_uses_landscape_thumbnail(self):
+        from PIL import Image
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            source = self._fixture(root / "source.mp4", audio=False)
+            original = analyze_reference(source, root / "audit", max_frames=1)
+            cropped = analyze_reference(source, root / "audit", max_frames=1, crop=(0, 40, 160, 80))
+            self.assertEqual(original["report"]["source"], cropped["report"]["source"])
+            self.assertNotEqual(original["report_path"], cropped["report_path"])
+            self.assertEqual(cropped["report"]["settings"]["crop_xywh"], [0,40,160,80])
+            with Image.open(cropped["frame_paths"][0]) as frame:
+                self.assertEqual(frame.size, (480,270))
+            self.assertEqual(validate_reference_analysis(original["report_path"], source), [])
+            self.assertEqual(validate_reference_analysis(cropped["report_path"], source), [])
+            output = root / "invalid-output"
+            with self.assertRaises(SkillError):
+                analyze_reference(source, output, crop=(0,0,162,240))
+            self.assertFalse(output.exists())
+
     def _fixture(self, path: Path, audio: bool = True) -> Path:
         command = [shutil.which("ffmpeg") or "ffmpeg", "-hide_banner", "-loglevel", "error", "-y"]
         for color in ("red", "blue", "green"):
