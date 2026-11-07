@@ -34,7 +34,8 @@ class BindingVideoClient:
             return wire.request_json(*args, **kwargs)
         except APIError as error:
             self.last_submission["trace_ids"] = {"request_id": error.request_id} if error.request_id else {}
-            if error.status not in self.binding.options.get("confirmed_rejection_http_statuses", []):
+            from ..runtime.failures import confirmed_rejection
+            if not confirmed_rejection(error, self.binding):
                 raise SubmissionUnknownError(str(error)) from None
             raise
 
@@ -48,12 +49,20 @@ class BindingVideoClient:
                        generate_audio=generate_audio, primary_reference=primary,
                        reference_images=additional)
         report = validate_request(self.binding, request)
+        if self.binding.options.get("primary_image_field") == "first_frame":
+            if self.binding.adapter != "newapi-json-v1":
+                report["errors"].append("first_frame requires the unified JSON video adapter")
+            if additional:
+                report["errors"].append("first_frame binding does not transmit additional guidance images")
         if not prompt.strip():
             report["errors"].append("Prompt must not be empty")
         for path in ([primary] if primary else []) + additional:
             if not path.is_file():
                 report["errors"].append("Reference file does not exist")
-            if mimetypes.guess_type(path.name)[0] not in self.binding.capabilities["reference_mime_types"]:
+            mime = mimetypes.guess_type(path.name)[0]
+            if mime == "image/gif":
+                report["errors"].append("Animated GIF is not a still-frame video reference; export/select a frame explicitly")
+            elif mime not in self.binding.capabilities["reference_mime_types"]:
                 report["errors"].append("Reference MIME type is unsupported")
         if report["errors"]:
             raise ConfigError("; ".join(report["errors"]))
@@ -114,6 +123,9 @@ class BindingVideoClient:
                     if prepared_additional:
                         fields["reference_images"] = [
                             {"url": wire.Sub2ApiVideoClient._data_url(path)} for path in prepared_additional]
+                elif primary and self.binding.options.get("primary_image_field") == "first_frame":
+                    prepared_primary = wire._prepare_sub2api_reference(primary, aspect_ratio, Path(folder))
+                    fields["first_frame"] = wire.Sub2ApiVideoClient._data_url(prepared_primary)
                 elif images:
                     fields["images"] = [wire.Sub2ApiVideoClient._data_url(path) for path in images]
                 response = self._submit("POST", wire.api_url(self.base_url, endpoint), key=self.binding.key,

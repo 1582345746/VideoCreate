@@ -34,6 +34,13 @@ def capability_schema() -> dict[str, Any]:
         "max_additional_reference_images": {"type": "integer", "minimum": 0},
         "image_to_video_requires_primary": BOOL,
         "reference_mime_types": STRING_LIST,
+        "output_formats": {**STRING_LIST, "minItems": 1},
+        "image_sizes": {**STRING_LIST, "minItems": 1},
+        "image_quality_values": {**STRING_LIST, "minItems": 1},
+        "animated_input": enum("unknown", "supported", "unsupported"),
+        "animated_output": enum("unknown", "supported", "unsupported"),
+        "max_animation_frames": POS,
+        "max_animation_duration_seconds": {"type": "number", "exclusiveMinimum": 0},
         "duration": obj({"minimum": positive, "maximum": positive, "step": positive}, ("minimum", "maximum", "step")),
         "resolutions": STRING_LIST, "aspect_ratios": STRING_LIST,
         "conditions": {"type": "array", "items": obj({
@@ -64,12 +71,17 @@ def configuration_schema() -> dict[str, Any]:
         "capability_profile": STR, "capability_overrides": capability_schema(),
         "adapter_options": obj({"task_id_fields": {**STRING_LIST, "minItems": 1},
             "include_generate_audio_field": BOOL,
+            "primary_image_field": enum("images", "first_frame"),
+            "image_request_fields": {"type": "array", "items": enum("n", "size", "quality", "response_format", "output_format"), "uniqueItems": True},
+            "image_response_format": enum("b64_json", "url"),
             "confirmed_rejection_http_statuses": {"type": "array", "items": {"type": "integer", "minimum": 400, "maximum": 499}, "uniqueItems": True}}),
         "pricing": obj({"currency": STR, "per_request": {"type": "number", "minimum": 0},
             "per_second": {"type": "number", "minimum": 0}}, ("currency",)),
     }, ("enabled", "model", "upstream", "remote_model", "adapter", "operations"))
     route = obj({"policy": enum("fixed", "automatic-same-model"), "preferred_binding": STR,
                  "candidates": {**STRING_LIST, "minItems": 1}}, ("policy", "preferred_binding", "candidates"))
+    model_selector = obj({"policy": enum("fixed", "first-compatible"),
+                          "candidates": {**STRING_LIST, "minItems": 1}}, ("policy", "candidates"))
     result = obj({
         "$schema": STR, "schema_version": {"const": 3}, "product": {"const": "VideoCreate"},
         "defaults": defaults,
@@ -77,6 +89,7 @@ def configuration_schema() -> dict[str, Any]:
         "upstreams": {"type": "object", "additionalProperties": upstream},
         "bindings": {"type": "object", "additionalProperties": binding},
         "routes": {"type": "object", "additionalProperties": route},
+        "model_selection": obj({"image": model_selector}, extra=False),
         "browser_services": {"type": "object", "additionalProperties": obj({
             "enabled": BOOL, "display_name": STR, "driver": enum("codex-browser", "playwright-local"),
             "base_url": STR, "allowed_origins": {**STRING_LIST, "minItems": 1},
@@ -155,7 +168,7 @@ def _walk(value: Any, schema: dict[str, Any], path: str, errors: list[str]) -> N
                 _walk(child, schema["items"], f"{path}[{index}]", errors)
 
 
-def validate_config(config: dict[str, Any], *, ready: bool = False, store_root=None) -> list[str]:
+def validate_config(config: dict[str, Any], *, ready: bool = False, store_root=None, kind: str | None = None) -> list[str]:
     errors: list[str] = []
     _walk(config, configuration_schema(), "$", errors)
     if errors:
@@ -192,12 +205,12 @@ def validate_config(config: dict[str, Any], *, ready: bool = False, store_root=N
             errors.append(path + ".upstream: unknown upstream reference")
         if not binding["remote_model"].strip() or (ready and binding["enabled"] and "REPLACE_" in binding["remote_model"]):
             errors.append(path + ".remote_model: exact remote model ID is required")
-        kind = models.get(binding["model"], {}).get("kind")
-        if any((operation in {"text-to-image", "image-edit"}) != (kind == "image") for operation in binding["operations"]):
+        binding_kind = models.get(binding["model"], {}).get("kind")
+        if any((operation in {"text-to-image", "image-edit"}) != (binding_kind == "image") for operation in binding["operations"]):
             errors.append(path + ".operations: operation does not match model kind")
-        if binding["adapter"] == "openai-images-v1" and kind != "image":
+        if binding["adapter"] == "openai-images-v1" and binding_kind != "image":
             errors.append(path + ".adapter: image adapter requires an image model")
-        if binding["adapter"] != "openai-images-v1" and kind == "image":
+        if binding["adapter"] != "openai-images-v1" and binding_kind == "image":
             errors.append(path + ".adapter: video adapter cannot generate images")
         if set(binding["operations"]) & {"video-edit", "video-extend"}:
             errors.append(path + ".operations: no implemented adapter for video edit/extend yet")
@@ -210,6 +223,8 @@ def validate_config(config: dict[str, Any], *, ready: bool = False, store_root=N
             errors.append(path + ": explicit audio control conflicts with omitted audio field")
         if "include_generate_audio_field" in options and binding["adapter"] != "newapi-json-v1":
             errors.append(path + ".adapter_options: audio field option requires newapi-json-v1")
+        if any(key in options for key in ("image_request_fields", "image_response_format")) and binding_kind != "image":
+            errors.append(path + ".adapter_options: image options require an image model")
     for mid, route in config["routes"].items():
         path = f"$.routes.{mid}"
         if mid not in models:
@@ -219,6 +234,10 @@ def validate_config(config: dict[str, Any], *, ready: bool = False, store_root=N
         for bid in route["candidates"]:
             if bid not in bindings or bindings[bid]["model"] != mid:
                 errors.append(path + ".candidates: unknown binding or cross-model route")
+    image_selector = config.get("model_selection", {}).get("image", {})
+    for model_id in image_selector.get("candidates", []):
+        if models.get(model_id, {}).get("kind") != "image":
+            errors.append("$.model_selection.image.candidates: every candidate must be a configured image model")
     for key in ("video_model", "image_model"):
         mid = config["defaults"].get(key)
         if mid and (mid not in models or models[mid]["kind"] != ("video" if key == "video_model" else "image")):
@@ -227,13 +246,15 @@ def validate_config(config: dict[str, Any], *, ready: bool = False, store_root=N
             errors.append(f"$.defaults.{key}: model has no route")
     if ready:
         from .storage import resolve_key
-        mid = config["defaults"].get("video_model")
+        mid = config["defaults"].get("image_model" if kind == "image" else "video_model")
         route = config["routes"].get(mid, {})
         selected = [route.get("preferred_binding")] if route.get("policy") == "fixed" else route.get("candidates", [])
         if not any(bindings.get(bid, {}).get("enabled") for bid in selected):
-            errors.append("$.defaults.video_model: setup_required; enable a binding on the selected route")
+            errors.append("$.defaults: setup_required; enable a binding on the selected route")
         for bid, binding in bindings.items():
             if not binding["enabled"] or binding["upstream"] not in upstreams:
+                continue
+            if kind and models[binding["model"]]["kind"] != kind:
                 continue
             upstream = upstreams[binding["upstream"]]
             if (urlsplit(upstream["base_url"]).hostname or "").endswith(".example"):

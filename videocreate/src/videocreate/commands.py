@@ -232,6 +232,54 @@ def capabilities_command(argv: list[str]) -> int:
     return 0
 
 
+def models_command(argv: list[str]) -> int:
+    from .cli import print_result, read_config
+    from .runtime.health import cooling_down
+    parser = argparse.ArgumentParser(prog="videocreate models")
+    parser.add_argument("action", choices=["list", "explain-image"])
+    parser.add_argument("--config", type=Path)
+    parser.add_argument("--family")
+    parser.add_argument("--model")
+    parser.add_argument("--binding")
+    parser.add_argument("--prompt-file", type=Path)
+    parser.add_argument("--reference", type=Path, action="append", default=[])
+    parser.add_argument("--size", default="1024x1024")
+    parser.add_argument("--quality", default="auto")
+    parser.add_argument("--output-format", default="png", choices=["png", "jpeg", "webp", "gif"])
+    args = parser.parse_args(argv)
+    path = user_config_path(args.config)
+    config = read_config(path)
+    if args.action == "explain-image":
+        from .assets import _select_image_route
+        model, candidates, selection = _select_image_route(config, requested_model=args.model,
+            binding_id=args.binding, prompt=args.prompt_file.read_text(encoding="utf-8-sig") if args.prompt_file else "Image route preview",
+            references=[p.resolve() for p in args.reference], size=args.size, quality=args.quality,
+            output_format=args.output_format, store_root=path.parent)
+        print_result({"ok": True, "model": model, "selection": selection,
+            "bindings": [{"id": b.id, "upstream": b.upstream_id, "pricing": b.options.get("pricing", "unknown")}
+                         for b in candidates], "paid_creates": 0})
+        return 0
+    families = {}
+    for mid, model in config["models"].items():
+        if args.family and model["family"] != args.family or args.model and mid != args.model:
+            continue
+        bindings = []
+        for bid, item in config["bindings"].items():
+            if item["model"] != mid:
+                continue
+            upstream = config["upstreams"][item["upstream"]]
+            binding = configured_binding(config, bid)
+            bindings.append({"id": bid, "platform": upstream.get("platform", "custom"),
+                "instance": item["upstream"], "base_url": upstream["base_url"], "adapter": item["adapter"],
+                "remote_model": item["remote_model"], "enabled": item["enabled"],
+                "setup_status": item.get("setup_status", "configured"), "operations": item["operations"],
+                "cooling_down": cooling_down(path.parent, binding), "capabilities": binding.capabilities})
+        families.setdefault(model["family"], {}).setdefault(model["kind"], {})[mid] = {
+            "display_name": model.get("display_name", mid), "route": config["routes"].get(mid), "bindings": bindings}
+    print_result({"ok": True, "families": families, "paid_creates": 0})
+    return 0
+
+
 def timeline_command(argv: list[str]) -> int:
     from .cli import print_result
     from .runtime.state import read_state
@@ -268,6 +316,7 @@ def review_command(argv: list[str]) -> int:
     parser.add_argument("--status", choices=["pass", "fail"])
     parser.add_argument("--reviewer")
     parser.add_argument("--observation")
+    parser.add_argument("--temporal-observation", action="store_true", help="Reviewer observed full animation playback")
     args = parser.parse_args(argv)
     root = args.project.resolve()
     if args.action == "inbox":
@@ -281,7 +330,7 @@ def review_command(argv: list[str]) -> int:
         if not args.job or not args.status or not args.reviewer or not args.observation:
             raise ConfigError("Image review needs --job, --status, --reviewer and --observation")
         print_result(review_image(root, job_id=args.job, status=args.status,
-            reviewer_id=args.reviewer, observation=args.observation))
+            reviewer_id=args.reviewer, observation=args.observation, temporal_observation=args.temporal_observation))
     elif args.action == "template":
         path = root / "reviews" / "content-review.template.json"
         atomic_json(path, template(root, bundle, output_name=args.output_name))
@@ -313,6 +362,8 @@ def assets_command(argv: list[str]) -> int:
     parser.add_argument("--binding")
     parser.add_argument("--size", default="1024x1024")
     parser.add_argument("--quality", default="auto")
+    parser.add_argument("--model", help="Canonical image model; defaults to config.defaults.image_model")
+    parser.add_argument("--output-format", choices=["png", "jpeg", "webp", "gif"], default="png")
     parser.add_argument("--retry", choices=["content", "replan"])
     parser.add_argument("--reason", default="")
     parser.add_argument("--receipt", type=Path)
@@ -352,15 +403,53 @@ def assets_command(argv: list[str]) -> int:
             references = [(root / Path(reference)).resolve() for reference in item.get("references", [])]
             prepared_items.append({**item, "references": references})
         path = user_config_path(args.config)
-        result = generate_images(root, read_config(path, ready=True), store_root=path.parent, items=prepared_items)
+        result = generate_images(root, read_config(path, ready=True, kind="image"), store_root=path.parent, items=prepared_items)
         print_result(result)
         return int(not result.get("ok", False))
     else:
         if not args.job_id or not args.prompt_file:
             raise ConfigError("Image generation requires --job-id and --prompt-file")
         path = user_config_path(args.config)
-        print_result(generate_image(root, read_config(path, ready=True), store_root=path.parent,
+        print_result(generate_image(root, read_config(path, ready=True, kind="image"), store_root=path.parent,
             job_id=args.job_id, prompt=args.prompt_file.read_text(encoding="utf-8-sig"),
             references=[(root / p).resolve() for p in args.reference], binding_id=args.binding, size=args.size,
-            quality=args.quality, retry=args.retry, reason=args.reason))
+            quality=args.quality, output_format=args.output_format, model=args.model,
+            retry=args.retry, reason=args.reason))
+    return 0
+
+
+def media_command(argv: list[str]) -> int:
+    from .cli import print_result
+    from .media.gif import export_video_to_gif, export_frames_to_gif, extract_frame, probe_image
+    parser = argparse.ArgumentParser(prog="videocreate media")
+    parser.add_argument("action", choices=["inspect", "export-gif", "frames-gif", "extract-frame"])
+    parser.add_argument("target", type=Path, help="Image path for inspect; v3 project directory for export-gif")
+    parser.add_argument("--source", type=Path, help="Source video for export-gif")
+    parser.add_argument("--job-id", help="Unique generated-media ID for export-gif")
+    parser.add_argument("--start", type=float, default=0)
+    parser.add_argument("--duration", type=float, default=3)
+    parser.add_argument("--fps", type=int, default=15)
+    parser.add_argument("--width", type=int, default=480)
+    parser.add_argument("--loop", type=int, default=0, help="0 loops forever; -1 plays once")
+    parser.add_argument("--frame", action="append", type=Path, default=[], help="Ordered static frame for frames-gif")
+    parser.add_argument("--at", type=float, default=0, help="Timestamp for explicit still-frame extraction")
+    args = parser.parse_args(argv)
+    if args.action == "inspect":
+        print_result({"ok": True, **probe_image(args.target.resolve()), "paid_creates": 0})
+        return 0
+    root = args.target.resolve()
+    load_project(root)
+    if not args.job_id:
+        raise ConfigError("Media conversion requires --job-id")
+    if args.action == "frames-gif":
+        print_result(export_frames_to_gif(root, frames=[p.resolve() for p in args.frame], job_id=args.job_id,
+            fps=args.fps, width=args.width, loop=args.loop))
+        return 0
+    if not args.source:
+        raise ConfigError("Media conversion requires --source")
+    if args.action == "extract-frame":
+        print_result(extract_frame(root, source=args.source.resolve(), job_id=args.job_id, at=args.at))
+        return 0
+    print_result(export_video_to_gif(root, source=args.source.resolve(), job_id=args.job_id,
+        start=args.start, duration=args.duration, fps=args.fps, width=args.width, loop=args.loop))
     return 0

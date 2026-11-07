@@ -2,6 +2,8 @@
 
 配置默认位于 `%LOCALAPPDATA%/VideoCreate/videocreate.config.json`。运行 `config init` 创建一次；直接编辑该文件即可。配置示例和 JSON Schema 与技能随附。URL、auth 密钥、精确 remote_model、启用绑定是接入必填项；安装、validate 和 show 不调用付费生成，show 总是脱敏。
 
+新配置的默认生图模型为 `gpt-image-2.6`。目录同时列出 `gpt-image-2.6-flare`、`gpt-image-2.6-sunburst`、`gpt-image-2.5` 和 `grok-imagine-image-2.0`，但新增 binding 默认禁用且能力未验证。`model_selection.image.policy=first-compatible` 会按 `candidates` 顺序，在创建前根据已配置操作、参考数、输出格式和可用凭据选择第一个可用型号；它不代表画质排序。没有评测证据前，不根据 `flare` 或 `sunburst` 名称推测速度或质量。用 `assets image ... --model MODEL` 固定一次请求的型号；显式型号不跨型号兜底。已有配置和运行中任务保留原型号/快照。
+
 API 对象不能混为一谈：
 
 - `models` 是内部 canonical model 和 family，比如 Grok 或 Seedance。
@@ -17,7 +19,19 @@ API 对象不能混为一谈：
 
 目前的 adapter 是 Sub2API JSON、NewAPI JSON 和 NewAPI multipart；图片是独立 binding。新增服务器实例只填 JSON；新增 wire protocol 必须实现 adapter 和 fixture tests。remote_model 保留大小写。Sub2API JSON 的音频是 model default，不能通过本适配器控制；能力未验证前，参考音频/视频、首尾帧、原生高帧率保持 unknown 并阻断。
 
+若上游明确使用 `POST /v1/videos` JSON 且首帧字段为 `first_frame`（例如 RapidApi 网页客户端所示合同），选择 `newapi-json-v1`，设置 `adapter_options.primary_image_field: first_frame`。它只传一个 opening-frame，出站时按目标画幅裁切副本，原图不变；额外指导图会在提交前拒绝。省略该选项继续使用原有 `images` 数组字段。此选项不代表支持 last-frame。
+
 `capability_overrides` 是上游合同证据的人工配置入口，不是目录探测。只填已核实的条件限制。能力快照等级仍保持 `configured`。精确模型名在目录出现也不代表生成成功。
+
+`routes[MODEL]` 只允许同一 canonical model 的 binding。`automatic-same-model` 的图片和视频 route 可在候选 binding 中故障切换；只有 `adapter_options.confirmed_rejection_http_statuses` 中经该服务验证为“创建前明确拒绝”的状态码才允许自动新建备用任务。网络错误、超时、HTTP 5xx、200 但无任务 ID、结果解析失败都不会转备用，以免重复计费。显式 `--binding` 是固定路由。已受理的视频任务继续使用原快照。
+
+图片默认为 PNG。binding 的 `capability_overrides.output_formats` 列出确实支持的格式；GIF 必须同时声明 `animated_output: supported` 才允许原生动画输出。GIF 输入需同时声明 `image/gif` 和 `animated_input: supported`。这些字段只是操作者录入的合同，不是自动探测结果。`media inspect FILE` 可检查 GIF 是否多帧、各帧延时和循环次数；`media export-gif PROJECT --source FILE.mp4 --job-id ID` 用 FFmpeg 将本地视频片段转为 GIF，不调用上游。不要把动画 GIF 静默当作视频首帧；视频参考目前要求显式导出静帧。
+
+`media frames-gif PROJECT --frame A.png --frame B.png --fps 5 --job-id ID` 按顺序将同格式静帧变成 GIF；`media extract-frame PROJECT --source INPUT.gif --at 0.4 --job-id ID` 显式提取静帧并记录来源哈希。转换均为本地操作。多帧 GIF 的 `review image` 必须在完整播放观察后提供 `--temporal-observation`；首帧检查不能批准动态内容。
+
+图片合同可用 `capability_overrides.image_sizes`、`image_quality_values` 限定参数。`adapter_options.image_request_fields` 控制是否传 `n/size/quality/response_format/output_format`，`image_response_format` 选择 `b64_json/url`。省略时兼容原 Images 请求。省略 size 字段的 binding 要求 `--size auto`；省略 quality 时仅接受 auto，不能静默忽略显式覆盖。GIF 请求若返回静态 PNG 或单帧 GIF，会保留响应为 output_invalid，重新解码也不会变成成功。
+
+`models list --family gpt-image` 按家族、媒体类型、型号、平台/实例列出绑定；`models explain-image --output-format gif` 在创建前解释选型，均不创建媒体。自动路由在提交失败后将该 binding 冷却 60 秒，影响新的自动选择，显式 binding 与已受理任务继续固定原服务。冷却不触发付费探测，也不重发未知提交；同账户应复用 upstream 实例 ID，共享本机并发槽。
 
 `muse-video` 单次请求最多 10 秒。VideoCreate 会按模型身份强制该上限，能力覆盖不能把它提高；超出时长会在路由、编译和 `jobs run` 提交前被拒绝。需要更长成片时，将其拆成多个不超过 10 秒的任务，再在本地时间线上剪辑拼接。
 

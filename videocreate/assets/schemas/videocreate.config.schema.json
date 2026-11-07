@@ -216,6 +216,54 @@
                 },
                 "uniqueItems": true
               },
+              "output_formats": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "uniqueItems": true,
+                "minItems": 1
+              },
+              "image_sizes": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "uniqueItems": true,
+                "minItems": 1
+              },
+              "image_quality_values": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "uniqueItems": true,
+                "minItems": 1
+              },
+              "animated_input": {
+                "type": "string",
+                "enum": [
+                  "unknown",
+                  "supported",
+                  "unsupported"
+                ]
+              },
+              "animated_output": {
+                "type": "string",
+                "enum": [
+                  "unknown",
+                  "supported",
+                  "unsupported"
+                ]
+              },
+              "max_animation_frames": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "max_animation_duration_seconds": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
               "duration": {
                 "type": "object",
                 "properties": {
@@ -364,6 +412,34 @@
               "include_generate_audio_field": {
                 "type": "boolean"
               },
+              "primary_image_field": {
+                "type": "string",
+                "enum": [
+                  "images",
+                  "first_frame"
+                ]
+              },
+              "image_request_fields": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "n",
+                    "size",
+                    "quality",
+                    "response_format",
+                    "output_format"
+                  ]
+                },
+                "uniqueItems": true
+              },
+              "image_response_format": {
+                "type": "string",
+                "enum": [
+                  "b64_json",
+                  "url"
+                ]
+              },
               "confirmed_rejection_http_statuses": {
                 "type": "array",
                 "items": {
@@ -440,6 +516,38 @@
         ],
         "additionalProperties": false
       }
+    },
+    "model_selection": {
+      "type": "object",
+      "properties": {
+        "image": {
+          "type": "object",
+          "properties": {
+            "policy": {
+              "type": "string",
+              "enum": [
+                "fixed",
+                "first-compatible"
+              ]
+            },
+            "candidates": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "uniqueItems": true,
+              "minItems": 1
+            }
+          },
+          "required": [
+            "policy",
+            "candidates"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [],
+      "additionalProperties": false
     },
     "browser_services": {
       "type": "object",

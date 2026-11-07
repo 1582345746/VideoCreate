@@ -120,6 +120,7 @@ def _generate_serial(root: Path, config: dict, *, store_root: Path, job_ids: lis
             snapshot = prior.get("binding_snapshot")
         if snapshot and not (retry in {"content", "replan"} and jid in explicitly_requested) and not (binding_override and jid in binding_override):
             binding = pinned_binding(config, snapshot, store_root)
+            candidates = [binding]
         else:
             model = job.get("model") or config["defaults"]["video_model"]
             preferred = (binding_override or {}).get(jid, job.get("binding_id"))
@@ -131,12 +132,8 @@ def _generate_serial(root: Path, config: dict, *, store_root: Path, job_ids: lis
             if not research["ok"]:
                 raise ConfigError("; ".join(research["errors"]))
         from ..routing import require_quality
-        require_quality(store_root, binding, job)
         from ..series import check_episode_context
         check_episode_context(root, bundle)
-        compilation = compile_job(bundle, job, max_bytes=binding.capabilities["max_prompt_bytes"], root=root)
-        input_hash = content_hash({"job_inputs": job_inputs(bundle, job, compilation),
-            "resolution": bundle["brief"]["resolution"], "aspect_ratio": bundle["brief"]["aspect_ratio"]})
         reference_entries = job.get("references", [])
         primary_entry = next((ref for ref in reference_entries if ref["role"] == "opening-frame"), None)
         primary_reference = within(root, primary_entry["path"]) if primary_entry else None
@@ -147,14 +144,31 @@ def _generate_serial(root: Path, config: dict, *, store_root: Path, job_ids: lis
             "aspect_ratio": bundle["brief"]["aspect_ratio"],
             "generate_audio": any(s.get("audio", {}).get("mode", "ambience") in {"native-dialogue", "offscreen", "ambience"} for s in actor_shots),
             "primary_reference": primary_reference, "reference_images": reference_images}
-        request = validate_request(binding, {"operation": job["operation"], "prompt": compilation["prompt"],
-            "seconds": kwargs["seconds"], "resolution": kwargs["resolution"],
-            "aspect_ratio": kwargs["aspect_ratio"], "generate_audio": kwargs["generate_audio"],
-            "primary_reference": kwargs["primary_reference"], "reference_images": kwargs["reference_images"]})
-        if not request["ok"]:
-            raise ConfigError(jid + ": " + "; ".join(request["errors"]))
-        video_client = client(binding)
-        prepared = video_client.prepare(compilation["prompt"], **kwargs)
+        decisions = []
+        for candidate in candidates:
+            try:
+                require_quality(store_root, candidate, job)
+                candidate_compilation = compile_job(bundle, job, max_bytes=candidate.capabilities["max_prompt_bytes"], root=root)
+                request = validate_request(candidate, {"operation": job["operation"], "prompt": candidate_compilation["prompt"],
+                    "seconds": kwargs["seconds"], "resolution": kwargs["resolution"],
+                    "aspect_ratio": kwargs["aspect_ratio"], "generate_audio": kwargs["generate_audio"],
+                    "primary_reference": primary_reference, "reference_images": reference_images})
+                if not request["ok"]:
+                    raise ConfigError("; ".join(request["errors"]))
+                candidate_client = client(candidate)
+                candidate_prepared = candidate_client.prepare(candidate_compilation["prompt"], **kwargs)
+            except ConfigError as error:
+                decisions.append({"binding": candidate.id, "eligible": False, "reason": str(error)})
+                continue
+            binding, video_client = candidate, candidate_client
+            compilation, prepared = candidate_compilation, candidate_prepared
+            decisions.append({"binding": binding.id, "eligible": True})
+            break
+        else:
+            raise ConfigError(jid + ": no compatible video binding: " + "; ".join(d["reason"] for d in decisions))
+        selection = {"selected_model": binding.model, "selected_binding": binding.id, "decisions": decisions}
+        input_hash = content_hash({"job_inputs": job_inputs(bundle, job, compilation),
+            "resolution": bundle["brief"]["resolution"], "aspect_ratio": bundle["brief"]["aspect_ratio"]})
         input_hash = content_hash({"generation": input_hash, "references": [
             {"path": path.relative_to(root).as_posix(), "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
             for path in refs]})
@@ -203,8 +217,7 @@ def _generate_serial(root: Path, config: dict, *, store_root: Path, job_ids: lis
                         "binding_snapshot": binding.snapshot(), "prepared_request": prepared, "compilation": compilation,
                         "history": history, "retry_kind": retry or "initial", "retry_reason": reason,
                         "pid": os.getpid(), "host": socket.gethostname(), "created_at": int(time.time())}
-                    if prior.get("selection"):
-                        current["selection"] = prior["selection"]
+                    current["selection"] = selection
                     state["jobs"][jid] = current
                     save_state(root, state)  # Durable intent before the only billable call.
                     job_dir = root / "jobs" / jid / attempt_id
@@ -218,10 +231,13 @@ def _generate_serial(root: Path, config: dict, *, store_root: Path, job_ids: lis
                 try:
                     task_id = video_client.create(compilation["prompt"], **kwargs)
                 except Exception as error:
+                    from .health import observe
+                    observe(store_root, binding, failed=True)
                     # A transport/5xx/trace-only response is ambiguous. Retrying a
                     # structured 4xx rejection still requires explicit intent.
                     from vc_common import APIError
-                    rejected = isinstance(error, APIError) and error.status in binding.options.get("confirmed_rejection_http_statuses", [])
+                    from .failures import confirmed_rejection
+                    rejected = confirmed_rejection(error, binding)
                     with state_lock(root):
                         state = read_state(root)
                         current = state["jobs"][jid]
@@ -231,6 +247,8 @@ def _generate_serial(root: Path, config: dict, *, store_root: Path, job_ids: lis
                         save_state(root, state)
                     create_error = error
                 if create_error is None:
+                    from .health import observe
+                    observe(store_root, binding, failed=False)
                     with state_lock(root):
                         state = read_state(root)
                         state["jobs"][jid].update(status="queued", task_id=task_id, submission_receipt=video_client.last_submission)
@@ -238,10 +256,11 @@ def _generate_serial(root: Path, config: dict, *, store_root: Path, job_ids: lis
                         save_state(root, state)
         if create_error is not None:
             from vc_common import APIError
-            if isinstance(create_error, APIError) and create_error.status in binding.options.get("confirmed_rejection_http_statuses", []):
+            from .failures import confirmed_rejection
+            if confirmed_rejection(create_error, binding):
                 route = config.get("routes", {}).get(binding.model, {})
                 candidates = route_bindings(config, binding.model, operation=job["operation"],
-                    preferred=job.get("binding_id"), store_root=store_root)
+                    preferred=job.get("binding_id"), store_root=store_root, include_cooling=True)
                 ids = [candidate.id for candidate in candidates]
                 next_id = ids[ids.index(binding.id)+1] if route.get("policy") == "automatic-same-model" and binding.id in ids and ids.index(binding.id)+1 < len(ids) else None
                 if next_id:
@@ -275,7 +294,8 @@ def _generate_serial(root: Path, config: dict, *, store_root: Path, job_ids: lis
                 atomic_json(result_path, payload)
             with state_lock(root):
                 state = read_state(root)
-                state["jobs"][jid].update(status="downloading", provider_completed_at=int(time.time()))
+                state["jobs"][jid].update(status="downloading", provider_completed_at=int(time.time()),
+                    provider_reported_model=payload.get("model") if isinstance(payload, dict) else None)
                 save_state(root, state)
             if progress:
                 progress({"job_id": jid, "phase": "download", "task_id": task_id})
@@ -289,7 +309,12 @@ def _generate_serial(root: Path, config: dict, *, store_root: Path, job_ids: lis
                     completed_at=time.time())
                 next(e for e in state["ledger"] if e["attempt_id"] == attempt_id)["status"] = "completed"
                 save_state(root, state)
-            results.append({"job_id": jid, "status": "completed", "artifact": artifact, "content": "unverified"})
+            reported_model = payload.get("model") if isinstance(payload, dict) else None
+            results.append({"job_id": jid, "status": "completed", "artifact": artifact, "content": "unverified",
+                "binding": binding.id, "model": binding.model, "remote_model": binding.remote_model,
+                "provider_reported_model": reported_model,
+                "warnings": ["Provider reports a different model ID; equivalence is unverified"]
+                    if reported_model and reported_model != binding.remote_model else []})
         except Exception as error:
             from provider_contracts import ProviderTaskFailedError
             with state_lock(root):

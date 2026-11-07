@@ -22,9 +22,9 @@ def print_result(value: Any) -> None:
     print(json.dumps(value, ensure_ascii=False, indent=2, allow_nan=False))
 
 
-def read_config(path: Path, *, ready: bool = False) -> dict[str, Any]:
+def read_config(path: Path, *, ready: bool = False, kind: str | None = None) -> dict[str, Any]:
     config = load_json(path)
-    errors = validate_config(config, ready=ready, store_root=path.parent)
+    errors = validate_config(config, ready=ready, store_root=path.parent, kind=kind)
     if errors:
         raise ConfigError("; ".join(errors))
     return config
@@ -179,7 +179,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if not argv or argv in (["--help"], ["-h"]):
             print("VideoCreate " + __version__ + "\n\n"
-                  "Commands: config, doctor, capabilities, workflow, plan, assets, jobs, timeline, review, reference, education, series, version\n"
+                  "Commands: config, doctor, models, capabilities, workflow, plan, assets, media, jobs, timeline, review, reference, education, series, version\n"
                   "Start: config init; config open; config validate --ready\n"
                   "Offline preview: plan init PROJECT --example smart-car; plan preview PROJECT --video\n"
                   "Each command accepts --help. Existing project commands remain available; use legacy COMMAND to select the retained engine explicitly.")
@@ -194,7 +194,7 @@ def main(argv: list[str] | None = None) -> int:
         if argv and argv[0] in {"reference", "education", "series"}:
             from . import production_commands
             return getattr(production_commands, argv[0] + "_command")(argv[1:])
-        if argv and argv[0] in {"plan", "jobs", "timeline", "review", "assets", "capabilities", "workflow"}:
+        if argv and argv[0] in {"plan", "jobs", "timeline", "review", "assets", "media", "models", "capabilities", "workflow"}:
             from . import commands
             return getattr(commands, argv[0] + "_command")(argv[1:])
         if argv and argv[0] == "doctor":

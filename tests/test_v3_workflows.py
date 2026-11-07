@@ -126,10 +126,10 @@ class WorkflowTests(unittest.TestCase):
             self.assertTrue(validate_config(changed))
 
     def test_describe_resolves_api_selection_and_never_reads_keys(self):
-        self.config['defaults']['image_model'] = 'gpt-image-2'
+        self.config['defaults']['image_model'] = 'gpt-image-2.5'
         with mock.patch('videocreate.config.storage.resolve_key', side_effect=AssertionError('credential read')):
             result = describe(self.config, 'api-image-muse-video')
-        self.assertEqual(result['stages'][0]['binding'], 'image-primary')
+        self.assertEqual(result['stages'][0]['binding'], 'gpt-image-2.5--aivalux')
         self.assertEqual(result['stages'][1]['driver'], 'codex-browser')
         self.assertEqual(result['stages'][1]['generation'], 'unverified')
         self.assertNotIn('test-only-value', json.dumps(result))

@@ -27,7 +27,7 @@ from videocreate import __version__
 
 CONFIG_VERSION = 4
 USER_AGENT = "VideoCreate/" + __version__
-DEFAULT_IMAGE_MODEL = "gpt-image-2"
+DEFAULT_IMAGE_MODEL = "gpt-image-2.5"
 DEFAULT_VIDEO_MODEL = "seedance-2.0-mini-720p"
 MAX_JSON_BYTES = 48 * 1024 * 1024
 MAX_MULTIPART_BYTES = 128 * 1024 * 1024
@@ -670,6 +670,7 @@ def multipart_body(fields: Iterable[tuple[str, str]], files: Iterable[tuple[str,
             ".jpeg": "image/jpeg",
             ".png": "image/png",
             ".webp": "image/webp",
+            ".gif": "image/gif",
             ".wav": "audio/wav",
             ".mp3": "audio/mpeg",
             ".m4a": "audio/mp4",
@@ -710,7 +711,9 @@ def image_extension(data: bytes) -> str:
         return ".jpg"
     if data.startswith(b"RIFF") and data[8:12] == b"WEBP":
         return ".webp"
-    raise SkillError("provider result is not a supported PNG, JPEG, or WebP image")
+    if data.startswith((b"GIF87a", b"GIF89a")):
+        return ".gif"
+    raise SkillError("provider result is not a supported PNG, JPEG, WebP, or GIF image")
 
 
 def assert_mp4(path: Path) -> None:

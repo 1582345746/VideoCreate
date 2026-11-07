@@ -1,0 +1,104 @@
+{
+  "audit_date": "2026-11-07",
+  "timezone": "Asia/Shanghai",
+  "scope": "Existing local account catalogs; does not attest newly supplied credentials or media generation",
+  "paid_creates": 0,
+  "generation_tested": false,
+  "sources": [
+    {
+      "url": "https://www.aivalux.com/v1/models",
+      "local_account_role": "existing-gpt-image",
+      "method": "authenticated GET using existing credential store",
+      "status": "catalog_seen",
+      "matching_model_ids": [
+        "gpt-image-2",
+        "gpt-image-2.5",
+        "gpt-image-2.5-flare",
+        "gpt-image-2.5-sunburst",
+        "gpt-image-2.6",
+        "gpt-image-2.6-flare",
+        "gpt-image-2.6-sunburst"
+      ],
+      "variant_capabilities_returned": false
+    },
+    {
+      "url": "https://www.aivalux.com/v1/models",
+      "local_account_role": "existing-grok",
+      "method": "authenticated GET using existing credential store",
+      "status": "catalog_seen",
+      "matching_model_ids": [
+        "grok-imagine",
+        "grok-imagine-image",
+        "grok-imagine-image-2.0",
+        "grok-imagine-image-quality",
+        "grok-imagine-video",
+        "grok-imagine-video-1.5",
+        "muse-video"
+      ]
+    },
+    {
+      "url": "https://rapidapi.cc/v1/models",
+      "local_account_role": "existing-rapidapi",
+      "method": "authenticated GET using existing credential store",
+      "status": "catalog_seen",
+      "matching_model_ids": [
+        "grok-imagine-image",
+        "grok-imagine-video",
+        "grok-imagine-video-1.5"
+      ],
+      "not_seen_requested_ids": [
+        "muse-video"
+      ],
+      "absence_does_not_prove_global_unavailability": true
+    },
+    {
+      "url": "https://gateai.cc",
+      "method": "public site inspection only",
+      "status": "user_declared_models_not_authenticated_or_generated",
+      "user_declared_model_ids": [
+        "gpt-image-2.6",
+        "gpt-image-2.6-flare",
+        "gpt-image-2.6-sunburst",
+        "gpt-image-2.5"
+      ]
+    },
+    {
+      "url": "https://developers.openai.com/api/docs/guides/image-generation",
+      "method": "GET",
+      "status": "access_blocked",
+      "http_status": 403
+    },
+    {
+      "url": "https://developers.openai.com/api/docs/models/gpt-image-2.6",
+      "method": "GET",
+      "status": "access_blocked",
+      "http_status": 403
+    },
+    {
+      "url": "https://developers.openai.com/api/docs/models/gpt-image-2.6-flare",
+      "method": "GET",
+      "status": "access_blocked",
+      "http_status": 403
+    },
+    {
+      "url": "https://developers.openai.com/api/docs/models/gpt-image-2.6-sunburst",
+      "method": "GET",
+      "status": "access_blocked",
+      "http_status": 403
+    }
+  ],
+  "unknown": [
+    "Official identity of gateway model aliases",
+    "Differences between base, flare and sunburst",
+    "Native animated GIF support and wire parameters",
+    "Provider pricing and real-world quality",
+    "Grok 1.5 versus Muse equivalence",
+    "GateAI account catalog and generation contract"
+  ],
+  "local_validation": {
+    "command": "python -m pytest -q tests/test_v3_config.py tests/test_v3_pipeline.py",
+    "passed": 57,
+    "failed": 0,
+    "validates_new_features": false
+  }
+}

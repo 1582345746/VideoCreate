@@ -39,7 +39,7 @@ def engine_settings(config: dict[str, Any], *, require_secrets: bool = True, sto
     model = defaults["video_model"]
     result = {"version": 4, "config_schema_version": 3, "video_model": model, "default_video_model": model,
               "default_video_provider": routes[model]["default_upstream"], "video_model_routes": routes,
-              "video_upstreams": registry, "image_base_url": "", "image_model": defaults.get("image_model", "gpt-image-2"),
+              "video_upstreams": registry, "image_base_url": "", "image_model": defaults.get("image_model", "gpt-image-2.5"),
               "sub2api_image_key": "", "sub2api_video_key": "", "newapi_video_key": "",
               "sub2api_video_base_url": "", "newapi_video_base_url": "", "secret_provider": "user-config",
               "videocreate_defaults": defaults, "videocreate_budget": config.get("budget", {}),

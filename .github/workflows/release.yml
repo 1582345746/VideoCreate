@@ -40,4 +40,6 @@ jobs:
         run: |
           $assets = Get-ChildItem -LiteralPath .\dist -File | ForEach-Object { $_.FullName }
           if ($assets.Count -lt 3) { throw "Release bundle is incomplete." }
-          gh release create $env:GITHUB_REF_NAME @assets --verify-tag --generate-notes --title "VideoCreate $env:GITHUB_REF_NAME"
+          $options = @("--verify-tag", "--generate-notes", "--title", "VideoCreate $env:GITHUB_REF_NAME")
+          if ($env:GITHUB_REF_NAME -match '(dev|alpha|beta|rc)') { $options += "--prerelease" }
+          gh release create $env:GITHUB_REF_NAME @assets @options

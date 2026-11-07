@@ -25,9 +25,13 @@ def config() -> dict:
     value = load_json(ROOT / "videocreate/assets/config/videocreate.config.example.json")
     for upstream in value["upstreams"].values():
         upstream["base_url"] = "https://provider.example.test/v1"
+        upstream["auth"].pop("env", None)
+        upstream["auth"].pop("secret_ref", None)
         upstream["auth"]["api_key"] = "test-only-value"
     for binding in value["bindings"].values():
-        binding["enabled"] = True
+        binding["enabled"] = binding.get("model") in {
+            "grok-imagine-video-1.5", "seedance-2.0-mini-720p", "gpt-image-2.5"
+        } and binding.get("upstream") in {"primary-sub2api", "backup-newapi", "image-service"}
         if "REPLACE_" in binding["remote_model"]:
             binding["remote_model"] = "Channel Model / Preserve Exact CASE"
     return value
@@ -36,7 +40,10 @@ def config() -> dict:
 class ConfigurationTests(unittest.TestCase):
     def test_sample_concurrency_matches_documented_fifty_upstream_and_six_worker_defaults(self):
         sample = load_json(ROOT / "videocreate/assets/config/videocreate.config.example.json")
-        self.assertEqual({item["max_concurrent_submissions"] for item in sample["upstreams"].values()}, {50})
+        values = {item["max_concurrent_submissions"] for item in sample["upstreams"].values()}
+        self.assertTrue(values <= {2, 50})
+        self.assertIn(2, values)
+        self.assertIn(50, values)
         self.assertEqual(sample["execution"]["max_concurrent_image_tasks"], 6)
         self.assertEqual(sample["execution"]["max_concurrent_video_tasks"], 6)
 
@@ -49,7 +56,9 @@ class ConfigurationTests(unittest.TestCase):
 
     def test_fixed_route_does_not_switch_to_backup(self):
         value = config()
-        value["bindings"]["grok-on-sub2api"]["enabled"] = False
+        route = value["routes"]["grok-imagine-video-1.5"]
+        route["policy"] = "fixed"
+        value["bindings"][route["preferred_binding"]]["enabled"] = False
         with self.assertRaises(ConfigError):
             route_bindings(value, "grok-imagine-video-1.5", operation="image-to-video")
 
@@ -91,14 +100,16 @@ class ConfigurationTests(unittest.TestCase):
     def test_redaction_and_binding_repr_never_include_secrets(self):
         value = config()
         self.assertNotIn("test-only-value", json.dumps(redact_config(value)))
-        binding = route_bindings(value, "grok-imagine-video-1.5", operation="image-to-video")[0]
+        binding = route_bindings(value, "grok-imagine-video-1.5", operation="image-to-video",
+            preferred="grok-on-sub2api")[0]
         self.assertNotIn("test-only-value", repr(binding))
         self.assertNotIn("test-only-value", json.dumps(binding.snapshot()))
 
     def test_channel_duration_conditions_and_unknown_reference_block(self):
         value = config()
         value["bindings"]["grok-on-sub2api"]["capability_overrides"] = {"conditions": [{"when": {"resolution": "720p"}, "max_seconds": 12}]}
-        binding = route_bindings(value, "grok-imagine-video-1.5", operation="image-to-video")[0]
+        binding = route_bindings(value, "grok-imagine-video-1.5", operation="image-to-video",
+            preferred="grok-on-sub2api")[0]
         request = {"operation": "image-to-video", "prompt": "a", "seconds": 15, "resolution": "720p", "aspect_ratio": "9:16", "references": []}
         self.assertFalse(validate_request(binding, request)["ok"])
         request["seconds"] = 5

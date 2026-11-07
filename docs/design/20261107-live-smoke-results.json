@@ -1,0 +1,119 @@
+{
+  "software_version": "3.0.0.dev3",
+  "date": "2026-11-07",
+  "scope": "single-account smoke tests, not a quality or pricing benchmark",
+  "image_tests": [
+    {
+      "test": "base-aivalux",
+      "status": "generation_pass",
+      "elapsed_seconds": 32.67,
+      "model": "gpt-image-2.6",
+      "binding": "gpt-image-2.6--aivalux",
+      "artifact_sha256": "2d368094de0b8ddb2686836ce08568e0f4a836a450264a23c70aa8b3348fea32",
+      "format": ".png",
+      "frame_count": null,
+      "duration_ms": null
+    },
+    {
+      "test": "base-gateai",
+      "status": "generation_failed",
+      "elapsed_seconds": 0.64,
+      "error": "HTTP 503: No available compatible accounts (request_id=996a7878-b37c-491f-960b-767285672eeb)"
+    },
+    {
+      "test": "edit-base",
+      "status": "generation_pass",
+      "elapsed_seconds": 56.34,
+      "model": "gpt-image-2.6",
+      "binding": "gpt-image-2.6--aivalux",
+      "artifact_sha256": "edab74cdff35a0cca65fb367db6faa5422c2ab85eb61860c9d819ba65e12a34d",
+      "format": ".png",
+      "frame_count": null,
+      "duration_ms": null
+    },
+    {
+      "test": "flare-aivalux",
+      "status": "generation_pass",
+      "elapsed_seconds": 41.47,
+      "model": "gpt-image-2.6-flare",
+      "binding": "gpt-image-2.6-flare--aivalux",
+      "artifact_sha256": "208238639faa28cfcc1048bd0281a46c2ac98c3200a8725194eb66eeb0e0c59c",
+      "format": ".png",
+      "frame_count": null,
+      "duration_ms": null
+    },
+    {
+      "test": "grok-image-aivalux",
+      "status": "generation_failed",
+      "elapsed_seconds": 3.48,
+      "error": "HTTP 502: Upstream service temporarily unavailable (request_id=3fbd3588-b3e8-46f1-a0b4-318e0a249f29)"
+    },
+    {
+      "test": "native-gif",
+      "status": "generation_pass",
+      "elapsed_seconds": 46.2,
+      "model": "gpt-image-2.6",
+      "binding": "gpt-image-2.6--aivalux",
+      "artifact_sha256": "3e681022835030e26dff1a2322e7babd451c09c5b2ea9f58bb0cd26751045eef",
+      "format": ".gif",
+      "frame_count": 9,
+      "duration_ms": 1800
+    },
+    {
+      "test": "sunburst-aivalux",
+      "status": "generation_pass",
+      "elapsed_seconds": 56.72,
+      "model": "gpt-image-2.6-sunburst",
+      "binding": "gpt-image-2.6-sunburst--aivalux",
+      "artifact_sha256": "2cefc107d05c5a144c8537e189491688f8416ebe9e719f0fdd483c99a3dfd133",
+      "format": ".png",
+      "frame_count": null,
+      "duration_ms": null
+    }
+  ],
+  "video_tests": [
+    {
+      "binding": "grok-video--aivalux",
+      "status": "completed",
+      "requested_model": "grok-imagine-video-1.5",
+      "provider_reported_model": "muse-video",
+      "artifact_sha256": "2b7b10deceb3851f9f1c3db1cc509c65d108c6a10ea6e26f128256049fa7605b",
+      "observed_media": {
+        "duration": 4.0,
+        "width": 1280,
+        "height": 720,
+        "fps": "24/1",
+        "source_fps": "24/1",
+        "frame_count": "96",
+        "has_audio": true,
+        "codec": "h264"
+      },
+      "resubmits_on_recovery": 0
+    },
+    {
+      "binding": "grok-video--rapidapi",
+      "status": "completed",
+      "requested_model": "grok-imagine-video-1.5",
+      "provider_reported_model": "grok-imagine-video-1.5",
+      "artifact_sha256": "cfcf81cf37a6436064c4fee5084e5b06a5dc5acdea62c6911f47cb74cc27d63e",
+      "observed_media": {
+        "duration": 4.041667,
+        "width": 848,
+        "height": 480,
+        "fps": "24/1",
+        "source_fps": "24/1",
+        "frame_count": "97",
+        "has_audio": true,
+        "codec": "h264"
+      },
+      "resubmits_on_recovery": 0
+    }
+  ],
+  "actual_billing": "unknown",
+  "creates": {
+    "image": 7,
+    "video": 2,
+    "resubmits_on_recovery": 0
+  },
+  "gif_unique_decoded_frames": 9
+}

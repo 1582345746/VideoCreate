@@ -3,7 +3,7 @@
   "product": "VideoCreate",
   "defaults": {
     "video_model": "grok-imagine-video-1.5",
-    "image_model": "gpt-image-2",
+    "image_model": "gpt-image-2.6",
     "aspect_ratio": "9:16",
     "resolution": "720p",
     "audio_mode": "native-dialogue",
@@ -24,10 +24,35 @@
       "display_name": "Seedance configured channel model",
       "prompt_profile": "seedance-current-shot-v1"
     },
-    "gpt-image-2": {
+    "gpt-image-2.5": {
       "kind": "image",
       "family": "gpt-image",
-      "display_name": "GPT Image 2"
+      "display_name": "GPT Image 2.5"
+    },
+    "gpt-image-2.6": {
+      "kind": "image",
+      "family": "gpt-image",
+      "display_name": "GPT Image 2.6"
+    },
+    "gpt-image-2.6-flare": {
+      "kind": "image",
+      "family": "gpt-image",
+      "display_name": "GPT Image 2.6 Flare"
+    },
+    "gpt-image-2.6-sunburst": {
+      "kind": "image",
+      "family": "gpt-image",
+      "display_name": "GPT Image 2.6 Sunburst"
+    },
+    "grok-imagine-image-2.0": {
+      "kind": "image",
+      "family": "grok",
+      "display_name": "Grok Imagine Image 2.0"
+    },
+    "muse-video": {
+      "kind": "video",
+      "family": "muse",
+      "display_name": "Muse Video"
     }
   },
   "upstreams": {
@@ -62,6 +87,38 @@
         "api_key": ""
       },
       "max_concurrent_submissions": 50,
+      "request_timeout_seconds": 120
+    },
+    "aivalux-gpt": {
+      "display_name": "Aivalux GPT image",
+      "platform": "sub2api",
+      "base_url": "https://www.aivalux.com",
+      "auth": {"type": "bearer", "env": "VIDEOCREATE_AIVALUX_GPT_API_KEY"},
+      "max_concurrent_submissions": 2,
+      "request_timeout_seconds": 120
+    },
+    "gateai-gpt": {
+      "display_name": "GateAI GPT image",
+      "platform": "sub2api",
+      "base_url": "https://gateai.cc",
+      "auth": {"type": "bearer", "env": "VIDEOCREATE_GATEAI_GPT_API_KEY"},
+      "max_concurrent_submissions": 2,
+      "request_timeout_seconds": 120
+    },
+    "aivalux-grok": {
+      "display_name": "Aivalux Grok",
+      "platform": "sub2api",
+      "base_url": "https://www.aivalux.com",
+      "auth": {"type": "bearer", "env": "VIDEOCREATE_AIVALUX_GROK_API_KEY"},
+      "max_concurrent_submissions": 2,
+      "request_timeout_seconds": 120
+    },
+    "rapidapi-grok": {
+      "display_name": "RapidAPI Grok",
+      "platform": "sub2api",
+      "base_url": "https://rapidapi.cc",
+      "auth": {"type": "bearer", "env": "VIDEOCREATE_RAPIDAPI_GROK_API_KEY"},
+      "max_concurrent_submissions": 2,
       "request_timeout_seconds": 120
     }
   },
@@ -129,9 +186,9 @@
     "image-primary": {
       "enabled": false,
       "setup_status": "needs-configuration-and-contract-check",
-      "model": "gpt-image-2",
+      "model": "gpt-image-2.5",
       "upstream": "image-service",
-      "remote_model": "gpt-image-2",
+      "remote_model": "gpt-image-2.5",
       "adapter": "openai-images-v1",
       "operations": [
         "text-to-image",
@@ -140,13 +197,93 @@
       "capability_profile": "image-service-pending-verification",
       "capability_overrides": {},
       "adapter_options": {}
+    },
+    "gpt-image-2.6--aivalux": {
+      "enabled": false, "setup_status": "catalog-seen-contract-unverified",
+      "model": "gpt-image-2.6", "upstream": "aivalux-gpt", "remote_model": "gpt-image-2.6",
+      "adapter": "openai-images-v1", "operations": ["text-to-image", "image-edit"],
+      "capability_overrides": {}, "adapter_options": {}
+    },
+    "gpt-image-2.6--gateai": {
+      "enabled": false, "setup_status": "user-declared-contract-unverified",
+      "model": "gpt-image-2.6", "upstream": "gateai-gpt", "remote_model": "gpt-image-2.6",
+      "adapter": "openai-images-v1", "operations": ["text-to-image", "image-edit"],
+      "capability_overrides": {}, "adapter_options": {}
+    },
+    "gpt-image-2.6-flare--aivalux": {
+      "enabled": false, "setup_status": "catalog-seen-contract-unverified",
+      "model": "gpt-image-2.6-flare", "upstream": "aivalux-gpt", "remote_model": "gpt-image-2.6-flare",
+      "adapter": "openai-images-v1", "operations": ["text-to-image", "image-edit"],
+      "capability_overrides": {}, "adapter_options": {}
+    },
+    "gpt-image-2.6-flare--gateai": {
+      "enabled": false, "setup_status": "user-declared-contract-unverified",
+      "model": "gpt-image-2.6-flare", "upstream": "gateai-gpt", "remote_model": "gpt-image-2.6-flare",
+      "adapter": "openai-images-v1", "operations": ["text-to-image", "image-edit"],
+      "capability_overrides": {}, "adapter_options": {}
+    },
+    "gpt-image-2.6-sunburst--aivalux": {
+      "enabled": false, "setup_status": "catalog-seen-contract-unverified",
+      "model": "gpt-image-2.6-sunburst", "upstream": "aivalux-gpt", "remote_model": "gpt-image-2.6-sunburst",
+      "adapter": "openai-images-v1", "operations": ["text-to-image", "image-edit"],
+      "capability_overrides": {}, "adapter_options": {}
+    },
+    "gpt-image-2.6-sunburst--gateai": {
+      "enabled": false, "setup_status": "user-declared-contract-unverified",
+      "model": "gpt-image-2.6-sunburst", "upstream": "gateai-gpt", "remote_model": "gpt-image-2.6-sunburst",
+      "adapter": "openai-images-v1", "operations": ["text-to-image", "image-edit"],
+      "capability_overrides": {}, "adapter_options": {}
+    },
+    "gpt-image-2.5--aivalux": {
+      "enabled": false, "setup_status": "catalog-seen-contract-unverified",
+      "model": "gpt-image-2.5", "upstream": "aivalux-gpt", "remote_model": "gpt-image-2.5",
+      "adapter": "openai-images-v1", "operations": ["text-to-image", "image-edit"],
+      "capability_overrides": {}, "adapter_options": {}
+    },
+    "gpt-image-2.5--gateai": {
+      "enabled": false, "setup_status": "user-declared-contract-unverified",
+      "model": "gpt-image-2.5", "upstream": "gateai-gpt", "remote_model": "gpt-image-2.5",
+      "adapter": "openai-images-v1", "operations": ["text-to-image", "image-edit"],
+      "capability_overrides": {}, "adapter_options": {}
+    },
+    "grok-imagine-image-2.0--aivalux": {
+      "enabled": false, "setup_status": "catalog-seen-image-contract-unverified",
+      "model": "grok-imagine-image-2.0", "upstream": "aivalux-grok", "remote_model": "grok-imagine-image-2.0",
+      "adapter": "openai-images-v1", "operations": ["text-to-image"],
+      "capability_overrides": {}, "adapter_options": {}
+    },
+    "grok-video--aivalux": {
+      "enabled": false, "setup_status": "catalog-seen-contract-unverified",
+      "model": "grok-imagine-video-1.5", "upstream": "aivalux-grok", "remote_model": "grok-imagine-video-1.5",
+      "adapter": "sub2api-json-v1", "operations": ["text-to-video", "image-to-video"],
+      "capability_overrides": {}, "adapter_options": {}
+    },
+    "grok-video--rapidapi": {
+      "enabled": false, "setup_status": "catalog-seen-contract-unverified",
+      "model": "grok-imagine-video-1.5", "upstream": "rapidapi-grok", "remote_model": "grok-imagine-video-1.5",
+      "adapter": "sub2api-json-v1", "operations": ["text-to-video", "image-to-video"],
+      "capability_overrides": {}, "adapter_options": {}
+    },
+    "muse-video--aivalux": {
+      "enabled": false, "setup_status": "catalog-seen-contract-unverified",
+      "model": "muse-video", "upstream": "aivalux-grok", "remote_model": "muse-video",
+      "adapter": "sub2api-json-v1", "operations": ["text-to-video", "image-to-video"],
+      "capability_overrides": {}, "adapter_options": {}
+    },
+    "muse-video--rapidapi": {
+      "enabled": false, "setup_status": "catalog-not-seen-contract-unverified",
+      "model": "muse-video", "upstream": "rapidapi-grok", "remote_model": "muse-video",
+      "adapter": "sub2api-json-v1", "operations": ["text-to-video", "image-to-video"],
+      "capability_overrides": {}, "adapter_options": {}
     }
   },
   "routes": {
     "grok-imagine-video-1.5": {
-      "policy": "fixed",
-      "preferred_binding": "grok-on-sub2api",
+      "policy": "automatic-same-model",
+      "preferred_binding": "grok-video--aivalux",
       "candidates": [
+        "grok-video--aivalux",
+        "grok-video--rapidapi",
         "grok-on-sub2api",
         "grok-on-newapi"
       ]
@@ -159,12 +296,45 @@
         "seedance-on-newapi"
       ]
     },
-    "gpt-image-2": {
-      "policy": "fixed",
-      "preferred_binding": "image-primary",
+    "gpt-image-2.5": {
+      "policy": "automatic-same-model",
+      "preferred_binding": "gpt-image-2.5--aivalux",
       "candidates": [
+        "gpt-image-2.5--aivalux",
+        "gpt-image-2.5--gateai",
         "image-primary"
       ]
+    },
+    "gpt-image-2.6": {
+      "policy": "automatic-same-model",
+      "preferred_binding": "gpt-image-2.6--aivalux",
+      "candidates": ["gpt-image-2.6--aivalux", "gpt-image-2.6--gateai"]
+    },
+    "gpt-image-2.6-flare": {
+      "policy": "automatic-same-model",
+      "preferred_binding": "gpt-image-2.6-flare--aivalux",
+      "candidates": ["gpt-image-2.6-flare--aivalux", "gpt-image-2.6-flare--gateai"]
+    },
+    "gpt-image-2.6-sunburst": {
+      "policy": "automatic-same-model",
+      "preferred_binding": "gpt-image-2.6-sunburst--aivalux",
+      "candidates": ["gpt-image-2.6-sunburst--aivalux", "gpt-image-2.6-sunburst--gateai"]
+    },
+    "grok-imagine-image-2.0": {
+      "policy": "fixed",
+      "preferred_binding": "grok-imagine-image-2.0--aivalux",
+      "candidates": ["grok-imagine-image-2.0--aivalux"]
+    },
+    "muse-video": {
+      "policy": "automatic-same-model",
+      "preferred_binding": "muse-video--aivalux",
+      "candidates": ["muse-video--aivalux", "muse-video--rapidapi"]
+    }
+  },
+  "model_selection": {
+    "image": {
+      "policy": "first-compatible",
+      "candidates": ["gpt-image-2.6", "gpt-image-2.6-flare", "gpt-image-2.6-sunburst", "gpt-image-2.5", "grok-imagine-image-2.0"]
     }
   },
   "execution": {

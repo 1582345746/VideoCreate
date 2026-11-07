@@ -39,6 +39,45 @@ import media_client
 
 
 class BindingWireTests(unittest.TestCase):
+    def test_unified_json_first_frame_contract_and_default_images_field(self):
+        for field in ("images", "first_frame"):
+            value = config()
+            item = value["bindings"]["grok-on-newapi"]
+            item["adapter"] = "newapi-json-v1"
+            item["adapter_options"] = {"primary_image_field": field}
+            self.assertEqual(validate_config(value), [])
+            binding = route_bindings(value, item["model"], operation="image-to-video", preferred="grok-on-newapi")[0]
+            with tempfile.TemporaryDirectory() as folder:
+                image = Path(folder)/"opening.jpg"
+                image.write_bytes(b"jpeg-placeholder")
+                client = BindingVideoClient(binding, mock.Mock())
+                with mock.patch("media_client._prepare_sub2api_reference", side_effect=lambda path, *args: path), \
+                     mock.patch("media_client.request_json", return_value={"id": "video-known"}) as post:
+                    self.assertEqual(client.create("A mother recognizes a voice", seconds=8, size="auto",
+                        resolution="720p", aspect_ratio="9:16", generate_audio=True, primary_reference=image), "video-known")
+                body = post.call_args.kwargs["value"]
+                self.assertTrue(post.call_args.args[1].endswith("/v1/videos"))
+                self.assertEqual(body["seconds"], 8)
+                self.assertTrue(body["generate_audio"])
+                encoded = body[field] if field == "first_frame" else body[field][0]
+                self.assertEqual(base64.b64decode(encoded.split(",",1)[1]), image.read_bytes())
+                self.assertNotIn("images" if field == "first_frame" else "first_frame", body)
+
+    def test_first_frame_rejects_extra_guidance_before_network(self):
+        value = config()
+        item = value["bindings"]["grok-on-newapi"]
+        item.update(adapter="newapi-json-v1", adapter_options={"primary_image_field": "first_frame"},
+            capability_overrides={"max_reference_images": 2, "max_additional_reference_images": 1})
+        binding = route_bindings(value, item["model"], operation="image-to-video", preferred="grok-on-newapi")[0]
+        with tempfile.TemporaryDirectory() as folder:
+            image = Path(folder)/"reference.jpg"
+            image.write_bytes(b"jpeg-placeholder")
+            with mock.patch("media_client.request_json") as post:
+                with self.assertRaisesRegex(ConfigError, "additional guidance"):
+                    BindingVideoClient(binding, mock.Mock()).create("A moving subject", seconds=4, size="auto",
+                        resolution="720p", primary_reference=image, reference_images=[image])
+            post.assert_not_called()
+
     @staticmethod
     def muse_config():
         value = config()
@@ -636,6 +675,17 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual(seen, ["grok-on-sub2api", "grok-on-newapi"])
         self.assertEqual(len(read_state(self.root)["ledger"]), 2)
         self.assertEqual(len(read_state(self.root)["jobs"]["job-001"]["history"]), 1)
+
+    def test_incompatible_primary_is_skipped_before_any_create(self):
+        self.config["routes"]["grok-imagine-video-1.5"]["policy"] = "automatic-same-model"
+        self.config["bindings"]["grok-on-sub2api"]["capability_overrides"] = {
+            "conditions": [{"when": {"resolution": "720p"}, "max_seconds": 1}]}
+        self.run_job()
+        state = read_state(self.root)
+        self.assertEqual(self.calls, 1)
+        self.assertEqual(state["jobs"]["job-001"]["binding_snapshot"]["binding_id"], "grok-on-newapi")
+        self.assertEqual(state["jobs"]["job-001"]["selection"]["decisions"][0]["eligible"], False)
+        self.assertEqual(len(state["ledger"]), 1)
 
     def test_resolution_change_requires_local_replan(self):
         self.run_job()

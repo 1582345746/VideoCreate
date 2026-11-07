@@ -23,6 +23,10 @@ Run `config init` when a user configuration is missing. Tell the user its exact 
 
 Each binding selects one canonical model, one named upstream instance, one exact remote model ID and one versioned adapter. Grok/Seedance are model families; Sub2API/NewAPI are platforms. Do not infer a wire protocol from a model name. Read [configuration.md](references/configuration.md) for the single JSON and its limits.
 
+The default image model is `gpt-image-2.6`. Resolve image generation and editing through the independent image binding and preserve the exact configured remote model ID. The configured image selector may choose the first compatible model before a task begins; it must not switch models after an ambiguous create. Same-model upstream fallback is separate and only follows a confirmed pre-create rejection. GIF is animated only when its validated frame count exceeds one; native GIF output/input must be enabled on the specific binding, and `media export-gif` is a local FFmpeg conversion with no provider call.
+
+Use `models list` to inspect family → media kind → model → platform/instance bindings, and `models explain-image` before creating an image when route choice matters. `media frames-gif` converts ordered static frames; `media extract-frame` records an explicit static reference from an animation/video. GIF acceptance needs full playback observation (`review image --temporal-observation`). New automatic tasks observe a binding's short local cooldown; an accepted task stays pinned. If a provider reports a different model ID or returns a different resolution, disclose the observed result; an exact outbound model string does not prove the gateway used that model internally.
+
 ## New video workflow
 
 For practical workflows and topic-specific command sequences, read [production-workflows.md](references/production-workflows.md). For brisk fighting, animal heroes or a comic reversal, also read [fast-action-and-animal-comedy.md](references/fast-action-and-animal-comedy.md). The current machine-readable v3 plan schema is generated with `plan schema --output <file>`; keep it synchronized with the runtime validator.

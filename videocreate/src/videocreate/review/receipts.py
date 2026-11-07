@@ -235,7 +235,8 @@ def inbox(root: Path, *, pending_only: bool = False) -> dict:
     return {"ok": True, "items": items, "count": len(items), "paid_creates": 0}
 
 
-def review_image(root: Path, *, job_id: str, status: str, reviewer_id: str, observation: str) -> dict:
+def review_image(root: Path, *, job_id: str, status: str, reviewer_id: str, observation: str,
+                 temporal_observation: bool = False) -> dict:
     if status not in {"pass", "fail"} or not reviewer_id.strip() or not observation.strip():
         raise ConfigError("Image review needs pass/fail, reviewer ID and an observed detail")
     with state_lock(root):
@@ -248,8 +249,13 @@ def review_image(root: Path, *, job_id: str, status: str, reviewer_id: str, obse
         digest = file_hash(path)
         if digest != artifact.get("sha256"):
             raise ConfigError("Image bytes changed after generation; review the current artifact")
+        if path.suffix.lower() == ".gif":
+            from ..media.gif import inspect_gif
+            if inspect_gif(path.read_bytes())["animated"] and not temporal_observation:
+                raise ConfigError("Animated GIF review needs full playback observation and --temporal-observation")
         receipt = {"schema_version": 1, "job_id": job_id, "reviewer_id": reviewer_id,
-            "status": status, "observation": observation, "artifact": artifact, "reviewed_at": int(time.time())}
+            "status": status, "observation": observation, "temporal_observation": temporal_observation,
+            "artifact": artifact, "reviewed_at": int(time.time())}
         target = root / "reviews" / "images" / f"{time.time_ns()}-{uuid.uuid4().hex[:8]}.json"
         atomic_json(target, receipt)
         previously_failed = record.get("content_status") == "rejected" and record.get("reviewed_sha256") == digest

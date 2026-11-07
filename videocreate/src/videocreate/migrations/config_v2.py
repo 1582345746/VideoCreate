@@ -37,7 +37,7 @@ def convert_config(old: dict[str, Any]) -> dict[str, Any]:
             old[target] = next((old.get(name) for name in alternatives if old.get(name)), "")
     old["default_video_provider"] = {"quickai": "sub2api", "quickainew": "newapi"}.get(old.get("default_video_provider"), old.get("default_video_provider", "sub2api"))
     model_default = old.get("default_video_model", old.get("video_model", "grok-imagine-video-1.5"))
-    image_model = old.get("image_model", "gpt-image-2")
+    image_model = old.get("image_model", "gpt-image-2.5")
     result: dict[str, Any] = {"schema_version": 3, "product": "VideoCreate", "defaults": {
         "video_model": model_default, "image_model": image_model, "resolution": "720p", "aspect_ratio": "9:16",
         "audio_mode": "native-dialogue", "subtitle_source": "none", "pace_profile": "story-adaptive"},

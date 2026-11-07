@@ -56,11 +56,20 @@ def capabilities(config: dict[str, Any], binding: dict[str, Any]) -> dict[str, A
         result.update(duration={"minimum": 1, "maximum": 15, "step": 1},
                       resolutions=["480p", "720p", "1080p"], aspect_ratios=["16:9", "9:16", "1:1", "4:3", "3:4", "2:3", "3:2"],
                       conditions=[], video_reference="unknown", audio_reference="unknown", last_frame="unknown")
+    else:
+        result.update(output_formats=["png"], image_sizes=["auto", "1024x1024", "1536x1024", "1024x1536"],
+                      image_quality_values=["auto", "low", "medium", "high"],
+                      max_animation_frames=3000, max_animation_duration_seconds=30,
+                      animated_input="unknown", animated_output="unknown")
     overrides = binding.get("capability_overrides", {})
     allowed = set(result) - {"verification_level"}
     if set(overrides) - allowed:
         raise ConfigError("capability_overrides: unknown capability field or read-only verification level")
     result.update(copy.deepcopy(overrides))
+    if "image/gif" in result.get("reference_mime_types", []) and result.get("animated_input") != "supported":
+        raise ConfigError("GIF references require animated_input=supported")
+    if "gif" in result.get("output_formats", []) and result.get("animated_output") != "supported":
+        raise ConfigError("GIF output requires animated_output=supported")
     if video and _is_muse_video(binding):
         duration = result["duration"]
         if duration["minimum"] > MUSE_VIDEO_MAX_SECONDS:
@@ -84,7 +93,7 @@ def configured_binding(config: dict, bid: str, *, key: str = "") -> Binding:
 
 def route_bindings(config: dict[str, Any], model: str, *, operation: str,
                    preferred: str | None = None, policy: str | None = None, require_key: bool = True,
-                   store_root=None) -> list[Binding]:
+                   store_root=None, include_cooling: bool = False) -> list[Binding]:
     route = config["routes"].get(model)
     if not route:
         raise ConfigError("Selected model has no configured route")
@@ -106,7 +115,12 @@ def route_bindings(config: dict[str, Any], model: str, *, operation: str,
         key = resolve_key(upstream["auth"], store_root=store_root)
         if require_key and not key:
             continue
-        result.append(configured_binding(config, bid, key=key))
+        candidate = configured_binding(config, bid, key=key)
+        if selected_policy == "automatic-same-model" and store_root is not None and not include_cooling:
+            from ..runtime.health import cooling_down
+            if cooling_down(store_root, candidate):
+                continue
+        result.append(candidate)
     if not result:
         raise ConfigError("No enabled binding supports the selected model/operation with available credentials")
     return result
