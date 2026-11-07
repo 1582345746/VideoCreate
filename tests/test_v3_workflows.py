@@ -205,6 +205,15 @@ class WorkflowTests(unittest.TestCase):
             prepare(self.root, self.config, 'muse-image', 'image', prompt_file=prompt,
                     references=[Path('truncated.png')])
 
+    def test_png_reference_container_checks_work_without_optional_pillow(self):
+        from videocreate.workflows import _verify_image_bytes
+        path = self.root / 'ref.png'
+        path.write_bytes(PNG)
+        with mock.patch.dict(sys.modules, {'PIL': None, 'PIL.Image': None}):
+            _verify_image_bytes(path, PNG, 'image/png')
+            with self.assertRaisesRegex(ConfigError, 'truncated|invalid'):
+                _verify_image_bytes(path, PNG[:-12], 'image/png')
+
     def test_mixed_video_needs_explicit_image_job_and_hash_verified_reference(self):
         with self.assertRaisesRegex(ConfigError, 'operation differs'):
             prepare(self.root, self.config, 'api-image-muse-video', 'video', job_id='job-001')

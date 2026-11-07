@@ -59,6 +59,12 @@ class ReviewTests(unittest.TestCase):
         self.assertEqual(result["status"], "review_pending")
         self.assertEqual(result["assets"]["final"]["narrative"], "unverified")
 
+    def test_review_contract_resolves_project_root_before_recording_relative_paths(self):
+        (self.root / "alias-parent").mkdir()
+        alias_root = self.root / "alias-parent" / ".."
+        self.assertEqual(receipts.contracts(alias_root, self.bundle),
+            receipts.contracts(self.root, self.bundle))
+
     def test_full_contract_can_be_accepted_only_with_observed_evidence(self):
         self.assertEqual(receipts.validate_receipt(self.root, self.bundle, self.receipt), [])
         result = receipts.apply(self.root, self.bundle, self.receipt)

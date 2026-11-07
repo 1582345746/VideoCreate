@@ -715,7 +715,9 @@ class RuntimeTests(unittest.TestCase):
         job = self.bundle["generation-plan"]["jobs"][0]
         job.update(operation="image-to-video", references=[{"path": path.name, "role": "opening-frame", "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}])
         atomic_json(self.root / "generation-plan.json", self.bundle["generation-plan"])
-        self.run_job()
+        (self.root / "alias-parent").mkdir()
+        jobs.generate(self.root / "alias-parent" / "..", self.config,
+            store_root=self.root, job_ids=["job-001"])
         path.write_bytes(b"changed reference")
         job["references"][0]["sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
         atomic_json(self.root / "generation-plan.json", self.bundle["generation-plan"])

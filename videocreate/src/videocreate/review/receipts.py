@@ -20,6 +20,7 @@ def file_hash(path: Path) -> str:
 
 
 def contracts(root: Path, bundle: dict, *, output_name: str = "preview.mp4") -> dict:
+    root = root.resolve()
     if not isinstance(output_name, str) or Path(output_name).name != output_name or not output_name.endswith(".mp4"):
         raise ConfigError("Review output must be a plain MP4 filename")
     state, result = read_state(root), {}

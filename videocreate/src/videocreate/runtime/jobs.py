@@ -329,6 +329,7 @@ def _generate_serial(root: Path, config: dict, *, store_root: Path, job_ids: lis
 def generate(root: Path, config: dict, *, store_root: Path, job_ids: list[str] | None = None,
              poll_timeout: int = 900, retry: str | None = None, reason: str = "", progress=None,
              binding_override: dict[str, str] | None = None) -> dict:
+    root = root.resolve()
     bundle = load_project(root)
     validation = validate_plan(bundle, root)
     if not validation["ok"]:

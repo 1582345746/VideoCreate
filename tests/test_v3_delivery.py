@@ -137,13 +137,18 @@ class DeliveryTests(unittest.TestCase):
         png = base64.b64encode(b"not-a-real-png").decode()
         active = 0
         peak = 0
+        entered = 0
         guard = threading.Lock()
+        first_wave = threading.Barrier(2)
         def create_payload(*args, **kwargs):
-            nonlocal active, peak
+            nonlocal active, peak, entered
             with guard:
+                entered += 1
+                wait_for_peer = entered <= 2
                 active += 1
                 peak = max(peak, active)
-            time.sleep(0.08)
+            if wait_for_peer:
+                first_wave.wait(timeout=15)
             with guard:
                 active -= 1
             return {"data": [{"b64_json": png}]}

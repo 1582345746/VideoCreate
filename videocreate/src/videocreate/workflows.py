@@ -162,7 +162,7 @@ def _verify_image_bytes(path: Path, data: bytes, mime: str) -> None:
         return
 
     if mime == "image/png":
-        if len(data) < 33 or data[12:16] != b"IHDR" or data[-12:-8] != b"IEND":
+        if len(data) < 33 or data[12:16] != b"IHDR" or data[-12:-4] != b"\x00\x00\x00\x00IEND":
             raise ConfigError("Reference image is a truncated or invalid PNG")
         width, height = struct.unpack(">II", data[16:24])
         if not width or not height:
