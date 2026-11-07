@@ -561,7 +561,8 @@ class RuntimeTests(unittest.TestCase):
         self.config["upstreams"]["primary-sub2api"]["max_concurrent_submissions"] = 3
         guard = threading.Lock()
         create_barrier = threading.Barrier(3)
-        active_create = active_poll = peak_create = peak_poll = create_calls = 0
+        poll_barrier = threading.Barrier(3)
+        active_create = active_poll = peak_create = peak_poll = create_calls = poll_calls = 0
         class ConcurrentClient:
             def __init__(this, binding):
                 this.binding, this.last_submission = binding, {}
@@ -575,18 +576,19 @@ class RuntimeTests(unittest.TestCase):
                     create_calls += 1
                     wait_for_initial_group = create_calls <= 3
                 if wait_for_initial_group:
-                    create_barrier.wait(timeout=5)
-                else:
-                    time.sleep(0.06)
+                    create_barrier.wait(timeout=15)
                 with guard:
                     active_create -= 1
                 return "known-" + str(uuid.uuid4())
             def poll(this, task_id, *, timeout_seconds, on_status):
-                nonlocal active_poll, peak_poll
+                nonlocal active_poll, peak_poll, poll_calls
                 with guard:
                     active_poll += 1
                     peak_poll = max(peak_poll, active_poll)
-                time.sleep(0.08)
+                    poll_calls += 1
+                    wait_for_initial_group = poll_calls <= 3
+                if wait_for_initial_group:
+                    poll_barrier.wait(timeout=15)
                 with guard:
                     active_poll -= 1
                 return {"status": "completed"}

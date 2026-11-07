@@ -1,4 +1,4 @@
-# VideoCreate 3.0.0.dev4：交付与实际验收
+# VideoCreate 3.0.0.dev5：交付与实际验收
 
 日期：2026-11-07。完整路线图仍见 [开发清单](20261107-model-routing-gif-development-plan.zh-CN.md)；这里记录当前实现和实际测试范围。
 
@@ -53,10 +53,10 @@ python <已安装技能>/scripts/videocreate.py media export-gif <项目> --sour
 
 ## 验证和后续
 
-本机首次全量回归 `427 passed`（285.97 秒）；随后新增的“默认型号改变且原 binding 禁用时复用已完成图片”用例单独通过。GitHub 首轮发现 Windows 短/长路径混用、无 Pillow 时 PNG 结束标记偏移错误及 CI 媒体测试依赖缺失；dev4 已修复这些问题，并将并发测试改为线程同步验证。相关 38 项通过，最终共 430 个用例。回归覆盖参数与精确型号、图片和视频故障注入、未知提交、固定路由、预算、恢复、GIF 静态替代、帧序列与取帧、动画审核及密钥隔离。
+最终代码在本机全量 `430 tests / OK`（274.783 秒）；GitHub dev4 标签的 Linux、Windows CI 均通过。GitHub 首轮发现的 Windows 短/长路径混用、无 Pillow 时 PNG 结束标记偏移错误及 CI 媒体测试依赖缺失均已修复；dev5 另将视频轮询并发测试改为线程同步验证，消除固定等待时间造成的偶发失败，相关单项通过。`python -S` 不加载可选依赖时的浏览器交接 19 项也通过。回归覆盖参数与精确型号、图片和视频故障注入、未知提交、固定路由、预算、恢复、GIF 静态替代、帧序列与取帧、动画审核及密钥隔离。
 
-wheel 与 ZIP 均通过发布内容检查，并在仓库外以 Python 隔离模式验证入口与 GIF 路由。209 个 Git 候选文件的密钥模式扫描零命中，技能独立校验通过。`install.ps1 -Force` 已把 dev4 安装到本机 `C:/Users/FBX/.codex/skills/videocreate`，安装后的版本与 `config validate --ready` 检查通过；安装前后配置 JSON 和 DPAPI 文件哈希一致。旧技能已备份到 skills 目录之外。
+wheel 与 ZIP 均通过发布内容检查，并在仓库外以 Python 隔离模式验证入口与 GIF 路由。209 个 Git 候选文件的密钥模式扫描零命中，技能独立校验通过。`install.ps1 -Force` 已把 dev5 安装到本机 `C:/Users/FBX/.codex/skills/videocreate`，安装后的版本与 `config validate --ready` 检查通过；安装前后配置 JSON 和 DPAPI 文件哈希一致。旧技能已备份到 skills 目录之外。
 
-发布标签为 `v3.0.0.dev4`，属于预发布开发版；源代码位于 `codex/videocreate-v3` 分支。首轮失败的 `v3.0.0.dev3` 标签保留，不覆盖历史。GitHub 上的跨平台测试与发布结果以 dev4 标签对应的 Actions 记录为准。
+发布标签为 `v3.0.0.dev5`，属于预发布开发版；源代码位于 `codex/videocreate-v3` 分支。较早的 dev3/dev4 标签和失败记录保留，不覆盖历史。GitHub 上的跨平台测试与发布结果以 dev5 标签对应的 Actions 记录为准。
 
 仍需外部证据或后续开发：GateAI 账户可用性、Grok 图片服务恢复、Aivalux 视频型号等价说明、全部 8 条 GPT binding 的生成/编辑矩阵、变体 GIF 与动画输入合同、真实计费、盲评用途标签、异步/SSE 图片协议、结构化厂商错误合同与 Retry-After、共享速率额度、自动跨型号替代及新的 Seedance 供应商协议。当前未实现的字段和协议不以配置占位冒称已接入。
