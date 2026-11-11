@@ -48,6 +48,7 @@ def job_inputs(bundle: dict, job: dict, compilation: dict) -> str:
 
 def generation_inputs(root: Path, bundle: dict, job: dict, compilation: dict) -> str:
     """Exact persisted identity, shared by submission and offline reuse checks."""
+    root = Path(root).resolve()
     references = job.get("references", [])
     ordered = [r for r in references if r["role"] == "opening-frame"] + [
         r for r in references if r["role"] != "opening-frame"]

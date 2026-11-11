@@ -2,7 +2,7 @@
 
 [![VideoCreate CI](https://github.com/1582345746/VideoCreate/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/1582345746/VideoCreate/actions/workflows/ci.yml)
 
-面向 Codex 的可恢复、多模型、多上游 AI 视频制作技能。产品名、技能入口和 Python 包统一为 **VideoCreate**。当前开发版为 `3.0.0.dev7`；这不是生产质量认证。
+面向 Codex 的可恢复、多模型、多上游 AI 视频制作技能。产品名、技能入口和 Python 包统一为 **VideoCreate**。当前开发版为 `3.0.0.dev8`；这不是生产质量认证。
 
 新工作使用分层 v3 计划：brief、story、director、generation-plan 和 timeline。旧的 v2 项目/任务仍保留兼容入口。v3 结构检查不会代替真实的视觉、动作和音频验收；模型和上游未通过实际样片验证时维持 unknown/unverified。
 
@@ -11,6 +11,8 @@
 dev6 新增 [动画故事创作模块](videocreate/references/animation-story.md)：参考剧情→原创世界/场景→主题角色→v3 分镜，附水豚噜噜/噜妹与毛毡狐狸/兔子两套主题。支持角色图裁剪与身份指导、开场状态校验、相邻小样、独立短剧、固定声线音轨和剧情保真审核。`animation example PROJECT --scenario reaction` 可离线创建完整示例；使用 `--theme cloud-couriers` 检验换角色。真实生成与质量边界见 [开发验收记录](docs/20261111-animation-story-acceptance.zh-CN.md)。
 
 dev7 增加 `animation preview`：独立修剪已生成的小样，保留完整故事计划、任务与候选；按保留窗口重排声音和字幕，拒绝截断半句，小样不能当作完整成片验收。复用判断使用与真实提交一致的输入哈希，包含参考图字节和画幅参数。
+
+dev8 修正 Windows 短路径下的参考哈希计算，限制 FFmpeg 归一化线程并提供按片段时长的超时诊断。动画示例明确取物、递接与接稳后松手，第二主题不再混入噜噜名称；连续镜头优先从实际保留末帧接续。首条完整故事曾被用户指出闪跳和道具跳现，修正版须重新播放验收。
 
 dev5 已有 GPT Image 2.6 三型号与 Grok Image 2.0 目录、创建前图片选型、图片/视频同型号备用和候选预检查、本机故障冷却，以及 GIF 校验与本地转换。账户级测试结果见 [模型路由交付记录](docs/20261107-model-routing-gif-acceptance.zh-CN.md)。
 

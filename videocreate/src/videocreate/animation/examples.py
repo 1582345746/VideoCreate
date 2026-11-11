@@ -12,7 +12,7 @@ def create(root, *, theme="lulu-lumei", scenario="reaction", model=None, binding
     if scenario == "reaction":
         rows = [("想独享饼干", f"{a}把饼干盒护在胸前，偷看{b}", "setup"),
                 ("发现空盒", f"{a}打开空盒，笑容僵住，视线落进盒内", "reveal"),
-                ("反被照顾", f"{b}把最后一块饼干推向{a}，{a}愧疚地松肩微笑", "reaction")]
+                ("反被照顾", f"{b}空手伸向衣物侧边口袋，清楚取出最后一块饼干递给{a}；{a}接稳后{b}才松手，{a}愧疚地松肩微笑", "reaction")]
         goal, obstacle, choice, result = "独享饼干", "自己护着的盒子早已空了", "接受对方分享并放下戒备", "对方的关心反衬自己的小心思"
         point = "从自私的期待到空盒失落，再到被照顾后的羞愧与暖意"
     elif scenario == "dialogue":
@@ -32,7 +32,7 @@ def create(root, *, theme="lulu-lumei", scenario="reaction", model=None, binding
     openings = {
         "reaction": [f"{a}左，{b}右，嘴巴合拢；桌上只有一个完全盖住的不透明饼干铁盒。两人双手没有饼干，盒盖未打开，内容不可见。{a}双臂准备护住盒子。",
             f"{a}双手捧住完全盖着的不透明铁盒，准备打开。{b}安静看着；嘴巴合拢。禁止可见饼干或开着的盒盖。",
-            f"{a}面前的铁盒已经打开，盒内清楚地完全空着。{b}手中只有一块饼干，仍在身体右侧，尚未推给{a}。{a}失落垂眼；嘴巴合拢。"],
+            f"{a}面前的铁盒已经打开，盒内清楚地完全空着。{b}双手空着，唯一饼干藏在衣物侧边口袋内不可见，尚未伸手取。{a}失落垂眼；嘴巴合拢。"],
         "dialogue": [f"{a}左侧抱臂偏头，{b}右侧刚到，桌面一只保温杯", f"{b}右侧看向桌上保温杯，{a}左侧抱臂略显紧张", f"{a}左侧手掌在杯旁，杯子尚未推近{b}，双方表情开始放松"],
         "contact": [f"{b}右侧坐在软垫边缘困倦揉眼，{a}左侧尚未递物，靠垫在{a}腿旁",
             f"{a}左侧坐稳，靠垫在两人之间的座面上，{b}右侧尚未接住，双方双脚有支撑",
@@ -48,7 +48,7 @@ def create(root, *, theme="lulu-lumei", scenario="reaction", model=None, binding
             "asset_ids": [a, b, "story-prop"], "actors": [a, b],
             "actions": [{"kind": "reaction" if role == "reaction" else "physical", "description": action}],
             "performance": {"trigger": information, "attention": "对方与道具", "visible_response": action, "decision": information},
-            "visible_evidence": [f"evidence-{i}"], "planned_seconds": seconds,
+            "visible_evidence": [f"evidence-{i}"], "planned_seconds": 6 if scenario == "reaction" and i == 3 else seconds,
             "entry_state": {"a_position": "left", "b_position": "right"}, "exit_state": {"a_position": "left", "b_position": "right"},
             "cut_motivation": "保留情绪停顿后进入下一次因果反应", "audio": {"mode": "ambience", "ambience": "轻微室内环境声，无可辨识人声"}}
         if scenario == "contact" and i >= 2:
@@ -59,6 +59,12 @@ def create(root, *, theme="lulu-lumei", scenario="reaction", model=None, binding
             speaker, text = [(a, "我才没等你。"), (b, "那热饮给谁呀？"), (a, "快喝，别凉了。")][i-1]
             shot["audio"] = {"mode": "independent-voice", "lines": [{"speaker": speaker, "text": text,
                 "on_screen": True, "start": .5, "end": 3, "voice_asset_id": "voice-" + speaker}]}
+        if scenario == "reaction" and i == 3:
+            shot["action_phases"] = [{"phase": phase, "start": start, "end": end, "description": desc} for phase,start,end,desc in
+                [("prepare", 0, 1, f"{b}空手移向衣物侧边口袋"),
+                 ("action", 1, 2.5, f"{b}伸入口袋并清楚取出唯一饼干；手和取物路径始终可见"),
+                 ("contact", 2.5, 4.5, f"{b}递出，{a}双手接稳后{b}才松手"),
+                 ("settle", 4.5, 6, f"{a}看向{b}，愧疚地松肩微笑，保留回应")]]
         shots.append(shot)
     if scenario == "reaction":
         # The payoff cookie must not leak into setup/reveal image prompts.
@@ -78,7 +84,7 @@ def create(root, *, theme="lulu-lumei", scenario="reaction", model=None, binding
         "story": {"logline": document["title"], "goal": goal, "obstacle": obstacle, "choice": choice, "consequence": result,
             "payoff": rows[-1][0], "initial_state": {"stage": 0}, "beats": beats},
         "director": {"assets": [{"id": "story-prop", "kind": "prop", "description": {"reaction": "唯一一个奶油色圆形金属饼干铁盒，橙白格纹盖，盒盖与盒身等直径；不是方盒，没有盘子", "dialogue": "无字保温杯", "contact": "柔软小靠垫"}[scenario]},
-            *([{"id": "cookie", "kind": "prop", "description": "噜妹手中唯一一块圆饼干"}] if scenario == "reaction" else [])],
+            *([{"id": "cookie", "kind": "prop", "description": f"唯一一块圆饼干，起初藏在{b}衣物侧边口袋内，取出后才可见"}] if scenario == "reaction" else [])],
             "scenes": [{"id": "rest", "map": "原创茶歇空间", "axis": "两人左右的互动轴", "positions": {a: "left", b: "right"}}], "shots": shots}}
     author(root, {"outline": outline, "adaptation": adaptation})
     return plan(root, model=model, binding=binding)

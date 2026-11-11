@@ -477,9 +477,9 @@ def validate_edit_plan(root: Path, plan: dict[str, Any], *, require_inputs: bool
     return errors
 
 
-def _run(command: list[str], action: str) -> None:
+def _run(command: list[str], action: str, *, timeout: float = 1800) -> None:
     try:
-        result = subprocess.run(command, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=1800)
+        result = subprocess.run(command, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout)
     except subprocess.TimeoutExpired as error:
         detail = error.stderr or error.stdout or b""
         if isinstance(detail, bytes):
@@ -572,7 +572,7 @@ def _normalize_inputs(
             except SkillError:
                 reusable = False
         if not reusable:
-            command = [ffmpeg, "-y", "-ss", f"{edit_in:.3f}", "-t", f"{source_duration:.3f}", "-i", str(source)]
+            command = [ffmpeg, "-nostdin", "-filter_threads", "1", "-y", "-ss", f"{edit_in:.3f}", "-t", f"{source_duration:.3f}", "-i", str(source)]
             audio_index = 0
             if not probe["has_audio"]:
                 command.extend(["-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=48000"])
@@ -591,6 +591,8 @@ def _normalize_inputs(
                     f"{duration:.3f}",
                     "-c:v",
                     "libx264",
+                    "-threads:v",
+                    "2",
                     "-preset",
                     "medium",
                     "-crf",
@@ -610,7 +612,7 @@ def _normalize_inputs(
                     str(output),
                 ]
             )
-            _run(command, f"normalizing edit input {index}")
+            _run(command, f"normalizing edit input {index}", timeout=max(60, min(1800, duration * 60)))
         current = probe_media(output)
         segments.append(output)
         segment_media.append(current)

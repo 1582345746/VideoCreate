@@ -111,7 +111,7 @@ def render(root: Path, bundle: dict, state: dict, *, output_name: str = "preview
             source = media[seg["clip_id"]]
             duration = seg["source_out"] - seg["source_in"]
             part = folder / f"segment-{i:03}.mp4"
-            args = [ffmpeg, "-v", "error", "-y", "-ss", str(seg["source_in"]), "-t", str(duration), "-i", str(path)]
+            args = [ffmpeg, "-nostdin", "-filter_threads", "1", "-v", "error", "-y", "-ss", str(seg["source_in"]), "-t", str(duration), "-i", str(path)]
             filters = f"setpts=(PTS-STARTPTS)/{rate},scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps={timeline['fps']}"
             if source["has_audio"] and seg.get("source_audio", "mute") != "mute":
                 args += ["-af", "asetpts=PTS-STARTPTS," + atempo(rate)

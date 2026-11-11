@@ -55,6 +55,7 @@ class AnimationTests(unittest.TestCase):
                         if theme == "cloud-couriers":
                             self.assertNotIn("黄色", compiled["prompt"])
                             self.assertNotIn("lulu", compiled["prompt"])
+                            self.assertNotIn("噜", compiled["prompt"])
                     self.assertEqual(pipeline.status(root)["budget"]["requests"], 0)
 
     def test_missing_story_point_and_disconnected_mapping_rejected(self):
@@ -178,6 +179,7 @@ class AnimationTests(unittest.TestCase):
         reference.write_bytes(b"reference hash fixture")
         job["references"] = [{"path": reference.name, "role": "opening-frame"}]
         with_reference = fingerprint(bundle)
+        self.assertEqual(current_inputs(root / ".." / root.name, bundle, job, {}), with_reference)
         reference.write_bytes(b"different reference bytes")
         self.assertNotEqual(fingerprint(bundle), with_reference)
         job.pop("references")
