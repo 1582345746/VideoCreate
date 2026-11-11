@@ -572,21 +572,20 @@ def _normalize_inputs(
             except SkillError:
                 reusable = False
         if not reusable:
+            # Retimed short clips can deadlock FFmpeg 8's combined A/V scheduler
+            # before the first encoded frame. Finish each stream independently,
+            # then stream-copy the bounded results; each stream is encoded once.
+            picture = cache / f"segment-{index:03d}.picture.mp4"
+            soundtrack = cache / f"segment-{index:03d}.audio.m4a"
+            timeout = max(60, min(1800, duration * 60))
             command = [ffmpeg, "-nostdin", "-filter_threads", "1", "-y", "-ss", f"{edit_in:.3f}", "-t", f"{source_duration:.3f}", "-i", str(source)]
-            audio_index = 0
-            if not probe["has_audio"]:
-                command.extend(["-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=48000"])
-                audio_index = 1
             command.extend(
                 [
                     "-map",
                     "0:v:0",
-                    "-map",
-                    f"{audio_index}:a:0",
+                    "-an",
                     "-vf",
                     _filter_chain(plan, item, width, height),
-                    "-af",
-                    f"{_atempo_chain(speed)},apad=whole_dur={duration:.6f},atrim=duration={duration:.6f}",
                     "-t",
                     f"{duration:.3f}",
                     "-c:v",
@@ -599,20 +598,27 @@ def _normalize_inputs(
                     "18",
                     "-pix_fmt",
                     "yuv420p",
-                    "-c:a",
-                    "aac",
-                    "-b:a",
-                    "192k",
-                    "-ar",
-                    "48000",
-                    "-ac",
-                    "2",
                     "-movflags",
                     "+faststart",
-                    str(output),
+                    str(picture),
                 ]
             )
-            _run(command, f"normalizing edit input {index}", timeout=max(60, min(1800, duration * 60)))
+            _run(command, f"normalizing edit picture {index}", timeout=timeout)
+            audio_command = [ffmpeg, "-nostdin", "-y"]
+            if probe["has_audio"]:
+                audio_command += ["-ss", f"{edit_in:.3f}", "-t", f"{source_duration:.3f}", "-i", str(source)]
+                audio_filter = f"asetpts=PTS-STARTPTS,{_atempo_chain(speed)},apad=whole_dur={duration:.6f},atrim=duration={duration:.6f}"
+            else:
+                audio_command += ["-f", "lavfi", "-i", f"anullsrc=channel_layout=stereo:sample_rate=48000:d={duration:.6f}"]
+                audio_filter = f"atrim=duration={duration:.6f}"
+            audio_command += ["-vn", "-map", "0:a:0", "-af", audio_filter, "-t", f"{duration:.3f}",
+                "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2", str(soundtrack)]
+            _run(audio_command, f"normalizing edit audio {index}", timeout=timeout)
+            _run([ffmpeg, "-nostdin", "-y", "-i", str(picture), "-i", str(soundtrack), "-map", "0:v:0", "-map", "1:a:0",
+                "-c", "copy", "-t", f"{duration:.3f}", "-movflags", "+faststart", str(output)],
+                f"muxing normalized edit input {index}", timeout=timeout)
+            picture.unlink(missing_ok=True)
+            soundtrack.unlink(missing_ok=True)
         current = probe_media(output)
         segments.append(output)
         segment_media.append(current)
@@ -743,7 +749,7 @@ def _assemble_timeline(
 def _input_signature(root: Path, plan: dict[str, Any]) -> str:
     plan = migrate_edit_plan(plan)
     inputs = list((plan.get("timeline") or {}).get("inputs") or [])
-    material = {"plan": plan, "inputs": []}
+    material = {"plan": plan, "normalization_version": 2, "inputs": []}
     for item in inputs:
         path = _project_path(root, str(item["path"]), must_exist=True)
         material["inputs"].append({"path": str(item["path"]), "bytes": path.stat().st_size, "sha256": _digest(path)})
