@@ -38,6 +38,8 @@ Independent coverage can run concurrently after the pilot. Continuation from an 
 
 Select actual source in/out around a complete visual unit. A brief hold before impact and an observable effect after it help readability. Keep clear spatial direction across cuts. Distinguish a deliberate ellipsis (cat is now seated on a vacuum) from a missing decisive action (a truck never visibly stops). Do not append an unexplained result to make an incomplete source appear successful.
 
+In the cinematic Lulu pilot, replacing the rejected face with a version derived from the user's selected reference, retaining a continuous six-second exchange and removing its idle tail improved the result. The user accepted face and speed after a local 1.2x edit to about five seconds, with the generated audio retimed at preserved pitch. Use that as a tested starting point for similar non-dialogue action, not a universal rate or approval of future outputs. Keep the film identity version separate from the home theme; retain natural speech speed in dialogue shots.
+
 Use continuous ambience, a precisely placed contact sound, cloth/foot sounds, a short gap and a reveal sound when appropriate. Place independent effects in timeline time after the edit is chosen. These are sound design plans until real assets are attached and listened to; do not infer good sound from an audio stream existing. Dialogue is optional; a visual joke should be understandable with sound muted.
 
 ## Advisory audit and acceptance
