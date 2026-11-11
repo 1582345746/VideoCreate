@@ -2,7 +2,7 @@
 
 [![VideoCreate CI](https://github.com/1582345746/VideoCreate/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/1582345746/VideoCreate/actions/workflows/ci.yml)
 
-面向 Codex 的可恢复、多模型、多上游 AI 视频制作技能。产品名、技能入口和 Python 包统一为 **VideoCreate**。当前开发版为 `3.0.0.dev9`；这不是生产质量认证。
+面向 Codex 的可恢复、多模型、多上游 AI 视频制作技能。产品名、技能入口和 Python 包统一为 **VideoCreate**。当前开发版为 `3.0.0.dev10`；这不是生产质量认证。
 
 新工作使用分层 v3 计划：brief、story、director、generation-plan 和 timeline。旧的 v2 项目/任务仍保留兼容入口。v3 结构检查不会代替真实的视觉、动作和音频验收；模型和上游未通过实际样片验证时维持 unknown/unverified。
 

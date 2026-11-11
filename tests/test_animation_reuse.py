@@ -25,7 +25,7 @@ class AnimationReuseTests(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
         self.project = self.root / "story"
-        examples.create(self.project, scenario="dialogue")
+        examples.create(self.project, scenario="dialogue", audio_mode="independent-voice")
         self.cast = {"schema_version": 1, "characters": {cid: {"version": "1", "provider": "cosyvoice",
             "service_url": "http://127.0.0.1:9880", "language": "zh-CN", "voice": {"voice_id": cid + "-fixture"}}
             for cid in ("lulu", "lumei")}}

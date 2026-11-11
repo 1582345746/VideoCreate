@@ -196,6 +196,8 @@ def analyze_reference(
     min_interval: float = 0.5,
     max_frames: int = 12,
     crop: tuple[int, int, int, int] | None = None,
+    sample_start: float = 0,
+    sample_end: float | None = None,
 ) -> dict[str, Any]:
     """Measure a local video; evidence always remains unreviewed until Codex/human review."""
     source = Path(path).expanduser().resolve()
@@ -212,6 +214,11 @@ def analyze_reference(
         raise SkillError("min_interval must be positive and finite")
     if isinstance(max_frames, bool) or not isinstance(max_frames, int) or not 1 <= max_frames <= 48:
         raise SkillError("max_frames must be an integer from 1 to 48")
+    for value in (sample_start, sample_end):
+        if value is not None and (isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value)):
+            raise SkillError("sample range must contain finite seconds")
+    if sample_start is None or sample_start < 0 or (sample_end is not None and sample_end <= sample_start):
+        raise SkillError("sample range requires 0 <= start < end")
     if crop is not None and (not isinstance(crop, (list, tuple)) or len(crop) != 4 or
             any(isinstance(v, bool) or not isinstance(v, int) for v in crop) or
             min(crop[:2]) < 0 or min(crop[2:]) <= 0 or any(v % 2 for v in crop)):
@@ -221,19 +228,25 @@ def analyze_reference(
         raise SkillError("ffmpeg and ffprobe are required for reference video analysis")
     source_sha = _digest(source)
     media = _probe(source, ffprobe)
+    duration = media["duration_seconds"]
+    end = duration if sample_end is None else sample_end
+    if not sample_start < end <= duration:
+        raise SkillError("sample range exceeds source duration")
     if crop and (crop[0]+crop[2] > media["width"] or crop[1]+crop[3] > media["height"]):
         raise SkillError("crop exceeds source dimensions")
     view_width, view_height = (crop[2], crop[3]) if crop else (media["width"], media["height"])
     thumb = (480, 270) if view_width > view_height else (320, 320) if view_width == view_height else (240, 426)
     settings = {"scene_threshold": threshold, "min_interval": spacing, "max_frames": max_frames,
                 "crop_xywh": list(crop) if crop else None, "thumbnail_size": list(thumb), "sampling_version": 2}
+    if sample_start != 0 or sample_end is not None:
+        settings["sample_range_seconds"] = [float(sample_start), float(sample_end) if sample_end is not None else None]
     analysis_id = f"{source_sha[:16]}-{_json_digest(settings)[:8]}"
     destination = output_root / analysis_id
     destination.mkdir(parents=True, exist_ok=True)
-    duration = media["duration_seconds"]
     scenes = _scene_measurements(source, ffmpeg, duration, threshold, spacing, crop)
     audio = _audio_measurements(source, ffmpeg, duration, media["has_audio"])
-    times = _sample_times(scenes["filtered_candidates_seconds"], duration, max_frames)
+    boundaries = [t - sample_start for t in scenes["filtered_candidates_seconds"] if sample_start < t < end]
+    times = [sample_start + t for t in _sample_times(boundaries, end - sample_start, max_frames)]
     frames, contact = _frames(source, ffmpeg, destination, times, width=thumb[0], height=thumb[1], crop=crop)
     if _digest(source) != source_sha:
         raise SkillError("reference source changed during analysis; rerun on a stable file")
@@ -254,6 +267,8 @@ def analyze_reference(
             "Review continuous action/contact frames for anatomy, collisions, sighs and cuttable exits; a contact sheet cannot prove these are correct.",
         ],
     }
+    if "sample_range_seconds" in settings:
+        report["sampling"]["source_interval_seconds"] = [sample_start, end]
     report["report_sha256"] = _json_digest(report)
     report_path = destination / "reference-analysis.json"
     atomic_write_json(report_path, report)

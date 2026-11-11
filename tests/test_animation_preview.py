@@ -170,7 +170,7 @@ class AnimationPreviewTests(unittest.TestCase):
     @unittest.skipUnless(shutil.which("ffmpeg") and shutil.which("ffprobe"), "Local media tools required")
     def test_pilot_voice_does_not_require_the_unproduced_third_shot(self):
         dialogue = self.root.parent / "dialogue"
-        examples.create(dialogue, scenario="dialogue")
+        examples.create(dialogue, scenario="dialogue", audio_mode="independent-voice")
         self.root = dialogue
         bundle = load_project(self.root)
         voice = self.root / "tone.wav"

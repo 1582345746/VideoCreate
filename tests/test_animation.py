@@ -67,6 +67,18 @@ class AnimationTests(unittest.TestCase):
         document["adaptation"]["point_map"][0]["beat_ids"] = ["beat-1"]
         self.assertFalse(project.validate_document(document, ready=True)["ok"])
 
+    def test_native_dialogue_preserves_generated_audio_without_tts_or_unheard_captions(self):
+        root, bundle = self.example(scenario="dialogue")
+        self.assertEqual(bundle["timeline"]["audio_tracks"], [])
+        self.assertEqual(bundle["timeline"]["subtitles"], [])
+        self.assertTrue(all(s["source_audio"] == "preserve" for s in bundle["timeline"]["segments"]))
+        self.assertTrue(all(s["audio"]["mode"] == "native-dialogue" for s in bundle["director"]["shots"]))
+        from videocreate.animation.voices import validate_tracks
+        validate_tracks(root, bundle)
+        compiled = compile_job(bundle, bundle["generation-plan"]["jobs"][0], root=root, max_bytes=4096)
+        self.assertIn("我才没等你。", compiled["prompt"])
+        self.assertNotIn("Voice is supplied on an independent soundtrack", compiled["prompt"])
+
     def test_current_plan_cannot_drop_mapped_shot_or_change_identity(self):
         root, bundle = self.example()
         bundle["director"]["shots"].pop()
@@ -113,6 +125,12 @@ class AnimationTests(unittest.TestCase):
             "start": 0, "end": 2, "kind": "visible-state", "method": "frames", "certainty": "observed", "notes": "Blue fixture",
             "evidence_ids": [frame["id"]]}]}
         self.assertTrue(project.author(root, {"study": study})["ok"])
+        ranged = project.inspect(root, [source], max_frames=2, sample_start=.5, sample_end=1.5)
+        self.assertFalse(ranged["sources"][0].get("duplicate", False))
+        self.assertEqual(len(project.read(root)["sources"]), 2)
+        duplicate = project.inspect(root, [source], sample_start=.5, sample_end=1.5)
+        self.assertTrue(duplicate["sources"][0]["duplicate"])
+        self.assertTrue(project.validate_document(project.read(root), root)["ok"])
         source.write_bytes(b"changed")
         self.assertFalse(project.validate_document(project.read(root), root)["ok"])
 
@@ -159,7 +177,7 @@ class AnimationTests(unittest.TestCase):
             client.assert_not_called()
 
     def test_only_local_video_inputs_invalidate_generation(self):
-        root, bundle = self.example(scenario="dialogue")
+        root, bundle = self.example(scenario="dialogue", audio_mode="independent-voice")
         job = bundle["generation-plan"]["jobs"][0]
         def fingerprint(b):
             return current_inputs(root, b, job, {})
@@ -189,7 +207,7 @@ class AnimationTests(unittest.TestCase):
 
     @unittest.skipUnless(shutil.which("ffmpeg") and shutil.which("ffprobe"), "Local media tools required")
     def test_import_voice_and_render_real_timeline_remains_unreviewed(self):
-        root, bundle = self.example(scenario="dialogue")
+        root, bundle = self.example(scenario="dialogue", audio_mode="independent-voice")
         voice = self.root / "voice.wav"
         subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "sine=frequency=440:duration=1", "-y", str(voice)], check=True)
         before = pipeline.status(root)["jobs"][0]["input_hash"]
@@ -283,7 +301,7 @@ class AnimationTests(unittest.TestCase):
         from videocreate.animation.voices import synthesize
         from videocreate.cli import legacy_engine
         legacy_engine()
-        root, bundle = self.example(scenario="dialogue")
+        root, bundle = self.example(scenario="dialogue", audio_mode="independent-voice")
         def write_voice(text, output, **kwargs):
             output.write_bytes(b"local-voice-fixture")
         with patch("audio_client.CosyVoiceClient.synthesize", side_effect=write_voice) as client:

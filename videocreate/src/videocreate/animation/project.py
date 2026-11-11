@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import copy
+import math
 from pathlib import Path
 from ..config.storage import ConfigError, atomic_json, load_json
 from ..planning.project import LAYERS, content_hash, load_project, save_bundle, validate_plan, within
@@ -36,23 +37,33 @@ def _editable(root):
         raise ConfigError("Plan already exists; edit its layers for local repairs, or create a new adaptation workspace")
 
 
-def inspect(root, sources, *, purpose="story", max_frames=16):
+def inspect(root, sources, *, purpose="story", max_frames=16, sample_start=0, sample_end=None):
     root = Path(root).resolve()
     _editable(root)
     document = read(root)
     if purpose not in {"story", "character", "art"}:
         raise ConfigError("Unknown reference purpose")
+    if (isinstance(sample_start, bool) or not isinstance(sample_start, (int, float)) or
+            not math.isfinite(sample_start) or sample_start < 0 or
+            (sample_end is not None and (isinstance(sample_end, bool) or not isinstance(sample_end, (int, float)) or
+                not math.isfinite(sample_end) or sample_end <= sample_start))):
+        raise ConfigError("Sample range requires finite seconds with 0 <= start < end")
+    requested_range = [float(sample_start), float(sample_end) if sample_end is not None else None] if sample_start != 0 or sample_end is not None else None
     from ..references import analyze
     results = []
     for path in sources:
         path = Path(path).resolve()
         sha = digest(path)
-        known = next((s for s in document["sources"] if s["sha256"] == sha and s["purpose"] == purpose), None)
+        known = next((s for s in document["sources"] if s["sha256"] == sha and s["purpose"] == purpose
+            and load_json(within(root, s["report"])).get("settings", {}).get("sample_range_seconds") == requested_range), None)
         if known:
             results.append({"id": known["id"], "duplicate": True})
             continue
         sid = "source-" + sha[:20] + "-" + purpose
-        result = analyze(path, root / "animation-sources" / sid, max_frames=max_frames)
+        if requested_range:
+            sid += "-range-" + content_hash(requested_range)[:12]
+        result = analyze(path, root / "animation-sources" / sid, max_frames=max_frames,
+                         sample_start=sample_start, sample_end=sample_end)
         report_path = Path(result["report"])
         report = load_json(report_path)
         # Retained analyzer publishes media.duration_seconds.
@@ -256,8 +267,10 @@ def project_bundle(document, *, model=None, binding=None):
             "source_in": 0, "source_out": shot["planned_seconds"], "source_audio": "mute" if audio.get("mode") in {"mute", "independent-voice"} else "preserve",
             "cut_reason": shot["cut_motivation"]})
         for n, line in enumerate(audio.get("lines", [])):
-            bundle["timeline"]["subtitles"].append({"text": line["text"], "segment_id": segment,
-                "source_start": line["start"], "source_end": line["end"]})
+            # Native speech may differ from the script. Add its captions only after listening.
+            if audio["mode"] == "independent-voice":
+                bundle["timeline"]["subtitles"].append({"text": line["text"], "segment_id": segment,
+                    "source_start": line["start"], "source_end": line["end"]})
             if audio["mode"] == "independent-voice":
                 bundle["timeline"]["audio_tracks"].append({"id": f"voice-{shot['id']}-{n}", "kind": "dialogue",
                     "path": f"audio/pending-{shot['id']}-{n}.wav", "source_in": 0,

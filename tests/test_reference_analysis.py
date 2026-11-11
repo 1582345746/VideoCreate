@@ -60,6 +60,9 @@ class ReferenceMeasurementTests(unittest.TestCase):
             for kwargs in [{"scene_threshold": float("nan")}, {"scene_threshold": 0},
                            {"min_interval": float("inf")}, {"max_frames": True}, {"max_frames": 49},
                            {"crop": [0, 0, 100]}, {"crop": [0, 0, 101, 100]},
+                           {"sample_start": float("nan")}, {"sample_end": float("inf")},
+                           {"sample_start": True}, {"sample_start": -1},
+                           {"sample_start": 2, "sample_end": 1},
                            {"crop": [True, 0, 100, 100]}, {"crop": [-2, 0, 100, 100]}]:
                 with self.subTest(kwargs=kwargs), patch("reference_analysis._run") as runner:
                     with self.assertRaises(SkillError):
@@ -70,6 +73,26 @@ class ReferenceMeasurementTests(unittest.TestCase):
 
 @unittest.skipUnless(shutil.which("ffmpeg") and shutil.which("ffprobe"), "ffmpeg and ffprobe are required")
 class ReferenceAnalysisIntegrationTests(unittest.TestCase):
+    def test_interval_keeps_full_source_hash_and_original_timestamps(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            source = self._fixture(root / "long.mp4", audio=False)
+            before = hashlib.sha256(source.read_bytes()).hexdigest()
+            result = analyze_reference(source, root / "audit", sample_start=1, sample_end=2, max_frames=2)
+            report = result["report"]
+            self.assertEqual(report["source"]["sha256"], before)
+            self.assertAlmostEqual(report["media"]["duration_seconds"], 3, delta=.1)
+            self.assertEqual(report["sampling"]["source_interval_seconds"], [1, 2])
+            self.assertTrue(all(1 <= f["at_seconds"] < 2 for f in report["frames"]))
+            from PIL import Image
+            with Image.open(result["frame_paths"][0]) as frame:
+                red, green, blue = frame.getpixel((120, 200))
+                self.assertGreater(blue, red + 100)
+            self.assertEqual(validate_reference_analysis(result["report_path"], source), [])
+            with self.assertRaises(SkillError):
+                analyze_reference(source, root / "invalid", sample_start=2, sample_end=4)
+            self.assertFalse((root / "invalid").exists())
+
     def test_crop_preserves_original_hash_separates_evidence_and_uses_landscape_thumbnail(self):
         from PIL import Image
         with tempfile.TemporaryDirectory() as temp_dir:

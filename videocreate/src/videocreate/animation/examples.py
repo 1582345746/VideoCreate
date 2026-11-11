@@ -2,7 +2,9 @@
 from .project import AUTHOR, author, initialize, plan, read
 
 
-def create(root, *, theme="lulu-lumei", scenario="reaction", model=None, binding=None):
+def create(root, *, theme="lulu-lumei", scenario="reaction", model=None, binding=None, audio_mode="native-dialogue"):
+    if audio_mode not in {"native-dialogue", "independent-voice"}:
+        raise ValueError("Choose native-dialogue or independent-voice")
     if scenario not in {"reaction", "dialogue", "contact"}:
         raise ValueError("Choose reaction, dialogue or contact")
     initialize(root, title={"reaction": "饼干盒里的意外", "dialogue": "嘴硬的关心", "contact": "困了就靠一下"}[scenario], theme=theme)
@@ -57,8 +59,10 @@ def create(root, *, theme="lulu-lumei", scenario="reaction", model=None, binding
                 [("prepare", 0, 1, "先确认座位稳定和双方距离"), ("contact", 1, 3.5, action), ("settle", 3.5, 5, "保留接触与表情结果")]]
         if scenario == "dialogue":
             speaker, text = [(a, "我才没等你。"), (b, "那热饮给谁呀？"), (a, "快喝，别凉了。")][i-1]
-            shot["audio"] = {"mode": "independent-voice", "lines": [{"speaker": speaker, "text": text,
+            shot["audio"] = {"mode": audio_mode, "lines": [{"speaker": speaker, "text": text,
                 "on_screen": True, "start": .5, "end": 3, "voice_asset_id": "voice-" + speaker}]}
+            if audio_mode == "native-dialogue":
+                shot["audio"]["ambience"] = f"清楚自然的普通话；{a}年轻男声，{b}年轻女声。仅当前说话者张嘴；听者安静。无音乐，无额外接话。"
         if scenario == "reaction" and i == 3:
             shot["action_phases"] = [{"phase": phase, "start": start, "end": end, "description": desc} for phase,start,end,desc in
                 [("prepare", 0, 1, f"{b}空手移向衣物侧边口袋"),

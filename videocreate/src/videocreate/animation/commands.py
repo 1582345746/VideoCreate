@@ -33,6 +33,8 @@ def animation_command(argv):
     inspect.add_argument("sources", type=Path, nargs="+")
     inspect.add_argument("--purpose", choices=["story", "character", "art"], default="story")
     inspect.add_argument("--max-frames", type=int, default=16)
+    inspect.add_argument("--start", type=float, default=0, help="Sample an interval in original source seconds")
+    inspect.add_argument("--end", type=float, help="Exclusive interval end; source timestamps and hash stay unchanged")
     for name in ("study", "adapt"):
         author = sub.add_parser(name)
         author.add_argument("project", type=Path)
@@ -45,6 +47,7 @@ def animation_command(argv):
         if name == "example":
             command.add_argument("--theme", default="lulu-lumei", choices=["lulu-lumei", "cloud-couriers"])
             command.add_argument("--scenario", default="reaction", choices=["reaction", "dialogue", "contact"])
+            command.add_argument("--audio-mode", default="native-dialogue", choices=["native-dialogue", "independent-voice"])
     for name in ("validate", "status"):
         command = sub.add_parser(name)
         command.add_argument("project", type=Path)
@@ -138,11 +141,13 @@ def animation_command(argv):
             from . import series
             result = series.prepare(root, args.episode, args.file.resolve(), model=args.model, binding=args.binding)
         elif args.action == "inspect":
-            result = project.inspect(root, args.sources, purpose=args.purpose, max_frames=args.max_frames)
+            result = project.inspect(root, args.sources, purpose=args.purpose, max_frames=args.max_frames,
+                                     sample_start=args.start, sample_end=args.end)
         elif args.action in {"study", "adapt"}:
             result = project.author(root, load_json(args.file))
         elif args.action == "example":
-            result = examples.create(root, theme=args.theme, scenario=args.scenario, model=args.model, binding=args.binding)
+            result = examples.create(root, theme=args.theme, scenario=args.scenario, model=args.model, binding=args.binding,
+                                     audio_mode=args.audio_mode)
         elif args.action == "plan":
             result = project.plan(root, model=args.model, binding=args.binding)
         elif args.action == "validate":

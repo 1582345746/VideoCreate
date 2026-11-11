@@ -13,11 +13,13 @@ def digest(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
-def analyze(source: Path, output: Path, *, max_frames: int = 24, crop: tuple[int, int, int, int] | None = None) -> dict:
+def analyze(source: Path, output: Path, *, max_frames: int = 24, crop: tuple[int, int, int, int] | None = None,
+            sample_start: float = 0, sample_end: float | None = None) -> dict:
     from .cli import legacy_engine
     legacy_engine()  # Makes retained, tested media measurement helpers importable.
     from reference_analysis import analyze_reference
-    result = analyze_reference(source, output, max_frames=max_frames, crop=crop)
+    result = analyze_reference(source, output, max_frames=max_frames, crop=crop,
+                               sample_start=sample_start, sample_end=sample_end)
     report = Path(result["report_path"])
     template = report.parent / "observations.template.json"
     if not template.exists():
