@@ -22,6 +22,8 @@ Image responses that arrived but cannot decode are saved as `output_invalid` wit
 
 ## Review receipts
 
+Video batches prepare the complete selected job set and its dependencies locally before any create or budget reservation. Prompt limits, binding eligibility, reference input contracts and animation opening/pilot guards apply to the whole selected batch, in both serial and concurrent execution. A local failure stops that batch before submission. Each worker rechecks current inputs and locked task state when it executes; network/provider outcomes remain per task. An unselected shot's overlong prompt does not block an explicitly selected valid shot. Known tasks retain their original binding snapshots; unknown submissions remain held.
+
 `review template` hashes every actual source/deliverable and its relevant content contract and retained intervals. Review evidence includes path/hash, source interval and kind. A changed file or changed creative contract invalidates only relevant evidence; title metadata does not invalidate the review. A failure on the same reviewed bytes/scope overrides a pass.
 
 Layer status is `pass`, `fail`, `unverified`, or `not_applicable`:

@@ -2,7 +2,7 @@
 
 [![VideoCreate CI](https://github.com/1582345746/VideoCreate/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/1582345746/VideoCreate/actions/workflows/ci.yml)
 
-面向 Codex 的可恢复、多模型、多上游 AI 视频制作技能。产品名、技能入口和 Python 包统一为 **VideoCreate**。当前开发版为 `3.0.0.dev11`；这不是生产质量认证。
+面向 Codex 的可恢复、多模型、多上游 AI 视频制作技能。产品名、技能入口和 Python 包统一为 **VideoCreate**。当前开发版为 `3.0.0.dev12`；这不是生产质量认证。
 
 新工作使用分层 v3 计划：brief、story、director、generation-plan 和 timeline。旧的 v2 项目/任务仍保留兼容入口。v3 结构检查不会代替真实的视觉、动作和音频验收；模型和上游未通过实际样片验证时维持 unknown/unverified。
 
@@ -17,6 +17,8 @@ dev8 修正 Windows 短路径下的参考哈希计算，旧剪辑器将变速画
 dev9 增加 `animation voice-cast`：版本化角色声线可随独立集保存快照，复用已有 CosyVoice/Voicebox 本地预设声音工具，换声只使相关配音失效并保留旧候选。`animation library-add/library-list` 将已播放审核的动作区间、首帧与前置条件登记为本地参考，来源改变或出现失败审核时自动停用。档案、服务配置和缓存并不代表音色、逐字台词或非人脸口型已通过实测。
 
 dev11 明确原创剧本无需参考视频，新增每镜动作时序、结果期限和短反应预算并传入模型提示词；小样支持无台词局部变速，保留对白原速及来源映射。电影感动画可使用自定义主题，将圆润角色与写实场景、真人配角和服装材质组合，风格与速度分别实测。
+
+dev12 在提交任何视频前，先检查整批所选镜头及依赖的提示词、路由与参考输入合同；一个镜头本地失败时不再先创建其他镜头。单镜局部处理保持独立，未知提交仍暂停。新增同一真人剧情的第二主题离线改编实证；实现、样片和未完成验收分别列入 [逐项核验](docs/20261111-animation-story-completion-audit.zh-CN.md)。
 
 dev5 已有 GPT Image 2.6 三型号与 Grok Image 2.0 目录、创建前图片选型、图片/视频同型号备用和候选预检查、本机故障冷却，以及 GIF 校验与本地转换。账户级测试结果见 [模型路由交付记录](docs/20261107-model-routing-gif-acceptance.zh-CN.md)。
 

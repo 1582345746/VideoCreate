@@ -444,6 +444,57 @@ class RuntimeTests(unittest.TestCase):
     def run_job(self, **kwargs):
         return jobs.generate(self.root, self.config, store_root=self.root, job_ids=["job-001"], **kwargs)
 
+    def test_batch_prompt_failure_prevents_all_creates_in_serial_and_parallel(self):
+        self.bundle["director"]["shots"][1]["actions"][0]["description"] = "超限动作" * 2000
+        atomic_json(self.root / "director.json", self.bundle["director"])
+        for concurrency in (1, 3):
+            with self.subTest(concurrency=concurrency):
+                self.config["execution"]["max_concurrent_video_tasks"] = concurrency
+                with self.assertRaisesRegex(ConfigError, "job-002.*no compatible video binding"):
+                    jobs.generate(self.root, self.config, store_root=self.root, job_ids=["job-001", "job-002"])
+                self.assertEqual(self.calls, 0)
+                self.assertFalse((self.root / "state.json").exists())
+                self.assertEqual(read_state(self.root)["ledger"], [])
+
+    def test_batch_checks_real_adapter_reference_contract_before_any_network(self):
+        image = self.root / "opening.gif"
+        from PIL import Image
+        Image.new("RGB", (32, 32), "blue").save(image)
+        job = self.bundle["generation-plan"]["jobs"][1]
+        job.update(operation="image-to-video", references=[{"role": "opening-frame", "path": image.name,
+            "sha256": hashlib.sha256(image.read_bytes()).hexdigest()}])
+        atomic_json(self.root / "generation-plan.json", self.bundle["generation-plan"])
+        self.assertTrue(validate_plan(self.bundle, self.root)["ok"])
+        self.config["execution"]["max_concurrent_video_tasks"] = 3
+        with mock.patch("videocreate.runtime.jobs.client", side_effect=lambda b: BindingVideoClient(b, mock.Mock())), \
+                mock.patch("media_client.request_json") as network:
+            with self.assertRaisesRegex(ConfigError, "GIF"):
+                jobs.generate(self.root, self.config, store_root=self.root, job_ids=["job-001", "job-002"])
+        network.assert_not_called()
+        self.assertFalse((self.root / "state.json").exists())
+
+    def test_batch_unknown_attempt_holds_new_creates_without_changing_receipt(self):
+        state = read_state(self.root)
+        state["jobs"]["job-002"] = {"status": "submission_unknown", "attempt_id": "original-unknown", "task_id": ""}
+        save_state(self.root, state)
+        original = (self.root / "state.json").read_bytes()
+        self.config["execution"]["max_concurrent_video_tasks"] = 3
+        with self.assertRaisesRegex(ConfigError, "job-002.*submission unknown"):
+            jobs.generate(self.root, self.config, store_root=self.root, job_ids=["job-001", "job-002"])
+        self.assertEqual(self.calls, 0)
+        self.assertEqual((self.root / "state.json").read_bytes(), original)
+
+    def test_batch_preflight_includes_dependencies_but_excludes_unselected_jobs(self):
+        self.bundle["director"]["shots"][1]["actions"][0]["description"] = "超限动作" * 2000
+        self.bundle["generation-plan"]["jobs"][1]["depends_on"] = ["job-001"]
+        atomic_json(self.root / "director.json", self.bundle["director"])
+        atomic_json(self.root / "generation-plan.json", self.bundle["generation-plan"])
+        with self.assertRaisesRegex(ConfigError, "job-002.*no compatible video binding"):
+            jobs.generate(self.root, self.config, store_root=self.root, job_ids=["job-002"])
+        self.assertEqual(self.calls, 0)
+        self.assertTrue(self.run_job()["ok"])
+        self.assertEqual(self.calls, 1)
+
     def test_persist_before_create_and_skip_after_subtitle_change(self):
         self.run_job()
         timeline = self.bundle["timeline"]

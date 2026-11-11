@@ -93,6 +93,56 @@ def _owner_alive(record: dict) -> bool:
         return False
 
 
+def _prepare_job(root, bundle, job, config, store_root, prior, *, retry, explicit_jobs, binding_override):
+    """Compile and validate an outbound request locally, without reserving or submitting."""
+    jid = job["id"]
+    snapshot = prior.get("binding_snapshot")
+    if snapshot and not (retry in {"content", "replan"} and jid in explicit_jobs) and not (binding_override and jid in binding_override):
+        binding = pinned_binding(config, snapshot, store_root)
+        candidates = [binding]
+    else:
+        model = job.get("model") or config["defaults"]["video_model"]
+        preferred = (binding_override or {}).get(jid, job.get("binding_id"))
+        candidates = route_bindings(config, model, operation=job["operation"], preferred=preferred, store_root=store_root)
+    if bundle["brief"].get("workflow_profile") == "explainer":
+        from ..education import validate_research
+        research = validate_research(bundle, root=root, ready=True, shot_ids=job["shot_ids"])
+        if not research["ok"]:
+            raise ConfigError("; ".join(research["errors"]))
+    from ..routing import require_quality
+    from ..series import check_episode_context
+    check_episode_context(root, bundle)
+    reference_entries = job.get("references", [])
+    primary_entry = next((ref for ref in reference_entries if ref["role"] == "opening-frame"), None)
+    primary_reference = within(root, primary_entry["path"]) if primary_entry else None
+    reference_images = [within(root, ref["path"]) for ref in reference_entries if ref["role"] != "opening-frame"]
+    actor_shots = [s for s in bundle["director"]["shots"] if s["id"] in job["shot_ids"]]
+    kwargs = {"seconds": job["seconds"], "size": "auto", "resolution": bundle["brief"]["resolution"],
+        "aspect_ratio": bundle["brief"]["aspect_ratio"],
+        "generate_audio": any(s.get("audio", {}).get("mode", "ambience") in {"native-dialogue", "offscreen", "ambience"} for s in actor_shots),
+        "primary_reference": primary_reference, "reference_images": reference_images}
+    decisions = []
+    for candidate in candidates:
+        try:
+            require_quality(store_root, candidate, job)
+            compilation = compile_job(bundle, job, max_bytes=candidate.capabilities["max_prompt_bytes"], root=root)
+            request = validate_request(candidate, {"operation": job["operation"], "prompt": compilation["prompt"],
+                "seconds": kwargs["seconds"], "resolution": kwargs["resolution"],
+                "aspect_ratio": kwargs["aspect_ratio"], "generate_audio": kwargs["generate_audio"],
+                "primary_reference": primary_reference, "reference_images": reference_images})
+            if not request["ok"]:
+                raise ConfigError("; ".join(request["errors"]))
+            video_client = client(candidate)
+            prepared = video_client.prepare(compilation["prompt"], **kwargs)
+        except ConfigError as error:
+            decisions.append({"binding": candidate.id, "eligible": False, "reason": str(error)})
+            continue
+        decisions.append({"binding": candidate.id, "eligible": True})
+        selection = {"selected_model": candidate.model, "selected_binding": candidate.id, "decisions": decisions}
+        return candidate, video_client, kwargs, compilation, prepared, selection
+    raise ConfigError(jid + ": no compatible video binding: " + "; ".join(d["reason"] for d in decisions))
+
+
 def _generate_serial(root: Path, config: dict, *, store_root: Path, job_ids: list[str] | None = None,
              poll_timeout: int = 900, retry: str | None = None, reason: str = "", progress=None,
              binding_override: dict[str, str] | None = None, wait_for_slot: bool = False,
@@ -140,55 +190,9 @@ def _generate_serial(root: Path, config: dict, *, store_root: Path, job_ids: lis
                 save_state(root, state)
             if prior.get("status") == "submission_unknown":
                 raise ConfigError(jid + ": submission unknown; 查不到记录 is not proof of rejection. Reconcile the original attempt")
-            snapshot = prior.get("binding_snapshot")
-        if snapshot and not (retry in {"content", "replan"} and jid in explicitly_requested) and not (binding_override and jid in binding_override):
-            binding = pinned_binding(config, snapshot, store_root)
-            candidates = [binding]
-        else:
-            model = job.get("model") or config["defaults"]["video_model"]
-            preferred = (binding_override or {}).get(jid, job.get("binding_id"))
-            candidates = route_bindings(config, model, operation=job["operation"], preferred=preferred, store_root=store_root)
-            binding = candidates[0]
-        if bundle["brief"].get("workflow_profile") == "explainer":
-            from ..education import validate_research
-            research = validate_research(bundle, root=root, ready=True, shot_ids=job["shot_ids"])
-            if not research["ok"]:
-                raise ConfigError("; ".join(research["errors"]))
-        from ..routing import require_quality
-        from ..series import check_episode_context
-        check_episode_context(root, bundle)
-        reference_entries = job.get("references", [])
-        primary_entry = next((ref for ref in reference_entries if ref["role"] == "opening-frame"), None)
-        primary_reference = within(root, primary_entry["path"]) if primary_entry else None
-        reference_images = [within(root, ref["path"]) for ref in reference_entries if ref["role"] != "opening-frame"]
-        actor_shots = [s for s in bundle["director"]["shots"] if s["id"] in job["shot_ids"]]
-        kwargs = {"seconds": job["seconds"], "size": "auto", "resolution": bundle["brief"]["resolution"],
-            "aspect_ratio": bundle["brief"]["aspect_ratio"],
-            "generate_audio": any(s.get("audio", {}).get("mode", "ambience") in {"native-dialogue", "offscreen", "ambience"} for s in actor_shots),
-            "primary_reference": primary_reference, "reference_images": reference_images}
-        decisions = []
-        for candidate in candidates:
-            try:
-                require_quality(store_root, candidate, job)
-                candidate_compilation = compile_job(bundle, job, max_bytes=candidate.capabilities["max_prompt_bytes"], root=root)
-                request = validate_request(candidate, {"operation": job["operation"], "prompt": candidate_compilation["prompt"],
-                    "seconds": kwargs["seconds"], "resolution": kwargs["resolution"],
-                    "aspect_ratio": kwargs["aspect_ratio"], "generate_audio": kwargs["generate_audio"],
-                    "primary_reference": primary_reference, "reference_images": reference_images})
-                if not request["ok"]:
-                    raise ConfigError("; ".join(request["errors"]))
-                candidate_client = client(candidate)
-                candidate_prepared = candidate_client.prepare(candidate_compilation["prompt"], **kwargs)
-            except ConfigError as error:
-                decisions.append({"binding": candidate.id, "eligible": False, "reason": str(error)})
-                continue
-            binding, video_client = candidate, candidate_client
-            compilation, prepared = candidate_compilation, candidate_prepared
-            decisions.append({"binding": binding.id, "eligible": True})
-            break
-        else:
-            raise ConfigError(jid + ": no compatible video binding: " + "; ".join(d["reason"] for d in decisions))
-        selection = {"selected_model": binding.model, "selected_binding": binding.id, "decisions": decisions}
+        binding, video_client, kwargs, compilation, prepared, selection = _prepare_job(
+            root, bundle, job, config, store_root, prior, retry=retry,
+            explicit_jobs=explicitly_requested, binding_override=binding_override)
         input_hash = generation_inputs(root, bundle, job, compilation)
         needs_slot = not prior.get("task_id") or (retry in {"content", "replan"} and jid in explicitly_requested)
         maximum = config["upstreams"][binding.upstream_id].get("max_concurrent_submissions", 1)
@@ -366,6 +370,29 @@ def generate(root: Path, config: dict, *, store_root: Path, job_ids: list[str] |
         ordered.append(jid)
     for jid in requested:
         add(jid)
+    if retry and (retry not in {"network", "content", "replan"} or not reason.strip() or not job_ids):
+        raise ConfigError("Retry needs explicit jobs, kind network/content/replan and a reason")
+    if len(ordered) > 1:
+        if "animation" in bundle:
+            from ..animation.pipeline import execution_guard
+            execution_guard(root, bundle, ordered)
+        # Validate the complete selected batch (including dependencies) before
+        # any worker can reserve budget or send the first create. Workers still
+        # prepare again and check locked state immediately before submission.
+        state = read_state(root)
+        for jid in ordered:
+            prior = state["jobs"].get(jid, {})
+            if prior.get("status") == "submission_unknown":
+                raise ConfigError(jid + ": submission unknown; reconcile the original attempt")
+            if prior.get("status") == "submitting":
+                raise ConfigError(jid + ": submit is active or unresolved; no duplicate create was sent")
+            _, _, _, compilation, _, _ = _prepare_job(
+                root, bundle, jobs[jid], config, store_root, prior, retry=retry,
+                explicit_jobs=set(requested), binding_override=binding_override)
+            if prior and prior.get("input_hash") != generation_inputs(root, bundle, jobs[jid], compilation) and retry != "replan":
+                raise ConfigError(jid + ": generation inputs changed; explicitly replan only this job")
+            if retry in {"content", "replan"} and jid in requested and prior.get("status") not in {"completed", "rejected", "failed"}:
+                raise ConfigError(jid + ": cannot content-retry a pending or ambiguous task")
     maximum = min(50, max(1, int(config.get("execution", {}).get("max_concurrent_video_tasks", 1))))
     if maximum == 1 or len(ordered) < 2:
         return _generate_serial(root, config, store_root=store_root, job_ids=requested, poll_timeout=poll_timeout,
