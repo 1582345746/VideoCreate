@@ -30,6 +30,17 @@ def prepare(root, number, source, *, model=None, binding=None):
         raise ConfigError("; ".join(report["errors"]))
     if content_hash(document["theme"]) != content_hash(bible["animation_theme"]):
         raise ConfigError("Episode theme version differs from series; create a new series version explicitly")
+    copies, reference_hashes = [], {}
+    # Authored prop/scene images belong to the authoring workspace. Snapshot
+    # them alongside shared characters so the episode remains self-contained.
+    for asset in document["adaptation"]["director"]["assets"]:
+        for index, relative in enumerate(asset.get("references", [])):
+            path = within(source.parent, relative)
+            sha = digest(path)
+            target = "assets/authored/" + sha + path.suffix.lower()
+            asset["references"][index] = target
+            reference_hashes[target] = sha
+            copies.append((path, target))
     bundle = project_bundle(document, model=model, binding=binding)
     expected = bible["episodes"][number-1].get("initial_state", bundle["story"]["initial_state"])
     if bundle["story"]["initial_state"] != expected:
@@ -37,7 +48,6 @@ def prepare(root, number, source, *, model=None, binding=None):
     destination = root / "episodes" / f"episode-{number:03}"
     if (destination / "project.json").exists():
         raise ConfigError("Episode already exists; preserve its attempts and repair locally")
-    copies, reference_hashes = [], {}
     canonical = {a["id"]: a for a in bible["characters"]}
     for asset in bundle["director"]["assets"]:
         for relative in canonical.get(asset["id"], {}).get("references", []):

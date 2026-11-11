@@ -151,6 +151,8 @@ animation episode SERIES --episode 2 --file AUTHORING_PROJECT/animation.authorin
 
 可以先准备第 2 条，不要求第 1 条通过；每条使用自己的初始状态和新场景。系列固定 theme 哈希；共享 canonical references 可在 series.json 的 characters/reference_hashes 注册，按哈希复制进每条故事。换主题应创建新的系列版本。原 `series init` 默认 serial，仍要求上一集真实验收结尾；`series init --mode independent` 也提供通用独立模式。
 
+剧本中道具和场景资产的 `references` 相对于该 `animation.authoring.json` 的目录。准备独立集时将它们与共享角色图一起复制并按哈希保存，核对当前集字节；缺图或越出创作目录的路径会在写出该集前拒绝。更改创作目录里的道具图只影响以后准备的新集，已有集保留自己的快照。
+
 三个可执行原创示例：`animation example PROJECT --scenario reaction|dialogue|contact`。可加 `--theme cloud-couriers` 验证换人物和新世界；这些例子是创作与本地流程测试，不冒充从用户原片抽出的完整剧情，也不代表模型质量已通过。
 
 ## 本地互动片段库

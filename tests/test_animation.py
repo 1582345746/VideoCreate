@@ -297,6 +297,91 @@ class AnimationTests(unittest.TestCase):
         with self.assertRaisesRegex(ConfigError, "theme"):
             animated_series.prepare(series_root, 3, wrong_root / project.AUTHOR)
 
+    def test_independent_episode_copies_authored_prop_and_scene_references_with_characters(self):
+        from PIL import Image
+        from videocreate.animation import series as animated_series
+        author, bundle = self.example()
+        images = []
+        for name, color in [("道具.PNG", "blue"), ("scene.png", "green")]:
+            path = author / name
+            Image.new("RGB", (32, 32), color).save(path)
+            images.append(path)
+        document = load_json(author / project.AUTHOR)
+        document["adaptation"]["director"]["assets"][0]["references"] = [images[0].name]
+        document["adaptation"]["director"]["assets"].append({
+            "id": "room-ref", "kind": "scene", "description": "Scene palette fixture", "references": [images[1].name]})
+        document["adaptation"]["director"]["shots"][0]["asset_ids"].append("room-ref")
+        atomic_json(author / project.AUTHOR, document)
+        series_root = self.root / "series"
+        animated_series.initialize(series_root, title="Reference snapshots", episodes=2)
+        identity = series_root / "identity.png"
+        Image.new("RGB", (32, 32), "orange").save(identity)
+        bible = load_json(series_root / "series.json")
+        character = copy.deepcopy(next(a for a in bundle["director"]["assets"] if a["id"] == "lulu"))
+        character["references"] = [identity.name]
+        bible["characters"] = [character]
+        bible["reference_hashes"] = {identity.name: digest(identity)}
+        atomic_json(series_root / "series.json", bible)
+        episode = Path(animated_series.prepare(series_root, 2, author / project.AUTHOR)["project"])
+        prepared = load_project(episode)
+        self.assertTrue(validate_plan(prepared, episode)["ok"])
+        assets = {a["id"]: a for a in prepared["director"]["assets"]}
+        for asset_id, original in zip(("story-prop", "room-ref"), images):
+            copied = episode / assets[asset_id]["references"][0]
+            self.assertEqual(copied.read_bytes(), original.read_bytes())
+            original.unlink()
+        series.check_episode_context(episode, prepared)
+        self.assertEqual(pipeline.keyframes(episode)["status"], "prepared_only")
+        self.assertTrue(assets["lulu"]["references"])
+        self.assertEqual(read_state(episode)["ledger"], [])
+        prop = episode / assets["story-prop"]["references"][0]
+        prop.write_bytes(b"changed after episode preparation")
+        with self.assertRaisesRegex(ConfigError, "reference bytes changed"):
+            series.check_episode_context(episode, prepared)
+
+    def test_independent_episode_refuses_missing_or_escaping_authored_reference_before_write(self):
+        from videocreate.animation import series as animated_series
+        author, _ = self.example()
+        document = load_json(author / project.AUTHOR)
+        series_root = self.root / "series"
+        animated_series.initialize(series_root, title="Missing input", episodes=1)
+        outside = self.root / "outside.png"
+        outside.write_bytes(b"outside the authoring project")
+        for relative in ("missing.png", "../outside.png"):
+            with self.subTest(reference=relative):
+                document["adaptation"]["director"]["assets"][0]["references"] = [relative]
+                atomic_json(author / project.AUTHOR, document)
+                with self.assertRaisesRegex(ConfigError, "inside the project"):
+                    animated_series.prepare(series_root, 1, author / project.AUTHOR)
+                self.assertFalse((series_root / "episodes/episode-001").exists())
+
+    def test_authored_reference_revision_only_changes_future_independent_episode(self):
+        from PIL import Image
+        from videocreate.animation import series as animated_series
+        author, _ = self.example()
+        image = author / "prop.png"
+        Image.new("RGB", (32, 32), "blue").save(image)
+        document = load_json(author / project.AUTHOR)
+        document["adaptation"]["director"]["assets"][0]["references"] = [image.name]
+        atomic_json(author / project.AUTHOR, document)
+        series_root = self.root / "series"
+        animated_series.initialize(series_root, title="Independent snapshots", episodes=2)
+        first = Path(animated_series.prepare(series_root, 1, author / project.AUTHOR)["project"])
+        initial = load_project(first)
+        before = current_inputs(first, initial, initial["generation-plan"]["jobs"][0], {})
+        Image.new("RGB", (32, 32), "red").save(image)
+        second = Path(animated_series.prepare(series_root, 2, author / project.AUTHOR)["project"])
+        later = load_project(second)
+        first_ref = initial["director"]["assets"][0]["references"][0]
+        second_ref = later["director"]["assets"][0]["references"][0]
+        self.assertNotEqual(first_ref, second_ref)
+        self.assertNotEqual((first / first_ref).read_bytes(), (second / second_ref).read_bytes())
+        series.check_episode_context(first, initial)
+        series.check_episode_context(second, later)
+        self.assertEqual(current_inputs(first, load_project(first), initial["generation-plan"]["jobs"][0], {}), before)
+        self.assertEqual(read_state(first)["ledger"], [])
+        self.assertEqual(read_state(second)["ledger"], [])
+
     def test_optional_local_tts_cache_uses_voice_and_text_without_recreating_video(self):
         from videocreate.animation.voices import synthesize
         from videocreate.cli import legacy_engine
