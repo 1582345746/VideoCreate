@@ -177,6 +177,12 @@ def validate_plan(bundle: dict[str, Any], root: Path | None = None) -> dict[str,
             errors.append(sid + ": invalid planned_seconds")
         elif len(actions) > pace["max_actions"] or len(actions) * pace["seconds_per_action"] > seconds:
             errors.append(sid + ": action load exceeds declared pace; split action/arrival/reaction coverage")
+        timing = shot.get("timing")
+        if timing and _positive(seconds):
+            start, end, hold = (timing[k] for k in ("action_start_by", "action_complete_by", "max_reaction_hold"))
+            if (not all(isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v) for v in (start, end, hold))
+                    or not 0 <= start < end <= seconds or not 0 <= hold <= seconds):
+                errors.append(sid + ": timing deadlines must be finite, ordered and inside source duration")
         for line in shot.get("audio", {}).get("lines", []):
             if not 0 <= line["start"] < line["end"]:
                 errors.append(sid + ": invalid dialogue interval")
@@ -328,6 +334,14 @@ def compile_job(bundle: dict[str, Any], job: dict[str, Any], *, max_bytes: int, 
     for sid in job["shot_ids"]:
         shot = shots[sid]
         sections.append("Current shot " + sid + ": " + shot["information_goal"])
+        if shot.get("timing"):
+            t = shot["timing"]
+            sections.append("Action timing: " + t["motion_tempo"] + "; begin by " + str(t["action_start_by"])
+                + "s, visible result by " + str(t["action_complete_by"]) + "s; reaction hold <= "
+                + str(t["max_reaction_hold"]) + "s. "
+                + ("Real-time, no slow motion, long wind-up or repetition. " if t["motion_tempo"] == "brisk" else "")
+                + "Subject speed is separate from camera speed; no padding the action to fill duration.")
+            retained.append(sid + ".timing")
         scene = scenes[shot["scene_id"]]
         sections.append("Scene geography: " + scene["map"] + "; camera axis: " + scene["axis"])
         positions = {aid: value for aid, value in scene.get("positions", {}).items() if aid in shot.get("asset_ids", [])}

@@ -8,6 +8,10 @@ Keeping six complete ten-second takes made the API duration dictate the edit. In
 
 Separate three choices: **subject speed** (one brisk action), **camera movement** (often fixed to keep contact readable), and **retained duration** (the part worth watching). Fast subject motion does not require a shaking camera. A 10-second maximum is not a minimum edit length. Do not spread one quick strike across a multi-second wind-up/contact merely to fill a request. Do not speed up malformed contact to make it look forceful.
 
+Original scripts require no reference clip. For custom battle/animation shots, set `timing` with `motion_tempo=brisk`, a short `action_start_by`, an explicit `action_complete_by`, and `max_reaction_hold` in source seconds. These values now enter the compiled prompt; `pace_profile=action` alone remains an action-load validator. Match phase timing to the budget and start with opponents already within reach. Treat deadlines as intended choreography until actual playback confirms them.
+
+When matching a cinematic mascot reference, separately study character identity, materials, world realism, human supporting cast, lighting, coverage, motion and sound. A rounded hero can inhabit photoreal stone, embroidered cloth, smoke and realistic human faces; the default soft-toy theme must not turn every supporting actor and environment into a toy. Use a custom theme/style and costume variant while keeping facial geometry. Match the requested aspect ratio. Wide spectacle, a readable exchange and expressive dialogue closeups serve different jobs; a brief heroic display or natural-speed line can coexist with brisk action. Extract the reference's visual language without assuming all its shots are fast or copying its story when the user wants an original one. Still-frame study supports appearance and sampled states; it cannot certify motion speed, impact timing or heard dialogue.
+
 ## Editable starting plans
 
 ```powershell

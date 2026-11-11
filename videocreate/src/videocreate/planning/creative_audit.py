@@ -50,6 +50,21 @@ def audit(bundle: dict) -> dict:
             add("multiple-action-units", [sid], "Several action units are declared in one fast-action take.",
                 "Try one exchange per take, with separate result and reaction coverage; inspect actual timing before scaling up.")
         phases = shot.get("action_phases", [])
+        timing = shot.get("timing", {})
+        if timing.get("motion_tempo") == "brisk":
+            starts = [p["start"] for p in phases if p["phase"] in {"action", "contact"}]
+            if starts and min(starts) > timing["action_start_by"] + .01:
+                add("timing-start-conflict", [sid], "Declared action phases begin after this brisk shot's start deadline.",
+                    "Shorten preparation or change the explicit timing budget; keep contact readable.")
+            holds = [p for p in phases if p["phase"] == "settle"]
+            kept = [s for s in timeline["segments"] if s.get("shot_id") == sid]
+            if any(max(0, min(p["end"], s["source_out"]) - max(p["start"], s["source_in"])) / s.get("rate", 1)
+                    > timing["max_reaction_hold"] + .05 for p in holds for s in kept):
+                add("long-reaction-hold", [sid], "The retained settling phase exceeds this shot's reaction budget.",
+                    "Trim the actual tail after its reaction is legible; do not remove the decisive contact or accelerate dialogue.")
+            if any(p["end"] > timing["action_complete_by"] + .01 for p in phases if p["phase"] in {"action", "contact", "recovery"}):
+                add("timing-result-conflict", [sid], "An action phase extends past this shot's result deadline.",
+                    "Rewrite its phases for brisk movement or split the exchange; preserve the visible consequence.")
         contacts = [p for p in phases if p["phase"] == "contact"]
         if fast and contacts and min(p["start"] for p in contacts) > 2:
             add("late-contact", [sid], "The planned first contact occurs after two source seconds; this may create a long wind-up.",

@@ -820,6 +820,38 @@
                   "opening_frame": {
                     "type": "string"
                   },
+                  "timing": {
+                    "type": "object",
+                    "properties": {
+                      "motion_tempo": {
+                        "type": "string",
+                        "enum": [
+                          "brisk",
+                          "natural",
+                          "slow"
+                        ]
+                      },
+                      "action_start_by": {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      "action_complete_by": {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      "max_reaction_hold": {
+                        "type": "number",
+                        "minimum": 0
+                      }
+                    },
+                    "required": [
+                      "motion_tempo",
+                      "action_start_by",
+                      "action_complete_by",
+                      "max_reaction_hold"
+                    ],
+                    "additionalProperties": false
+                  },
                   "asset_ids": {
                     "type": "array",
                     "items": {

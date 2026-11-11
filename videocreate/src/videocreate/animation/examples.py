@@ -29,7 +29,7 @@ def create(root, *, theme="lulu-lumei", scenario="reaction", model=None, binding
                 ("接纳照顾", f"{b}抱着靠垫轻靠{a}肩侧，{a}保持坐稳并放松微笑", "reaction")]
         goal, obstacle, choice, result = "让困倦的同伴休息", "同伴坐在垫边缺少支撑", "先坐稳递靠垫，再等待对方靠近", "同伴安全依靠，关心被接纳"
         point = "照顾先有支撑和等待，接触后有放松的回应"
-    seconds = 5 if scenario == "contact" else 4
+    seconds = 4 if scenario == "contact" or (scenario == "dialogue" and audio_mode == "independent-voice") else 3
     beats, shots = [], []
     openings = {
         "reaction": [f"{a}左，{b}右，嘴巴合拢；桌上只有一个完全盖住的不透明饼干铁盒。两人双手没有饼干，盒盖未打开，内容不可见。{a}双臂准备护住盒子。",
@@ -50,25 +50,28 @@ def create(root, *, theme="lulu-lumei", scenario="reaction", model=None, binding
             "asset_ids": [a, b, "story-prop"], "actors": [a, b],
             "actions": [{"kind": "reaction" if role == "reaction" else "physical", "description": action}],
             "performance": {"trigger": information, "attention": "对方与道具", "visible_response": action, "decision": information},
-            "visible_evidence": [f"evidence-{i}"], "planned_seconds": 6 if scenario == "reaction" and i == 3 else seconds,
+            "visible_evidence": [f"evidence-{i}"], "planned_seconds": 4 if scenario == "reaction" and i == 3 else seconds,
+            "timing": {"motion_tempo": "natural" if scenario == "contact" else "brisk",
+                "action_start_by": .25, "action_complete_by": 3 if scenario == "contact" or (scenario == "reaction" and i == 3) else 2.3,
+                "max_reaction_hold": .6},
             "entry_state": {"a_position": "left", "b_position": "right"}, "exit_state": {"a_position": "left", "b_position": "right"},
-            "cut_motivation": "保留情绪停顿后进入下一次因果反应", "audio": {"mode": "ambience", "ambience": "轻微室内环境声，无可辨识人声"}}
+            "cut_motivation": "反应看清即切，按实际动作选窗口，避免等满生成时长", "audio": {"mode": "ambience", "ambience": "轻微室内环境声，无可辨识人声"}}
         if scenario == "contact" and i >= 2:
             shot["contacts"] = [{"subject": b, "object": "story-prop" if i == 2 else a, "relation": "双手接住靠垫" if i == 2 else "有靠垫支撑地轻靠肩侧"}]
             shot["action_phases"] = [{"phase": phase, "start": start, "end": end, "description": desc} for phase,start,end,desc in
-                [("prepare", 0, 1, "先确认座位稳定和双方距离"), ("contact", 1, 3.5, action), ("settle", 3.5, 5, "保留接触与表情结果")]]
+                [("prepare", 0, .25, "开场已坐稳，双方距离适合接触"), ("contact", .25, 3, action), ("settle", 3, 3.6, "短暂保留接触后的放松反应")]]
         if scenario == "dialogue":
             speaker, text = [(a, "我才没等你。"), (b, "那热饮给谁呀？"), (a, "快喝，别凉了。")][i-1]
             shot["audio"] = {"mode": audio_mode, "lines": [{"speaker": speaker, "text": text,
-                "on_screen": True, "start": .5, "end": 3, "voice_asset_id": "voice-" + speaker}]}
+                "on_screen": True, "start": .25, "end": 2.5, "voice_asset_id": "voice-" + speaker}]}
             if audio_mode == "native-dialogue":
                 shot["audio"]["ambience"] = f"清楚自然的普通话；{a}年轻男声，{b}年轻女声。仅当前说话者张嘴；听者安静。无音乐，无额外接话。"
         if scenario == "reaction" and i == 3:
             shot["action_phases"] = [{"phase": phase, "start": start, "end": end, "description": desc} for phase,start,end,desc in
-                [("prepare", 0, 1, f"{b}空手移向衣物侧边口袋"),
-                 ("action", 1, 2.5, f"{b}伸入口袋并清楚取出唯一饼干；手和取物路径始终可见"),
-                 ("contact", 2.5, 4.5, f"{b}递出，{a}双手接稳后{b}才松手"),
-                 ("settle", 4.5, 6, f"{a}看向{b}，愧疚地松肩微笑，保留回应")]]
+                [("prepare", 0, .25, f"{b}空手移向衣物侧边口袋"),
+                 ("action", .25, 1.25, f"{b}干脆地取出唯一饼干；取物路径可见"),
+                 ("contact", 1.25, 3, f"{b}递出，{a}接稳后{b}松手，不长时间悬停"),
+                 ("settle", 3, 3.6, f"{a}看向{b}，短暂愧疚微笑")]]
         shots.append(shot)
     if scenario == "reaction":
         # The payoff cookie must not leak into setup/reveal image prompts.
@@ -83,7 +86,7 @@ def create(root, *, theme="lulu-lumei", scenario="reaction", model=None, binding
         "point_map": [{"point_id": "point-1", "beat_ids": [b["id"] for b in beats], "shot_ids": [s["id"] for s in shots], "explanation": point}],
         "pilot_shot_ids": ["shot-1", "shot-2"],
         "brief": {"intent": "narrative", "genre": "animation-comedy" if scenario != "contact" else "animation-care",
-            "pace_profile": "comedy", "aspect_ratio": "9:16", "resolution": "720p", "visual_style": "表情清楚，留出反应停顿",
+            "pace_profile": "comedy", "aspect_ratio": "9:16", "resolution": "720p", "visual_style": "表情清楚，动作干脆，反应短促，避免每个小动作前后长停顿",
             "audio_policy": "dialogue" if scenario == "dialogue" else "ambience"},
         "story": {"logline": document["title"], "goal": goal, "obstacle": obstacle, "choice": choice, "consequence": result,
             "payoff": rows[-1][0], "initial_state": {"stage": 0}, "beats": beats},

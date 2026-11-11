@@ -10,6 +10,8 @@
 
 ## 从参考到可执行计划
 
+也可直接原创，不要求提供参考视频。`animation init` 后直接提交原创 `outline/adaptation`，`sources=[]`、`study.observations=[]`，把原创要点标为 `origin=original`；人物图仍可作为身份依据。故事参考与角色参考各自独立。
+
 ```text
 animation init PROJECT --title 新故事 --theme lulu-lumei
 animation inspect PROJECT "原片.mp4" --purpose story
@@ -73,6 +75,14 @@ animation run PROJECT --stage full
 
 同机位的连续动作出现闪跳时，优先从上一段实际保留区间的最后一帧接续；单独重画下一首帧会改变姿势、尺度和道具状态。把道具的藏放处、空手伸取、拿出、递出、接稳后松手写成可见动作阶段，不能让“下一首帧手里已有道具”替代取物过程。可将紧密相关的揭示和递接安排在同一连续镜头内，按实际节奏规划时长并验证动作负荷；不用转场特效掩盖缺失的动作。
 
+## 动作速度与故事节奏
+
+`pace_profile` 用于动作负荷验证，本身不等于已向模型发出速度指令。需要快节奏时，每镜可填写 `timing={"motion_tempo":"brisk","action_start_by":0.2,"action_complete_by":2.5,"max_reaction_hold":0.5}`；数值是源视频秒数，须处于 planned_seconds 内。编译器会传入开动与结果时间、短反应要求；`plan audit` 提示阶段起点、结果期限和过长保留停顿的冲突。它们是创作预算，实际速度仍以小样为准。
+
+首帧已经接近行动位置，避免先站稳、长时间注视、慢慢伸手、再收回并微笑数秒。生活短剧仍保留取物与递接路径；战斗按一次来袭—应对—可见后果设计，不能把敌人换成无人的展示来获得“稳定”。反应看清即可切，动作片可从约 0.8–2 秒的单信息镜头起步；关键交锋保留完整的因果。柔情戏和慢镜头是明确选择，不作为所有动画的默认表演。
+
+现有素材先剪掉空等与多余尾部。小样 `segments` 支持显式 `rate`，仅无台词镜头可在该简化入口改变速度，并指定 `source_audio=retime|mute`；源环境音使用 FFmpeg atempo 保持音高。含台词镜头保留原速；重叠的独立音轨、字幕或叠加需要到完整时间线明确设计映射，不能静默挤压。模型意外多说的话仍需实际听审，不能仅凭计划“无对白”认证声音。变速输出有新哈希与速率映射，旧审核不能直接沿用。
+
 ## 声音、剪辑与验收
 
 对白示例默认使用视频模型原声 `native-dialogue`，时间线保留生成素材音轨，不创建外部配音占位或自动附上尚未听到的脚本字幕。先规划每镜少量短句、说话者与不重叠时间窗，尽量在台词前完成复杂身体动作；明确男女声、听者闭嘴、是否有音乐与额外接话。跨镜音色与口型须检查实际结果，提示词不能锁定跨集音色。
@@ -120,7 +130,7 @@ animation preview PROJECT --output-name pilot.mp4
 animation preview PROJECT --edit-file pilot-edit.json --output-name pilot-trimmed.mp4
 ```
 
-`pilot-edit.json` 示例：`{"reason":"首镜提前开盖，与第二镜重复；切在首镜开盖前", "segments":{"seg-001":{"source_out":1.0}}}`。仅允许修剪选定小样原保留区间，以及修改 source_audio/cut_reason；不改任务、镜头或播放速度。独立声音、字幕和画面叠加按原时间映射到修剪后的小样，不能截断半句台词或字幕。只要求小样已有的配音，不要求尚未制作的后续镜头音轨。输出同名 `.timeline.json` 和 `.manifest.json`，标记 `scope=animation-pilot`、`full_story_delivery=false`，不会调用上游或覆盖默认完整 `preview.mp4`。已观看小样的反馈应绑定其文件哈希和时间映射，不把小样时间冒充源视频时间。
+`pilot-edit.json` 示例：`{"reason":"首镜提前开盖，与第二镜重复；切在首镜开盖前", "segments":{"seg-001":{"source_out":1.0}}}`。仅允许修剪选定小样原保留区间，以及修改 source_audio/cut_reason 或显式无对白变速；不改生成任务与生产分镜。独立声音、字幕和画面叠加按原时间映射到修剪后的小样，不能截断半句台词或字幕。只要求小样已有的配音，不要求尚未制作的后续镜头音轨。输出同名 `.timeline.json` 和 `.manifest.json`，标记 `scope=animation-pilot`、`full_story_delivery=false`，不会调用上游或覆盖默认完整 `preview.mp4`。已观看小样的反馈应绑定其文件哈希和时间映射，不把小样时间冒充源视频时间。
 
 共用源素材审核允许视频证据带 `mapped_view`：`start/end` 是源素材时间，`mapped_view` 内的 `start/end` 是实际观看文件时间，并提供该文件的 `manifest` 和 `timeline` 项目相对路径。校验观看文件哈希、剪辑配方/映射、源片哈希及时间对应；只接受原速、无画面叠加的区间，听音还需保留原声且无独立混音。其他改编音轨或合成画面应审核派生结果本身，不能用于认证原片。
 
