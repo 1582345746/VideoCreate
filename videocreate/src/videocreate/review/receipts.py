@@ -72,7 +72,7 @@ def contracts(root: Path, bundle: dict, *, output_name: str = "preview.mp4") -> 
             raise ConfigError("Final edit audio/overlay bytes changed; rerender before reviewing")
         result["final"] = make(final_path, duration, all_shots,
             {"story": bundle["story"], "director": bundle["director"], "timeline": bundle["timeline"],
-             "research": bundle.get("research", {})}, [[0.0, duration]])
+             "research": bundle.get("research", {}), **({"animation": bundle["animation"]} if "animation" in bundle else {})}, [[0.0, duration]])
     return result
 
 
@@ -292,5 +292,11 @@ def summary(root: Path, bundle: dict, *, output_name="preview.mp4") -> dict:
         layers[aid] = result
     rejected = any(v == "fail" for asset in layers.values() for v in asset.values())
     accepted = bool(actual) and "final" in actual and all(v in {"pass", "not_applicable"} for asset in layers.values() for v in asset.values())
+    animation_status = "not_applicable"
+    if "animation" in bundle:
+        from ..animation.pipeline import review_status
+        animation_status = review_status(root, bundle, output_name=output_name)
+        rejected = rejected or animation_status == "fail"
+        accepted = accepted and animation_status == "pass"
     return {"status": "rejected" if rejected else "accepted_delivery" if accepted else "review_pending" if actual else "draft_preview",
-        "structural_is_content_approval": False, "assets": layers, "valid_receipts": len(records)}
+        "structural_is_content_approval": False, "assets": layers, "valid_receipts": len(records), "animation_story": animation_status}

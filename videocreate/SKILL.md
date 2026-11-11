@@ -1,6 +1,6 @@
 ---
 name: videocreate
-description: Plan, generate, edit and review resumable AI videos with independently configured models and upstreams. Use for text/image-to-video, fast action coverage, animal comedy, historical character and product comedy, short drama, character references, storyboards, native dialogue, slow motion, multi-shot editing, subtitles, series and existing video projects. Supports Sub2API/NewAPI, independent image generation, and Muse browser workflow preparation and assisted execution when browser controls are available. Does not publish videos.
+description: Plan, generate, edit and review resumable AI videos with independent model/upstream routing. Use for text/image-to-video, story-reference animation with reusable character themes, animal comedy, action, short drama, storyboards, dialogue, subtitles and series. Supports Sub2API/NewAPI, independent image generation and assisted Muse browser workflows. Does not publish videos.
 ---
 
 # VideoCreate
@@ -14,6 +14,12 @@ For new video/media creation requests, load the local JSON with `config init/sho
 ## Muse and mixed workflows
 
 For Muse/browser generation, read [muse-browser.md](references/muse-browser.md). `browser_services` and `workflows` share the existing user JSON. Use `workflow list/describe/prepare` for API-image/API-video, Muse image or video, Muse-image/Muse-video, and API-image/Muse-video routes. Browser preparation is offline; it does not certify website capabilities or execute a full workflow. Prefer the user's chosen built-in browser, verify actual operation tools before asking for login, and do not silently switch to Edge. Keep unavailable tools, login status and untested generation capabilities explicit.
+
+## Story-reference animation
+
+For original animation based on a reference plot, reusable characters, 水豚噜噜/噜妹 or independent animated shorts, read [animation-story.md](references/animation-story.md) and use `animation`. Reference video supplies story evidence; design the output world, scenes, shots and sound anew. Select the theme and map narrative roles to its cast. User character images define identity: rounded orange capybara muzzles are not duck bills. Register the actual images, separate species/facial geometry from wardrobe, and inspect a single-scene opening before video generation. A multiview identity guide is not an opening frame.
+
+The animation sidecar records source study, outline, preservation mapping, theme version and original scene designs; `animation plan` projects it into the shared v3 layers. The agent authors the story from actual available observations; the CLI does not claim to understand unseen video. `animation example` supplies original worked stories, not evidence that a reference was understood. `animation run` begins with adjacent sample shots, then uses the existing task, budget and review system. Final animation acceptance additionally requires playback-based story/theme review. Local voice synthesis/import is separate from nonhuman lip-sync verification.
 
 ## Setup
 

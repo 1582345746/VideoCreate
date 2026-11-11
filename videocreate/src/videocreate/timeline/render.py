@@ -77,6 +77,9 @@ def auxiliary_hashes(root: Path, timeline: dict) -> dict:
 
 
 def render(root: Path, bundle: dict, state: dict, *, output_name: str = "preview.mp4") -> dict:
+    if "animation" in bundle:
+        from ..animation.voices import validate_tracks
+        validate_tracks(root, bundle)
     ffmpeg = shutil.which("ffmpeg")
     if not ffmpeg:
         raise ConfigError("FFmpeg is required; no automatic download was attempted")

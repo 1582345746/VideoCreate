@@ -79,6 +79,7 @@ def series_command(argv):
     parser.add_argument("project", type=Path, help="Series root, or episode root for check")
     parser.add_argument("--title", default="未命名系列")
     parser.add_argument("--episodes", type=int, default=20)
+    parser.add_argument("--mode", choices=["serial", "independent"], default="serial")
     parser.add_argument("--episode", type=int)
     parser.add_argument("--seconds", type=float, default=60)
     parser.add_argument("--observation", type=Path)
@@ -86,7 +87,7 @@ def series_command(argv):
     args = parser.parse_args(argv)
     root = args.project.resolve()
     if args.action == "init":
-        result = series.initialize(root, args.title, args.episodes)
+        result = series.initialize(root, args.title, args.episodes, mode=args.mode)
     elif args.action == "check":
         from .planning.project import load_project
         series.check_episode_context(root, load_project(root))

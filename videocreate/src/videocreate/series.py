@@ -8,13 +8,15 @@ from .config.storage import ConfigError, atomic_json, load_json
 from .planning.project import content_hash, load_project, save_bundle, within
 
 
-def initialize(root: Path, title: str, episodes: int = 20) -> dict:
+def initialize(root: Path, title: str, episodes: int = 20, *, mode: str = "serial") -> dict:
+    if mode not in {"serial", "independent"}:
+        raise ConfigError("Series mode must be serial or independent")
     if isinstance(episodes, bool) or not isinstance(episodes, int) or not 1 <= episodes <= 100:
         raise ConfigError("Episode count must be 1–100")
     if (root / "series.json").exists():
         raise ConfigError("Series already exists; edit its bible in place")
     atomic_json(root / "series.json", {"schema_version": 3, "product": "VideoCreate", "title": title,
-        "characters": [], "reference_hashes": {}, "world_rules": [], "initial_state": {},
+        "mode": mode, "characters": [], "reference_hashes": {}, "world_rules": [], "initial_state": {},
         "episodes": [{"number": i, "goal": "", "obstacle": "", "choice": "", "result": "", "hook": ""} for i in range(1, episodes+1)]})
     return {"ok": True, "bible": str(root / "series.json"), "status": "authoring_required", "paid_creates": 0}
 
@@ -27,6 +29,8 @@ def _bible(root):
         raise ConfigError("Episode numbers must be consecutive from 1")
     if not isinstance(bible.get("characters"), list) or not isinstance(bible.get("initial_state"), dict):
         raise ConfigError("Series characters must be an array and initial_state an object")
+    if bible.get("mode", "serial") not in {"serial", "independent"}:
+        raise ConfigError("Unknown series mode")
     return bible
 
 
@@ -55,13 +59,15 @@ def prepare(root: Path, number: int, seconds=60) -> dict:
     bible = _bible(root)
     if not 1 <= number <= len(bible["episodes"]):
         raise ConfigError("Unknown episode number")
-    previous = _accepted(root, number-1) if number > 1 else None
+    independent = bible.get("mode", "serial") == "independent"
+    previous = _accepted(root, number-1) if number > 1 and not independent else None
     from .planning.profiles import create
     bundle = create("series-episode", title=f"{bible['title']} · {number:02}", seconds=seconds)
     arc = bible["episodes"][number-1]
     bundle["story"].update({k:arc.get(k, "") for k in ("goal", "obstacle", "choice")})
     bundle["story"]["consequence"] = arc.get("result", "")
-    bundle["story"]["initial_state"] = previous["observed_exit_state"] if previous else bible["initial_state"]
+    bundle["story"]["initial_state"] = (arc.get("initial_state", bible["initial_state"]) if independent else
+        previous["observed_exit_state"] if previous else bible["initial_state"])
     bundle["director"]["assets"] = bible["characters"]
     destination = root / "episodes" / f"episode-{number:03}"
     # Copy canonical reference bytes into the episode, keeping hash provenance.
@@ -104,8 +110,15 @@ def check_episode_context(root: Path, bundle: dict) -> None:
     bible = _bible(series_root)
     if context.get("bible_hash") != content_hash(bible):
         raise ConfigError("Series bible changed; explicitly reconcile episode context before generation")
-    expected = bible["initial_state"]
-    if context["number"] > 1:
+    independent = bible.get("mode", "serial") == "independent"
+    expected = bible["episodes"][context["number"]-1].get("initial_state", bible["initial_state"]) if independent else bible["initial_state"]
+    if context.get("animation_theme_hash"):
+        if (content_hash(bible.get("animation_theme", {})) != context["animation_theme_hash"] or
+                content_hash(bundle.get("animation", {}).get("theme", {})) != context["animation_theme_hash"]):
+            raise ConfigError("Independent animation theme changed")
+        if independent:
+            expected = bible["episodes"][context["number"]-1].get("initial_state", context["initial_state"])
+    if context["number"] > 1 and not independent:
         previous = _accepted(series_root, context["number"]-1)
         if previous["receipt_hash"] != context["previous_receipt_hash"]:
             raise ConfigError("Previous accepted ending changed")

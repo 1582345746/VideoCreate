@@ -1,0 +1,18 @@
+{
+  "id": "cloud-couriers", "version": "1.0.0", "title": "云上快递员 · 狐狸与兔子",
+  "style": "手工毛毡质感的3D定格动画风格，清晰剪影，天空蓝与杏色，原创云上驿站",
+  "characters": [
+    {"id": "fox", "name": "阿栗", "species": "fox / 狐狸", "description": "赤褐色毛毡狐狸，白色口鼻，三角耳，大而蓬松的白尖尾巴",
+     "invariants": ["赤褐毛色、白尖尾巴、三角耳", "同场景保持毛毡纹理和衣着一致"], "personality": "急性子，嘴硬心软",
+     "variants": [{"id": "home", "description": "靛蓝短围裙"}, {"id": "outdoor", "description": "橙色邮差背心"}]},
+    {"id": "rabbit", "name": "棉棉", "species": "rabbit / 兔子", "description": "奶白色毛毡兔子，长耳一只微弯，圆短尾巴，深褐小眼睛",
+     "invariants": ["奶白毛色、微弯长耳、圆尾巴", "同场景保持耳朵形态和毛毡纹理"], "personality": "慢条斯理，善于观察",
+     "variants": [{"id": "home", "description": "杏色宽松背心"}, {"id": "outdoor", "description": "青绿邮差挎包"}]}
+  ],
+  "world_suggestions": ["云上邮局", "浮岛茶歇台", "纸风车包裹分拣间"],
+  "performance_rules": ["尾巴与长耳保留空间", "手工材质保持统一，不混入黄色大嘴角色特征", "动作通过重心与清晰停顿表达"],
+  "interactions": [
+    {"id": "false-anger", "description": "狐狸尾巴绷紧后放松，兔子以耳朵角度回应", "contact": false, "status": "description-only"},
+    {"id": "comfort", "description": "递出小靠垫，等待对方接住后才松手", "contact": true, "status": "description-only"}
+  ]
+}

@@ -38,8 +38,9 @@ def load_project(root: Path) -> dict[str, Any]:
     result = {"project": project}
     for name in LAYERS:
         result[name] = load_json(within(root, project.get("files", {}).get(name, name + ".json")))
-    if project.get("files", {}).get("research"):
-        result["research"] = load_json(within(root, project["files"]["research"]))
+    for name in ("research", "animation"):
+        if project.get("files", {}).get(name):
+            result[name] = load_json(within(root, project["files"][name]))
     return result
 
 
@@ -263,6 +264,11 @@ def validate_plan(bundle: dict[str, Any], root: Path | None = None) -> dict[str,
         research_report = validate_research(bundle, root=root, ready=False)
         errors.extend(research_report["errors"])
         warnings.extend(research_report["warnings"])
+    if brief.get("workflow_profile") == "animation-story" or "animation" in bundle:
+        from ..animation.project import validate_context
+        animation_report = validate_context(bundle, root)
+        errors.extend(animation_report["errors"])
+        warnings.extend(animation_report["warnings"])
     for reference in brief.get("reference_profiles", []):
         if root:
             try:
@@ -328,7 +334,7 @@ def compile_job(bundle: dict[str, Any], job: dict[str, Any], *, max_bytes: int, 
         if positions:
             sections.append("Visible positions: " + json.dumps(positions, ensure_ascii=False, separators=(",", ":")))
         retained.append(sid + ".scene_geography_and_axis")
-        for key in ("framing", "camera_position", "camera_motion", "eyeline", "screen_direction", "entry_state", "exit_state"):
+        for key in ("opening_frame", "framing", "camera_position", "camera_motion", "eyeline", "screen_direction", "entry_state", "exit_state"):
             if shot.get(key):
                 sections.append(key + ": " + str(shot[key]))
                 retained.append(sid + "." + key)
@@ -387,6 +393,6 @@ def save_bundle(root: Path, bundle: dict[str, Any]) -> None:
     if (root / "project.json").exists():
         raise ConfigError("Project already exists; edit its layer files in place")
     root.mkdir(parents=True, exist_ok=True)
-    for name in (*LAYERS, *(name for name in ("research",) if name in bundle)):
+    for name in (*LAYERS, *(name for name in ("research", "animation") if name in bundle)):
         atomic_json(root / (name + ".json"), bundle[name])
     atomic_json(root / "project.json", bundle["project"])

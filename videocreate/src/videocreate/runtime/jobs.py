@@ -86,6 +86,9 @@ def _generate_serial(root: Path, config: dict, *, store_root: Path, job_ids: lis
     explicitly_requested = set(requested) if explicit_job_ids is None else explicit_job_ids
     if any(jid not in jobs for jid in requested):
         raise ConfigError("Unknown job ID")
+    if "animation" in bundle:
+        from ..animation.pipeline import execution_guard
+        execution_guard(root, bundle, requested)
     if retry and (retry not in {"network", "content", "replan"} or not reason.strip() or not job_ids):
         raise ConfigError("Retry needs explicit jobs, kind network/content/replan and a reason")
     ordered, seen = [], set()

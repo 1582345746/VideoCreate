@@ -1,0 +1,18 @@
+{
+  "id": "lulu-lumei", "version": "1.1.0", "title": "水豚噜噜与噜妹 · 日常互动",
+  "style": "柔软圆润的3D水豚公仔动画，黄色水豚、橙色圆钝大鼻吻部和细小弧线嘴，温暖明亮的原创环境，统一软胶材质与比例",
+  "characters": [
+    {"id": "lulu", "name": "噜噜", "species": "capybara / 水豚", "description": "拟人化黄色水豚公仔，橙色圆钝凸起的大鼻吻部，嘴是鼻吻下部细小黑色弧线；圆形小耳朵、黑亮眼睛、短手短脚，头顶一颗带绿叶的小橘子",
+     "invariants": ["水豚圆钝鼻吻部与细小嘴，不是扁平鸭嘴或鸟喙", "黄色圆脸、小圆耳、橘子绿叶头饰、短肢；保持参考比例"], "personality": "爱逞强又心软，反应直接",
+     "variants": [{"id": "home", "description": "橙色短裤，黄色躯干"}, {"id": "outdoor", "description": "薄荷绿外套，保留橘子头饰"}]},
+    {"id": "lumei", "name": "噜妹", "species": "capybara / 水豚", "description": "拟人化黄色水豚公仔，橙色圆钝凸起的大鼻吻部，细小黑线嘴、圆形小耳朵和黑亮眼睛，短手短脚；白色荷叶边睡帽，帽顶小托盘上有带两片绿叶的橘子",
+     "invariants": ["水豚圆钝鼻吻部与细小嘴，不是扁平鸭嘴或鸟喙", "白色荷叶边睡帽、托盘橘子绿叶、黄色圆脸小圆耳和短肢；保持参考比例"], "personality": "机灵，假生气时仍关注对方",
+     "variants": [{"id": "home", "description": "粉色连体睡衣，白色娃娃领与粉色蝴蝶结"}, {"id": "outdoor", "description": "奶油色外套，保留白色荷叶边帽和橘子头饰"}]}
+  ],
+  "world_suggestions": ["圆窗小屋", "屋顶花园", "暖色开放式厨房"],
+  "performance_rules": ["短肢动作先确认距离与支撑", "以眉眼、头部和身体表达情绪，小嘴不可变形成巨大鸟喙", "关系由本条故事确定，不预设亲属关系", "用户角色图优先于文字猜测；多视图仅作身份指导，不作视频首帧"],
+  "interactions": [
+    {"id": "false-anger", "description": "抱臂侧目，注意力仍留在对方，接到关心后逐渐放松", "contact": false, "status": "description-only"},
+    {"id": "comfort", "description": "先示意并停顿，获得回应后靠近，接触时身体有支撑", "contact": true, "status": "description-only"}
+  ]
+}
