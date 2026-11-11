@@ -16,7 +16,7 @@ from videocreate.animation.schema import animation_schema
 from videocreate.config.storage import ConfigError, atomic_json, load_json
 from videocreate.planning.project import compile_job, content_hash, load_project, validate_plan
 from videocreate.references import digest
-from videocreate.runtime.jobs import job_inputs
+from videocreate.runtime.jobs import current_inputs
 from videocreate.runtime.state import read_state, save_state
 from videocreate.review import receipts
 from videocreate import series
@@ -161,7 +161,7 @@ class AnimationTests(unittest.TestCase):
         root, bundle = self.example(scenario="dialogue")
         job = bundle["generation-plan"]["jobs"][0]
         def fingerprint(b):
-            return job_inputs(b, job, compile_job(b, job, max_bytes=4096))
+            return current_inputs(root, b, job, {})
         initial = fingerprint(bundle)
         bundle["project"]["title"] = "New title"
         bundle["timeline"]["subtitles"][0]["text"] = "Corrected subtitle"
@@ -169,6 +169,18 @@ class AnimationTests(unittest.TestCase):
         bundle["director"]["shots"][0]["audio"]["lines"][0]["voice_asset_id"] = "new-voice"
         self.assertEqual(fingerprint(bundle), initial)
         bundle["director"]["shots"][1]["actions"][0]["description"] = "New action elsewhere"
+        self.assertEqual(fingerprint(bundle), initial)
+        bundle["brief"]["resolution"] = "1080p"
+        self.assertNotEqual(fingerprint(bundle), initial)
+        bundle["brief"]["resolution"] = "720p"
+        initial = fingerprint(bundle)
+        reference = root / "identity.png"
+        reference.write_bytes(b"reference hash fixture")
+        job["references"] = [{"path": reference.name, "role": "opening-frame"}]
+        with_reference = fingerprint(bundle)
+        reference.write_bytes(b"different reference bytes")
+        self.assertNotEqual(fingerprint(bundle), with_reference)
+        job.pop("references")
         self.assertEqual(fingerprint(bundle), initial)
         bundle["director"]["shots"][0]["actions"][0]["description"] = "Changed local action"
         self.assertNotEqual(fingerprint(bundle), initial)

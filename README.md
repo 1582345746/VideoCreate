@@ -2,13 +2,15 @@
 
 [![VideoCreate CI](https://github.com/1582345746/VideoCreate/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/1582345746/VideoCreate/actions/workflows/ci.yml)
 
-面向 Codex 的可恢复、多模型、多上游 AI 视频制作技能。产品名、技能入口和 Python 包统一为 **VideoCreate**。当前开发版为 `3.0.0.dev6`；这不是生产质量认证。
+面向 Codex 的可恢复、多模型、多上游 AI 视频制作技能。产品名、技能入口和 Python 包统一为 **VideoCreate**。当前开发版为 `3.0.0.dev7`；这不是生产质量认证。
 
 新工作使用分层 v3 计划：brief、story、director、generation-plan 和 timeline。旧的 v2 项目/任务仍保留兼容入口。v3 结构检查不会代替真实的视觉、动作和音频验收；模型和上游未通过实际样片验证时维持 unknown/unverified。
 
 新用户配置一个 `%LOCALAPPDATA%/VideoCreate/videocreate.config.json`，把模型、上游实例、adapter 和路由分开配置。Sub2API/NewAPI 可以作为 Grok、Seedance 等模型的不同 binding；这表示架构可配置，不代表每种模型/渠道合同都经真实生成验证。安装和离线预演不创建付费任务。详见 [VideoCreate v3 开发计划与实施清单](docs/videocreate-v3-development-plan.zh-CN.md)、[技能运行说明](videocreate/SKILL.md)、[配置说明](videocreate/references/configuration.md) 和 [v3 项目说明](videocreate/references/v3-project.md)。
 
 dev6 新增 [动画故事创作模块](videocreate/references/animation-story.md)：参考剧情→原创世界/场景→主题角色→v3 分镜，附水豚噜噜/噜妹与毛毡狐狸/兔子两套主题。支持角色图裁剪与身份指导、开场状态校验、相邻小样、独立短剧、固定声线音轨和剧情保真审核。`animation example PROJECT --scenario reaction` 可离线创建完整示例；使用 `--theme cloud-couriers` 检验换角色。真实生成与质量边界见 [开发验收记录](docs/20261111-animation-story-acceptance.zh-CN.md)。
+
+dev7 增加 `animation preview`：独立修剪已生成的小样，保留完整故事计划、任务与候选；按保留窗口重排声音和字幕，拒绝截断半句，小样不能当作完整成片验收。复用判断使用与真实提交一致的输入哈希，包含参考图字节和画幅参数。
 
 dev5 已有 GPT Image 2.6 三型号与 Grok Image 2.0 目录、创建前图片选型、图片/视频同型号备用和候选预检查、本机故障冷却，以及 GIF 校验与本地转换。账户级测试结果见 [模型路由交付记录](docs/20261107-model-routing-gif-acceptance.zh-CN.md)。
 

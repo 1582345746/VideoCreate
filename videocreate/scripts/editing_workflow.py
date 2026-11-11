@@ -478,7 +478,13 @@ def validate_edit_plan(root: Path, plan: dict[str, Any], *, require_inputs: bool
 
 
 def _run(command: list[str], action: str) -> None:
-    result = subprocess.run(command, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=1800)
+    try:
+        result = subprocess.run(command, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=1800)
+    except subprocess.TimeoutExpired as error:
+        detail = error.stderr or error.stdout or b""
+        if isinstance(detail, bytes):
+            detail = detail.decode("utf-8", errors="replace")
+        raise SkillError(f"ffmpeg timed out while {action}: {detail.strip()[-1200:]}") from error
     if result.returncode != 0:
         detail = (result.stderr or result.stdout).strip()[-1200:]
         raise SkillError(f"ffmpeg failed while {action}: {detail}")
@@ -580,7 +586,7 @@ def _normalize_inputs(
                     "-vf",
                     _filter_chain(plan, item, width, height),
                     "-af",
-                    f"{_atempo_chain(speed)},apad",
+                    f"{_atempo_chain(speed)},apad=whole_dur={duration:.6f},atrim=duration={duration:.6f}",
                     "-t",
                     f"{duration:.3f}",
                     "-c:v",

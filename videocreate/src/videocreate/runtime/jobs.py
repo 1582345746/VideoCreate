@@ -46,6 +46,25 @@ def job_inputs(bundle: dict, job: dict, compilation: dict) -> str:
                          "prompt_sha256": compilation["prompt_sha256"]})
 
 
+def generation_inputs(root: Path, bundle: dict, job: dict, compilation: dict) -> str:
+    """Exact persisted identity, shared by submission and offline reuse checks."""
+    references = job.get("references", [])
+    ordered = [r for r in references if r["role"] == "opening-frame"] + [
+        r for r in references if r["role"] != "opening-frame"]
+    generation = content_hash({"job_inputs": job_inputs(bundle, job, compilation),
+        "resolution": bundle["brief"]["resolution"], "aspect_ratio": bundle["brief"]["aspect_ratio"]})
+    return content_hash({"generation": generation, "references": [
+        {"path": within(root, ref["path"]).relative_to(root).as_posix(),
+         "sha256": hashlib.sha256(within(root, ref["path"]).read_bytes()).hexdigest()}
+        for ref in ordered]})
+
+
+def current_inputs(root: Path, bundle: dict, job: dict, record: dict) -> str:
+    maximum = record.get("binding_snapshot", {}).get("capabilities", {}).get("max_prompt_bytes", 4096)
+    compilation = compile_job(bundle, job, max_bytes=maximum, root=root)
+    return generation_inputs(root, bundle, job, compilation)
+
+
 def _owner_alive(record: dict) -> bool:
     if record.get("host") != socket.gethostname():
         return True  # Cannot prove another host stopped; hold for reconciliation.
@@ -141,7 +160,6 @@ def _generate_serial(root: Path, config: dict, *, store_root: Path, job_ids: lis
         primary_entry = next((ref for ref in reference_entries if ref["role"] == "opening-frame"), None)
         primary_reference = within(root, primary_entry["path"]) if primary_entry else None
         reference_images = [within(root, ref["path"]) for ref in reference_entries if ref["role"] != "opening-frame"]
-        refs = ([primary_reference] if primary_reference else []) + reference_images
         actor_shots = [s for s in bundle["director"]["shots"] if s["id"] in job["shot_ids"]]
         kwargs = {"seconds": job["seconds"], "size": "auto", "resolution": bundle["brief"]["resolution"],
             "aspect_ratio": bundle["brief"]["aspect_ratio"],
@@ -170,11 +188,7 @@ def _generate_serial(root: Path, config: dict, *, store_root: Path, job_ids: lis
         else:
             raise ConfigError(jid + ": no compatible video binding: " + "; ".join(d["reason"] for d in decisions))
         selection = {"selected_model": binding.model, "selected_binding": binding.id, "decisions": decisions}
-        input_hash = content_hash({"job_inputs": job_inputs(bundle, job, compilation),
-            "resolution": bundle["brief"]["resolution"], "aspect_ratio": bundle["brief"]["aspect_ratio"]})
-        input_hash = content_hash({"generation": input_hash, "references": [
-            {"path": path.relative_to(root).as_posix(), "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
-            for path in refs]})
+        input_hash = generation_inputs(root, bundle, job, compilation)
         needs_slot = not prior.get("task_id") or (retry in {"content", "replan"} and jid in explicitly_requested)
         maximum = config["upstreams"][binding.upstream_id].get("max_concurrent_submissions", 1)
         gate = submission_slot(store_root, binding.upstream_id, maximum, wait=wait_for_slot,

@@ -4,7 +4,7 @@ from __future__ import annotations
 import shutil
 from pathlib import Path
 from ..config.storage import ConfigError, atomic_json, load_json
-from ..planning.project import compile_job, content_hash, load_project, validate_plan, within
+from ..planning.project import content_hash, load_project, validate_plan, within
 from ..references import digest
 from ..runtime.state import read_state, state_lock
 
@@ -277,14 +277,13 @@ def review_status(root, bundle, *, output_name="preview.mp4"):
 def status(root):
     bundle = checked(root)
     state = read_state(root)
-    from ..runtime.jobs import job_inputs
+    from ..runtime.jobs import current_inputs
     from ..runtime.budget import summary as budget_summary
     from ..runtime.candidates import selected
     rows = []
     for job in bundle["generation-plan"]["jobs"]:
-        compilation = compile_job(bundle, job, max_bytes=4096, root=root)
         record = selected(state["jobs"].get(job["id"], {}))
-        current = job_inputs(bundle, job, compilation)
+        current = current_inputs(root, bundle, job, record)
         artifact = record.get("artifact", {})
         artifact_path = within(root, artifact.get("path", "missing"), exists=False)
         reusable = (record.get("status") == "completed" and record.get("input_hash") == current

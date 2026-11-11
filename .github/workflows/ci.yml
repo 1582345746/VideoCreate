@@ -11,6 +11,7 @@ jobs:
   tests:
     name: Tests (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
@@ -37,7 +38,7 @@ jobs:
       - name: Install media test dependencies
         run: python -m pip install Pillow
       - name: Run tests
-        run: python -m unittest discover -s tests -p "test_*.py" -v
+        run: python -u -c "import faulthandler,runpy; faulthandler.dump_traceback_later(180, repeat=True); runpy.run_module('unittest', run_name='__main__')" discover -s tests -p "test_*.py" -v
       - name: Build and inspect standalone wheel
         run: |
           python -m pip wheel . --no-deps --wheel-dir dist

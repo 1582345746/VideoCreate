@@ -8,7 +8,7 @@ from pathlib import Path
 from ..config.storage import ConfigError, atomic_json, load_json
 from ..planning.project import content_hash, within
 from ..runtime.state import read_state, save_state, state_lock
-from ..timeline.model import mapping
+from ..timeline.model import mapping, validate_timeline
 
 LAYERS = ("narrative", "performance_motion", "identity", "spatial_continuity", "audio", "clean_frame", "editorial")
 TEMPORAL = {"performance_motion", "spatial_continuity", "editorial"}
@@ -60,6 +60,9 @@ def contracts(root: Path, bundle: dict, *, output_name: str = "preview.mp4") -> 
     final_path = root / "deliverables" / output_name
     if final_path.is_file():
         manifest = load_json(final_path.with_suffix(".manifest.json"))
+        if manifest.get("scope") == "animation-pilot":
+            # Pilot cuts have source review contracts, but cannot stand in for the whole story.
+            return result
         if manifest.get("sha256") != file_hash(final_path) or manifest.get("timeline_hash") != content_hash(bundle["timeline"]):
             raise ConfigError("Final edit/manifest is stale; rerender before reviewing")
         duration = manifest["media"]["duration"]
@@ -85,6 +88,40 @@ def template(root: Path, bundle: dict, *, output_name="preview.mp4") -> dict:
     if "final" in actual:
         actual["final"]["blind_understanding"] = {key: "" for key in ("goal", "obstacle", "product_role", "choice", "result", "payoff")}
     return {"schema_version": 3, "reviewer_id": "", "output_name": output_name, "assets": actual}
+
+
+def _mapped_view(root, expected, item, layer):
+    """Validate source-time evidence observed inside a hash-bound local edit."""
+    view = item["mapped_view"]
+    if not isinstance(view, dict):
+        return False
+    watched = within(root, item["path"])
+    manifest_path = within(root, view["manifest"])
+    if item["kind"] != "video" or manifest_path != watched.with_suffix(".manifest.json"):
+        return False
+    manifest = load_json(manifest_path)
+    timeline = load_json(within(root, view["timeline"]))
+    if not isinstance(manifest, dict) or not isinstance(timeline, dict) or validate_timeline(timeline):
+        return False
+    if (manifest.get("sha256") != item["sha256"]
+            or manifest.get("technical_decode") != "pass"
+            or manifest.get("timeline_hash") != content_hash(timeline)
+            or manifest.get("mapping") != mapping(timeline)):
+        return False
+    if timeline.get("overlays") or layer == "audio" and timeline.get("audio_tracks"):
+        return False  # Compositing/mixing cannot certify the unmodified source.
+    for segment in manifest["mapping"]["segments"]:
+        if (manifest.get("source_hashes", {}).get(segment["clip_id"]) != expected["sha256"]
+                or segment.get("rate", 1) != 1
+                or not segment["source_in"] <= item["start"] < item["end"] <= segment["source_out"]):
+            continue
+        start = segment["timeline_start"] + item["start"] - segment["source_in"]
+        end = segment["timeline_start"] + item["end"] - segment["source_in"]
+        if (abs(view["start"] - start) < .001 and abs(view["end"] - end) < .001
+                and 0 <= start < end <= manifest["media"]["duration"] + .001
+                and (layer != "audio" or segment.get("source_audio", "mute") == "preserve")):
+            return True
+    return False
 
 
 def validate_receipt(root: Path, bundle: dict, receipt: dict) -> list[str]:
@@ -143,6 +180,8 @@ def validate_receipt(root: Path, bundle: dict, receipt: dict) -> list[str]:
                         valid = valid and kind == "video"
                     if layer == "audio":
                         valid = valid and kind in {"audio", "video", "asr"}
+                    if "mapped_view" in item:
+                        valid = valid and _mapped_view(root, expected, item, layer)
                     if not valid:
                         raise ValueError()
                 except (ConfigError, KeyError, TypeError, ValueError):

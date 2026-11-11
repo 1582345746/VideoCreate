@@ -86,6 +86,17 @@ review status PROJECT
 
 源参考时间用于剧情证据；生成素材时间用于 source_in/out；最终时间线按保留窗口与变速映射。修改字幕不会重生成视频。`animation status` 显示逐任务输入哈希、可复用字节、未知提交、请求预算、已知/未知价格、重做原因、完成秒数与已审核可用秒数。
 
+只有前两镜完成时，使用独立小样入口，保留完整制作计划和目标时长：
+
+```text
+animation preview PROJECT --output-name pilot.mp4
+animation preview PROJECT --edit-file pilot-edit.json --output-name pilot-trimmed.mp4
+```
+
+`pilot-edit.json` 示例：`{"reason":"首镜提前开盖，与第二镜重复；切在首镜开盖前", "segments":{"seg-001":{"source_out":1.0}}}`。仅允许修剪选定小样原保留区间，以及修改 source_audio/cut_reason；不改任务、镜头或播放速度。独立声音、字幕和画面叠加按原时间映射到修剪后的小样，不能截断半句台词或字幕。只要求小样已有的配音，不要求尚未制作的后续镜头音轨。输出同名 `.timeline.json` 和 `.manifest.json`，标记 `scope=animation-pilot`、`full_story_delivery=false`，不会调用上游或覆盖默认完整 `preview.mp4`。已观看小样的反馈应绑定其文件哈希和时间映射，不把小样时间冒充源视频时间。
+
+共用源素材审核允许视频证据带 `mapped_view`：`start/end` 是源素材时间，`mapped_view` 内的 `start/end` 是实际观看文件时间，并提供该文件的 `manifest` 和 `timeline` 项目相对路径。校验观看文件哈希、剪辑配方/映射、源片哈希及时间对应；只接受原速、无画面叠加的区间，听音还需保留原声且无独立混音。其他改编音轨或合成画面应审核派生结果本身，不能用于认证原片。
+
 最终仍执行共用七层视频审核，并增加 animation review 的逐题眼保真与主题一致性。后者必须实际连续观看最终视频，覆盖全部要点与完整时长，绑定成片/计划/主题哈希。任何相同字节上的真实失败优先于通过。结构通过、静帧通过、API 成功或 FFmpeg 可解码都不能代替内容验收。
 
 ## 独立短剧与复用

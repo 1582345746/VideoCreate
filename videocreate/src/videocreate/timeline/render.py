@@ -76,7 +76,9 @@ def auxiliary_hashes(root: Path, timeline: dict) -> dict:
         for group in ("audio_tracks", "overlays") for entry in timeline.get(group, []) if entry.get("path")}
 
 
-def render(root: Path, bundle: dict, state: dict, *, output_name: str = "preview.mp4") -> dict:
+def render(root: Path, bundle: dict, state: dict, *, output_name: str = "preview.mp4", scope: str = "project-timeline") -> dict:
+    if scope not in {"project-timeline", "animation-pilot"}:
+        raise ConfigError("Unknown edit scope")
     if "animation" in bundle:
         from ..animation.voices import validate_tracks
         validate_tracks(root, bundle)
@@ -112,9 +114,10 @@ def render(root: Path, bundle: dict, state: dict, *, output_name: str = "preview
             args = [ffmpeg, "-v", "error", "-y", "-ss", str(seg["source_in"]), "-t", str(duration), "-i", str(path)]
             filters = f"setpts=(PTS-STARTPTS)/{rate},scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps={timeline['fps']}"
             if source["has_audio"] and seg.get("source_audio", "mute") != "mute":
-                args += ["-af", "asetpts=PTS-STARTPTS," + atempo(rate) + ",apad", "-map", "0:a:0"]
+                args += ["-af", "asetpts=PTS-STARTPTS," + atempo(rate)
+                    + f",apad=whole_dur={seg['duration']},atrim=duration={seg['duration']}", "-map", "0:a:0"]
             else:
-                args += ["-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo", "-map", "1:a:0"]
+                args += ["-f", "lavfi", "-i", f"anullsrc=r=48000:cl=stereo:d={seg['duration']}", "-map", "1:a:0"]
             args += ["-map", "0:v:0", "-vf", filters, "-t", str(seg["duration"]), "-c:v", "libx264",
                 "-preset", "veryfast", "-pix_fmt", "yuv420p", "-c:a", "aac", "-ar", "48000", "-ac", "2", str(part)]
             run(args)
@@ -156,7 +159,7 @@ def render(root: Path, bundle: dict, state: dict, *, output_name: str = "preview
         run([ffmpeg, "-v", "error", "-i", str(final_temp), "-f", "null", "-"])
         final_temp.replace(target)
     subtitle_file(target.with_suffix(".srt"), plan["subtitles"])
-    manifest = {"schema_version": 3, "status": "draft_preview", "path": str(target), "sha256": hashlib.sha256(target.read_bytes()).hexdigest(),
+    manifest = {"schema_version": 3, "status": "draft_preview", "scope": scope, "path": str(target), "sha256": hashlib.sha256(target.read_bytes()).hexdigest(),
         "timeline_hash": content_hash(timeline), "mapping": plan, "media": final_media,
         "source_hashes": {cid: hashlib.sha256(path.read_bytes()).hexdigest() for cid, path in clips.items()},
         "auxiliary_hashes": auxiliary,

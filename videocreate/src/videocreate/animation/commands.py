@@ -48,6 +48,10 @@ def animation_command(argv):
     for name in ("validate", "status"):
         command = sub.add_parser(name)
         command.add_argument("project", type=Path)
+    preview = sub.add_parser("preview", help="Locally edit completed pilot shots without changing the full plan")
+    preview.add_argument("project", type=Path)
+    preview.add_argument("--edit-file", type=Path)
+    preview.add_argument("--output-name", default="animation-pilot.mp4")
     frames = sub.add_parser("keyframes")
     frames.add_argument("project", type=Path)
     frames.add_argument("--shot", action="append")
@@ -128,6 +132,9 @@ def animation_command(argv):
             result = validate_plan(load_project(root), root) if (root / "project.json").exists() else project.validate_document(project.read(root), root, ready=True)
         elif args.action == "status":
             result = pipeline.status(root)
+        elif args.action == "preview":
+            from . import previews
+            result = previews.render(root, edits=load_json(args.edit_file) if args.edit_file else None, output_name=args.output_name)
         elif args.action == "select":
             result = pipeline.select_frame(root, args.shot, args.image.resolve(), load_json(args.observation), include_guidance=args.include_guidance)
         elif args.action == "reference":
