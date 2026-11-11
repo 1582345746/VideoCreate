@@ -98,7 +98,11 @@ class AnimationTests(unittest.TestCase):
         project.initialize(root)
         source = self.root / "中文 空格 # 🫣.mp4"
         subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "color=c=blue:s=96x128:d=2", "-c:v", "libx264", "-y", str(source)], check=True)
-        first = project.inspect(root, [source, source], max_frames=4)
+        alias_parent = self.root / "alias-parent"
+        alias_parent.mkdir()
+        # The analyzer resolves paths; callers may use aliases, including Windows 8.3 names.
+        alternate_root = alias_parent / ".." / root.name
+        first = project.inspect(alternate_root, [source, source], max_frames=4)
         self.assertTrue(first["sources"][1]["duplicate"])
         document = project.read(root)
         record = document["sources"][0]

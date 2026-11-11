@@ -37,6 +37,7 @@ def _editable(root):
 
 
 def inspect(root, sources, *, purpose="story", max_frames=16):
+    root = Path(root).resolve()
     _editable(root)
     document = read(root)
     if purpose not in {"story", "character", "art"}:
