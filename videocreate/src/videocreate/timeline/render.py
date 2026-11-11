@@ -164,5 +164,8 @@ def render(root: Path, bundle: dict, state: dict, *, output_name: str = "preview
         "source_hashes": {cid: hashlib.sha256(path.read_bytes()).hexdigest() for cid, path in clips.items()},
         "auxiliary_hashes": auxiliary,
         "fps_report": fps_notes, "technical_decode": "pass", "audio_content": "unverified", "content": "unverified", "paid_creates": 0}
+    if "animation" in bundle:
+        from ..animation.voices import profiles_hash
+        manifest["animation_voice_cast_hash"] = profiles_hash(root, bundle)
     atomic_json(target.with_suffix(".manifest.json"), manifest)
     return {"ok": True, **manifest}

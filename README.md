@@ -2,7 +2,7 @@
 
 [![VideoCreate CI](https://github.com/1582345746/VideoCreate/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/1582345746/VideoCreate/actions/workflows/ci.yml)
 
-面向 Codex 的可恢复、多模型、多上游 AI 视频制作技能。产品名、技能入口和 Python 包统一为 **VideoCreate**。当前开发版为 `3.0.0.dev8`；这不是生产质量认证。
+面向 Codex 的可恢复、多模型、多上游 AI 视频制作技能。产品名、技能入口和 Python 包统一为 **VideoCreate**。当前开发版为 `3.0.0.dev9`；这不是生产质量认证。
 
 新工作使用分层 v3 计划：brief、story、director、generation-plan 和 timeline。旧的 v2 项目/任务仍保留兼容入口。v3 结构检查不会代替真实的视觉、动作和音频验收；模型和上游未通过实际样片验证时维持 unknown/unverified。
 
@@ -13,6 +13,8 @@ dev6 新增 [动画故事创作模块](videocreate/references/animation-story.md
 dev7 增加 `animation preview`：独立修剪已生成的小样，保留完整故事计划、任务与候选；按保留窗口重排声音和字幕，拒绝截断半句，小样不能当作完整成片验收。复用判断使用与真实提交一致的输入哈希，包含参考图字节和画幅参数。
 
 dev8 修正 Windows 短路径下的参考哈希计算，旧剪辑器将变速画面与音频分别归一化后无损封装，解决 FFmpeg 8 短片段卡住的问题，并提供按片段时长的超时诊断。动画示例明确取物、递接与接稳后松手，第二主题不再混入噜噜名称；连续镜头优先从实际保留末帧接续。首条完整故事的闪跳与道具跳现已按用户反馈重做，15 秒修正版的动作、画面与环境音得到播放确认；完整剧情题眼与稳定对白仍分别验收。
+
+dev9 增加 `animation voice-cast`：版本化角色声线可随独立集保存快照，复用已有 CosyVoice/Voicebox 本地预设声音工具，换声只使相关配音失效并保留旧候选。`animation library-add/library-list` 将已播放审核的动作区间、首帧与前置条件登记为本地参考，来源改变或出现失败审核时自动停用。档案、服务配置和缓存并不代表音色、逐字台词或非人脸口型已通过实测。
 
 dev5 已有 GPT Image 2.6 三型号与 Grok Image 2.0 目录、创建前图片选型、图片/视频同型号备用和候选预检查、本机故障冷却，以及 GIF 校验与本地转换。账户级测试结果见 [模型路由交付记录](docs/20261107-model-routing-gif-acceptance.zh-CN.md)。
 

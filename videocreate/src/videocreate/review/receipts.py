@@ -73,9 +73,18 @@ def contracts(root: Path, bundle: dict, *, output_name: str = "preview.mp4") -> 
         from ..timeline.render import auxiliary_hashes
         if manifest.get("auxiliary_hashes", {}) != auxiliary_hashes(root, bundle["timeline"]):
             raise ConfigError("Final edit audio/overlay bytes changed; rerender before reviewing")
+        voice_scope = {}
+        if "animation" in bundle:
+            from ..animation.voices import profiles_hash
+            current_voice_hash = profiles_hash(root, bundle)
+            if manifest.get("animation_voice_cast_hash") != current_voice_hash:
+                raise ConfigError("Final edit voice cast changed; replace affected audio and rerender before reviewing")
+            if current_voice_hash:
+                voice_scope["animation_voice_cast_hash"] = current_voice_hash
         result["final"] = make(final_path, duration, all_shots,
             {"story": bundle["story"], "director": bundle["director"], "timeline": bundle["timeline"],
-             "research": bundle.get("research", {}), **({"animation": bundle["animation"]} if "animation" in bundle else {})}, [[0.0, duration]])
+             "research": bundle.get("research", {}), **({"animation": bundle["animation"]} if "animation" in bundle else {}),
+             **voice_scope}, [[0.0, duration]])
     return result
 
 

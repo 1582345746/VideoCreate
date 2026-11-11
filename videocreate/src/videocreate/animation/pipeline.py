@@ -174,9 +174,25 @@ def import_voice(root, sid, line_index, source, *, voice_id, reviewer, notes):
     if shot is None or shot.get("audio", {}).get("mode") != "independent-voice":
         raise ConfigError("Voice import needs a shot using independent-voice")
     lines = shot["audio"].get("lines", [])
-    if not 0 <= line_index < len(lines) or not all(str(v).strip() for v in (voice_id, reviewer, notes)):
+    if not 0 <= line_index < len(lines) or not all(str(v).strip() for v in (reviewer, notes)):
         raise ConfigError("Voice import requires a valid line, stable voice ID and listening notes/reviewer")
     line = lines[line_index]
+    from .voice_cast import identity, select
+    profile = select(root, line["speaker"])
+    if profile:
+        if voice_id and voice_id != identity(profile):
+            raise ConfigError("Imported voice ID differs from this character's versioned voice cast")
+        voice_id = identity(profile)
+    if not voice_id or not voice_id.strip():
+        raise ConfigError("Voice import requires a stable voice ID or character voice cast")
+    generated_receipt = source.with_suffix(".json")
+    if source.resolve().is_relative_to((root / "audio/generated").resolve()) and generated_receipt.is_file():
+        generated = load_json(generated_receipt)
+        request = generated.get("request", {})
+        if (generated.get("sha256") != digest(source) or request.get("text") != line["text"]
+                or request.get("speaker") != line["speaker"] or request.get("voice_id") != voice_id
+                or request.get("profile_hash") != (content_hash(profile) if profile else None)):
+            raise ConfigError("Generated voice candidate differs from the current text/speaker/voice cast")
     import json
     import subprocess
     ffprobe = shutil.which("ffprobe")
@@ -194,11 +210,13 @@ def import_voice(root, sid, line_index, source, *, voice_id, reviewer, notes):
     sha = digest(source)
     target = root / "audio" / (f"{sid}-{line_index}-{sha[:20]}" + source.suffix.lower())
     with state_lock(root):
+        if select(root, line["speaker"]) != profile:
+            raise ConfigError("Voice cast changed during import; listen to the matching candidate before retrying")
         voices_path = root / "animation-voices.json"
         voices = load_json(voices_path) if voices_path.exists() else {"characters": {}, "lines": {}}
         speaker = line["speaker"]
         established = voices["characters"].get(speaker)
-        if established and established != voice_id:
+        if established and established != voice_id and not profile:
             raise ConfigError("Character voice ID differs from established voice; explicitly revise animation-voices.json for a new voice version")
         voices["characters"][speaker] = voice_id
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -206,9 +224,12 @@ def import_voice(root, sid, line_index, source, *, voice_id, reviewer, notes):
             shutil.copy2(source, target)
         track = next(t for t in bundle["timeline"]["audio_tracks"] if t["id"] == f"voice-{sid}-{line_index}")
         track.update(path=target.relative_to(root).as_posix(), source_out=media["duration"])
+        old = voices["lines"].get(f"{sid}:{line_index}")
+        if old:
+            atomic_json(root / "audio/voice-line-history" / (content_hash(old) + ".json"), old)
         voices["lines"][f"{sid}:{line_index}"] = {"speaker": speaker, "text": line["text"], "voice_id": voice_id,
             "sha256": sha, "path": track["path"], "reviewer_id": reviewer, "notes": notes, "method": "human-listening",
-            "lip_sync": "unverified-nonhuman-face"}
+            "lip_sync": "unverified-nonhuman-face", "profile_hash": content_hash(profile) if profile else None}
         atomic_json(voices_path, voices)
         atomic_json(root / bundle["project"]["files"]["timeline"], bundle["timeline"])
     return {"ok": True, "track": track, "video_regeneration": False, "lip_sync": "unverified", "paid_creates": 0}

@@ -73,7 +73,7 @@ animation run PROJECT --stage full
 
 ## 声音、剪辑与验收
 
-对白可以使用原生实验路线，也可以 `independent-voice`；后者从新剧本规划说话者、时间窗和独立音轨。可选本地合成入口复用现有 CosyVoice loopback 服务，不安装或下载模型：
+对白可以使用原生实验路线，也可以 `independent-voice`；后者从新剧本规划说话者、时间窗和独立音轨。可选本地合成入口复用现有 CosyVoice/Voicebox loopback 服务，不安装或下载模型：
 
 ```text
 animation synthesize PROJECT --shot shot-1 --line 0 --service-url http://127.0.0.1:9880 --voice-id 已有声线ID
@@ -85,6 +85,25 @@ review status PROJECT
 ```
 
 合成先返回 listening_required，试听后再导入；音频必须能解码并放进台词窗口，不能无声截断。每个角色的 voice_id 记录在 `animation-voices.json`；替换某人的声音只更新其音轨与后期。非人脸口型仍需实测，不因固定音色而自动通过。普通字幕来自新剧本，在后期添加。
+
+长期复用可先在项目或 `animation series-init` 目录配置 `animation voice-cast PROJECT --file voices.json`。文件结构：
+
+```json
+{
+  "schema_version": 1,
+  "characters": {
+    "lulu": {
+      "version": "1", "provider": "cosyvoice",
+      "service_url": "http://127.0.0.1:9880", "language": "zh-CN",
+      "voice": {"voice_id": "实际已安装并试听选定的预设ID"}
+    }
+  }
+}
+```
+
+给每个需要配音的角色设置自己的条目；示例 ID 是说明文字。Voicebox 使用 `provider=voicebox`、实际本地地址，以及 `voice.preset_voice_id/preset_engine/model_size`；可记录 `model/model_revision/seed`，沿用旧适配器核查已下载的模型。此桥接仅接预设声线；授权参考音频的克隆仍用原声音工作流，不能将陌生人的声音自动作为角色配音。
+
+配置后 `synthesize` 可省略 service-url/voice-id，`voice` 导入也可省略 voice-id，自动匹配说话者档案。`voice-cast PROJECT --check-service` 只读检查服务健康，不生成或下载。变更已有档案需要增加对应角色的 version 并给出 `--reason`；旧档案、音频和试听记录保留。旧合成候选不能冒充新声线导入。更换一人的档案只使其声音记录过期；另一人的音轨与视频输入哈希保持有效。系列新准备的独立集保存当前声线快照，已有集不被后来的选声变动覆盖。配置成功不认证音色；仍需逐句试听、核对说话者和台词，再分别审核口型。
 
 原生对白试镜要记录实际听到的原话、说话者和额外接话，分别判断声音自然、男女声归属、跨镜声线、口型和逐字按稿。Grok 小样曾正确生成男女声及对应口型，同时给听者自行添加一句未写入剧本的回应；这证明该样片能说话，不能证明逐字可控或固定角色音色。出现额外接话时保留源片和偏差，不为适配输出改写原请求、把音频审核直接标为全通过，或按原计划时间给未听到的台词加字幕。精确台词或长期固定声线需要选择并实测独立配音路线；非人脸口型仍单独验收。
 
@@ -113,3 +132,16 @@ animation episode SERIES --episode 2 --file AUTHORING_PROJECT/animation.authorin
 可以先准备第 2 条，不要求第 1 条通过；每条使用自己的初始状态和新场景。系列固定 theme 哈希；共享 canonical references 可在 series.json 的 characters/reference_hashes 注册，按哈希复制进每条故事。换主题应创建新的系列版本。原 `series init` 默认 serial，仍要求上一集真实验收结尾；`series init --mode independent` 也提供通用独立模式。
 
 三个可执行原创示例：`animation example PROJECT --scenario reaction|dialogue|contact`。可加 `--theme cloud-couriers` 验证换人物和新世界；这些例子是创作与本地流程测试，不冒充从用户原片抽出的完整剧情，也不代表模型质量已通过。
+
+## 本地互动片段库
+
+将已经实际播放审核的生成片段作为表演参考，记录适用的开场条件：
+
+```text
+animation library-add PROJECT --library LOCAL_LIBRARY --id cushion-v1 --job JOB_ID --start 0 --end 10 --contact --description "实际观察到的递接与靠肩" --opening-conditions "双方坐稳、靠垫可触达、肩部高度合适"
+animation library-list LOCAL_LIBRARY
+```
+
+区间使用源视频时间，必须处于当前保留窗口内。审核使用特定成片名时，添加对应 `--output-name NAME.mp4`。入口核查动作、身份、干净画面，接触还需空间连续性通过；从真实片段抽取开场帧，绑定视频、主题和审核合同哈希。库条目保留来源项目引用；来源移走、字节/合同变化、增加失败审核或抽帧被修改时，查询返回 unavailable。保留源项目以便复核。
+
+库只证明已审核范围的表演，不认证整条故事的题眼，也不自动认证未听审的声音。跨主题复用的是动作逻辑和前置条件；按新角色身体、道具和场景重新设计，不能把旧片段直接当作另一个主题的已验收成片。用户片段与人物图留在本机库，不加入公开技能包。

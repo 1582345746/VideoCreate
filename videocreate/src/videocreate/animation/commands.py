@@ -85,16 +85,34 @@ def animation_command(argv):
     voice.add_argument("--shot", required=True)
     voice.add_argument("--line", type=int, default=0)
     voice.add_argument("--file", type=Path, required=True)
-    voice.add_argument("--voice-id", required=True)
+    voice.add_argument("--voice-id")
     voice.add_argument("--reviewer", required=True)
     voice.add_argument("--notes", required=True)
     synthesize = sub.add_parser("synthesize")
     synthesize.add_argument("project", type=Path)
     synthesize.add_argument("--shot", required=True)
     synthesize.add_argument("--line", type=int, default=0)
-    synthesize.add_argument("--service-url", required=True)
-    synthesize.add_argument("--voice-id", required=True)
+    synthesize.add_argument("--service-url")
+    synthesize.add_argument("--voice-id")
     synthesize.add_argument("--instruct", default="")
+    cast = sub.add_parser("voice-cast", help="Configure versioned local preset voices for a project or animation series")
+    cast.add_argument("project", type=Path)
+    cast.add_argument("--file", type=Path)
+    cast.add_argument("--reason", default="")
+    cast.add_argument("--check-service", action="store_true")
+    library_add = sub.add_parser("library-add", help="Register an interaction from playback-reviewed source footage")
+    library_add.add_argument("project", type=Path)
+    library_add.add_argument("--library", type=Path, required=True)
+    library_add.add_argument("--id", required=True)
+    library_add.add_argument("--job", required=True)
+    library_add.add_argument("--start", type=float, required=True)
+    library_add.add_argument("--end", type=float, required=True)
+    library_add.add_argument("--description", required=True)
+    library_add.add_argument("--opening-conditions", required=True)
+    library_add.add_argument("--contact", action="store_true")
+    library_add.add_argument("--output-name", default="preview.mp4", help="Output name used by the existing playback reviews")
+    library_list = sub.add_parser("library-list", help="List local interactions and recheck their source reviews")
+    library_list.add_argument("project", type=Path)
     review = sub.add_parser("review")
     review.add_argument("project", type=Path)
     review.add_argument("--file", type=Path)
@@ -142,6 +160,14 @@ def animation_command(argv):
             result = register(root, args.character, args.source.resolve(), crop=args.crop)
         elif args.action == "voice":
             result = pipeline.import_voice(root, args.shot, args.line, args.file.resolve(), voice_id=args.voice_id, reviewer=args.reviewer, notes=args.notes)
+        elif args.action == "voice-cast":
+            from .voice_cast import configure, describe
+            result = configure(root, load_json(args.file), reason=args.reason) if args.file else describe(root, check_service=args.check_service)
+        elif args.action in {"library-add", "library-list"}:
+            from . import library
+            result = library.catalog(root) if args.action == "library-list" else library.add(root, args.library.resolve(),
+                item_id=args.id, job_id=args.job, start=args.start, end=args.end, description=args.description,
+                opening_conditions=args.opening_conditions, contact=args.contact, output_name=args.output_name)
         elif args.action == "synthesize":
             from .voices import synthesize
             result = synthesize(root, args.shot, args.line, service_url=args.service_url, voice_id=args.voice_id, instruct=args.instruct)

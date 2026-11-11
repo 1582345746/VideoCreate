@@ -57,7 +57,12 @@ def prepare(root, number, source, *, model=None, binding=None):
             if digest(frame_path) != frame["sha256"]:
                 raise ConfigError("Source study frame bytes changed")
             copies.append((frame_path, (Path(reference["report"]).parent / frame["path"]).as_posix()))
+    # Voice casting is a separate snapshot: revising audio must not invalidate video jobs.
+    from .voice_cast import FILENAME, read as read_cast
+    voice_cast = read_cast(root)
     save_bundle(destination, bundle)
+    if voice_cast:
+        atomic_json(destination / FILENAME, voice_cast)
     for source_path, relative in copies:
         target = within(destination, relative, exists=False)
         target.parent.mkdir(parents=True, exist_ok=True)
