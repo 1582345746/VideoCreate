@@ -153,8 +153,24 @@ def open_panel(manager, root):
         submit=ttk.Button(dialog,text='导入并加入时间线',command=apply)
         submit.pack(pady=12)
         dialog.protocol('WM_DELETE_WINDOW',lambda:note.set('正在导入，请等待完成。') if busy[0] else dialog.destroy())
-    for text,fn in [('刷新状态',refresh),('导出剧本阅读稿',reading),('打开实际审片页',review)]:
+    def edit_layer(layer):
+        try:
+            from .manager_authoring import open_editor
+            open_editor(manager,root,layer,completed=lambda _:refresh() if win.winfo_exists() else None)
+        except (ConfigError,OSError,ValueError) as exc:manager.error(exc)
+    def outline():
+        try:
+            from .authoring import outline as export
+            result=export(root);message.set('已导出主题与大纲阅读稿：'+result['reading_copy'])
+        except (ConfigError,OSError,ValueError) as exc:manager.error(exc)
+    for text,fn in [('刷新状态',refresh),('编辑主题与规格',lambda:edit_layer('brief')),
+                    ('导出剧本阅读稿',reading),('打开实际审片页',review)]:
         ttk.Button(actions,text=text,command=fn).pack(side='left',padx=6)
+    bundle=production.load_project(root)
+    if bundle['brief'].get('workflow_profile') not in {'edit-only','image-only','gif-only','gif-local'} and 'animation' not in bundle:
+        outline_actions=ttk.Frame(win,padding=(12,0,12,12));outline_actions.pack(fill='x')
+        ttk.Button(outline_actions,text='编辑故事大纲',command=lambda:edit_layer('story')).pack(side='left',padx=6)
+        ttk.Button(outline_actions,text='导出主题与大纲',command=outline).pack(side='left',padx=6)
     if production.load_project(root)['brief'].get('workflow_profile') in {'edit-only','mixed-video'}:
         ttk.Button(actions,text='导入本地视频',command=import_local).pack(side='left',padx=6)
     if production.load_project(root)['brief'].get('workflow_profile') in {'gif-only','gif-local'}:

@@ -67,7 +67,7 @@ class Manager:
         for title, action in [('新增上游', lambda: self.edit_upstream()), ('编辑上游', self.edit_selected_upstream),
                               ('复制为新上游', lambda: self.edit_upstream(copy_from=self.current_upstream)),
                               ('管理凭据', self.credential), ('归档 / 恢复上游', self.archive_upstream),
-                              ('只读检查 / 导入目录', self.discover), ('项目与任务', self.project_panel),
+                              ('只读检查 / 导入目录', self.discover), ('新建制作项目', self.new_project), ('项目与任务', self.project_panel),
                               ('角色与素材库', self.library_panel)]:
             ttk.Button(left, text=title, command=action).pack(fill='x', pady=(7, 0))
         ttk.Button(left, text='本机素材与 HTTPS 直链', command=self.media_panel).pack(fill='x', pady=(7, 0))
@@ -533,6 +533,13 @@ class Manager:
         threading.Thread(target=work, daemon=True).start()
         win.after(100, receive)
 
+    def new_project(self):
+        from .manager_authoring import open_new
+        def completed(result):
+            from .manager_projects import open_panel
+            open_panel(self,Path(result['project']))
+        open_new(self,completed=completed)
+
     def project_panel(self):
         folder = filedialog.askdirectory(parent=self.window, title='选择包含 project.json 的 v3 项目')
         if not folder:
@@ -683,6 +690,7 @@ def main():
             from .planning.project import save_bundle
             from .manager_projects import open_panel as project_panel
             from .local_sources import import_clip
+            from .manager_authoring import open_new,open_editor
             with tempfile.TemporaryDirectory(prefix='videocreate-manager-smoke-') as temporary:
                 project = Path(temporary) / 'edit-only'
                 save_bundle(project, create('edit-only', title='Offline import panel smoke'))
@@ -704,6 +712,13 @@ def main():
                             dialog.withdraw()
                             root.update_idletasks()
                             dialog.destroy()
+                dialog=open_new(manager);dialog.withdraw();root.update_idletasks();dialog.destroy()
+                from .planning.examples import smart_car
+                authored=Path(temporary)/'authoring'
+                save_bundle(authored,smart_car())
+                for layer in ('brief','story'):
+                    dialog=open_editor(manager,authored,layer)
+                    dialog.withdraw();root.update_idletasks();dialog.destroy()
             root.update_idletasks()
             atomic_json(args.smoke_report, {'ok': True, 'upstreams': len(manager.value['upstreams']),
                 'bindings': len(manager.models.get_children()), 'config_version': manager.value['schema_version'],
@@ -715,6 +730,7 @@ def main():
                 'local_gif_panel_created': True,
                 'local_gif_conversion_forms_created': True,
                 'mixed_video_panel_created': True,
+                'authoring_forms_created': True,
                 'network_requests': 0, 'saved': False, 'visual_review': 'not-performed'})
         finally:
             root.destroy()

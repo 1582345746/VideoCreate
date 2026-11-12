@@ -192,6 +192,11 @@
       "id": "production",
       "name": "制作步骤与剧本",
       "entry_points": [
+        "authoring create",
+        "authoring show",
+        "authoring preview",
+        "authoring save",
+        "authoring outline",
         "production status",
         "production next",
         "production script-export",
@@ -215,9 +220,10 @@
         "F09"
       ],
       "status": "partial",
-      "limitations": "v3 stages support local-video editing, mixed local/generated video, pure images/native GIFs and local GIF derivations. Local snapshots/readiness dependencies stay outside provider jobs and budgets; per-source observations survive unrelated edit changes. Static-image timeline clips, graphical authoring and broader online acceptance remain incomplete.",
+      "limitations": "Native project/theme/causal-outline forms share offline token-bound saves of brief/story with the CLI; incomplete drafts remain blocked by normal execution gates. Starting profiles are not actual authored films. Mixed video, images/GIFs and local derivations retain separate task/budget truth. Graphical shot/character/timeline authoring, static-image timeline clips and broader online acceptance remain incomplete.",
       "test_evidence": [
         "test_production_progress.py",
+        "test_authoring.py",
         "test_edit_only_production.py",
         "test_image_production.py",
         "test_local_gif_production.py",

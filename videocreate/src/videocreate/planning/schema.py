@@ -54,7 +54,7 @@ def plan_schema():
             "files": obj({name: STR for name in ("brief", "story", "director", "generation-plan", "timeline", "research", "animation")}),
             "status": STR}, ("schema_version", "product", "title")),
         "brief": obj({"intent": enum("narrative", "demonstration", "montage", "single-shot"), "genre": STR, "pace_profile": STR,
-            "audience": STR, "aspect_ratio": STR, "resolution": STR, "visual_style": STR,
+            "topic": STR, "viewer_goal": STR, "audience": STR, "aspect_ratio": STR, "resolution": STR, "visual_style": STR,
             "allowed_elements": STRING_LIST, "forbidden_elements": STRING_LIST,
             "workflow_profile": enum("portrait", "action-insert", "action-montage", "animal-comedy", "scenic", "explainer", "series-episode", "animation-story", "edit-only", "mixed-video", "image-only", "gif-only", "gif-local"),
             "audio_policy": enum("silent", "ambience", "voiceover", "dialogue", "native-experimental"),

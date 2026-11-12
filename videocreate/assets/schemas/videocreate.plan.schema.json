@@ -72,6 +72,12 @@
         "pace_profile": {
           "type": "string"
         },
+        "topic": {
+          "type": "string"
+        },
+        "viewer_goal": {
+          "type": "string"
+        },
         "audience": {
           "type": "string"
         },
@@ -1787,6 +1793,12 @@
                   "type": "string"
                 },
                 "pace_profile": {
+                  "type": "string"
+                },
+                "topic": {
+                  "type": "string"
+                },
+                "viewer_goal": {
                   "type": "string"
                 },
                 "audience": {
