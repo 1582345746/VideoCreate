@@ -1,6 +1,8 @@
 """Bounded authoring format; free text stays text and extra fields are errors."""
 from ..config.schema import BOOL, POS, STR, STRING_LIST, _walk, enum, obj
 
+VISUAL_DESIGN_FIELDS = ('identity', 'wardrobe', 'expression_range', 'visual_style')
+PHYSICAL_DESIGN_FIELDS = ('scale', 'placement', 'contact_constraints')
 
 def plan_schema():
     number = {"type": "number", "minimum": 0}
@@ -9,7 +11,9 @@ def plan_schema():
                 "voice_asset_id": STR}, ("speaker", "text", "on_screen", "start", "end"))
     asset = obj({"id": STR, "kind": enum("character", "prop", "scene", "voice"), "description": STR,
                  "references": {"type": "array", "items": STR}, "identity_origin": STR,
-                 "invariants": STRING_LIST}, ("id", "kind", "description"))
+                 "invariants": STRING_LIST,
+                 "visual_design": obj({key: STR for key in VISUAL_DESIGN_FIELDS}),
+                 "physical_design": obj({key: STR for key in PHYSICAL_DESIGN_FIELDS})}, ("id", "kind", "description"))
     scene = obj({"id": STR, "map": STR, "axis": STR, "positions": state}, ("id", "map", "axis"))
     shot = obj({
         "id": STR, "beat_id": STR, "scene_id": STR, "role": STR, "information_goal": STR, "framing": STR,

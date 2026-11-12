@@ -719,6 +719,8 @@ def main():
                 for layer in ('brief','story','director'):
                     dialog=open_editor(manager,authored,layer)
                     dialog.withdraw();root.update_idletasks();dialog.destroy()
+                dialog=open_editor(manager,authored,'director',assets_only=True)
+                dialog.withdraw();root.update_idletasks();dialog.destroy()
             root.update_idletasks()
             atomic_json(args.smoke_report, {'ok': True, 'upstreams': len(manager.value['upstreams']),
                 'bindings': len(manager.models.get_children()), 'config_version': manager.value['schema_version'],
@@ -732,6 +734,7 @@ def main():
                 'mixed_video_panel_created': True,
                 'authoring_forms_created': True,
                 'screenplay_forms_created': True,
+                'project_asset_forms_created': True,
                 'network_requests': 0, 'saved': False, 'visual_review': 'not-performed'})
         finally:
             root.destroy()

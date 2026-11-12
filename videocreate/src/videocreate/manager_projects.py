@@ -153,10 +153,10 @@ def open_panel(manager, root):
         submit=ttk.Button(dialog,text='导入并加入时间线',command=apply)
         submit.pack(pady=12)
         dialog.protocol('WM_DELETE_WINDOW',lambda:note.set('正在导入，请等待完成。') if busy[0] else dialog.destroy())
-    def edit_layer(layer):
+    def edit_layer(layer,assets_only=False):
         try:
             from .manager_authoring import open_editor
-            open_editor(manager,root,layer,completed=lambda _:refresh() if win.winfo_exists() else None)
+            open_editor(manager,root,layer,completed=lambda _:refresh() if win.winfo_exists() else None,assets_only=assets_only)
         except (ConfigError,OSError,ValueError) as exc:manager.error(exc)
     def outline():
         try:
@@ -167,6 +167,9 @@ def open_panel(manager, root):
                     ('导出剧本阅读稿',reading),('打开实际审片页',review)]:
         ttk.Button(actions,text=text,command=fn).pack(side='left',padx=6)
     bundle=production.load_project(root)
+    if 'animation' not in bundle:
+        asset_actions=ttk.Frame(win,padding=(12,0,12,8));asset_actions.pack(fill='x')
+        ttk.Button(asset_actions,text='角色与项目素材',command=lambda:edit_layer('director',assets_only=True)).pack(side='left',padx=6)
     if bundle['brief'].get('workflow_profile') not in {'edit-only','image-only','gif-only','gif-local'} and 'animation' not in bundle:
         outline_actions=ttk.Frame(win,padding=(12,0,12,12));outline_actions.pack(fill='x')
         ttk.Button(outline_actions,text='编辑故事大纲',command=lambda:edit_layer('story')).pack(side='left',padx=6)

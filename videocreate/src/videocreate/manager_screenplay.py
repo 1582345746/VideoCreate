@@ -206,8 +206,10 @@ class ShotEditor:
 
 
 class DirectorEditor:
-    def __init__(self,manager,book,value,story):
+    def __init__(self,manager,book,value,story,root):
         self.original=copy.deepcopy(value)
+        from .manager_assets import AssetListEditor
+        self.assets=AssetListEditor(manager,book,value['assets'],root)
         page=ttk.Frame(book);book.add(page,text='场景与布局')
         self.scenes=OrderedItems(manager,page,value['scenes'],'场景',SceneEditor,
             lambda items:{'id':identity(items,'scene'),'map':'','axis':''})
@@ -220,11 +222,16 @@ class DirectorEditor:
                 'actions':[{'kind':'physical','description':''}]}
         self.shots=OrderedItems(manager,page,value['shots'],'镜头',lambda b,item:ShotEditor(manager,b,item),new_shot)
         page=ttk.Frame(book,padding=12);book.add(page,text='现有素材与事件')
-        ttk.Label(page,text='按下面的稳定 ID 填写镜头引用。素材定义保留原值；参考文件仍由素材登记流程管理。',wraplength=850).pack(anchor='w',pady=8)
+        ttk.Label(page,text='按下面的稳定 ID 填写镜头引用。新素材先在角色与项目素材页填写；此处可刷新未保存的 ID。',wraplength=850).pack(anchor='w',pady=8)
         text=tk.Text(page,wrap='word',font=('Microsoft YaHei UI',10));text.pack(fill='both',expand=True)
-        text.insert('1.0','\n'.join(['素材：']+[a['id']+' · '+a['kind']+' · '+a['description'] for a in value['assets']]+
-            ['','事件：']+[b['id']+' · '+b['audience_learns'] for b in story['beats']]))
-        text.configure(state='disabled')
+        def refresh():
+            try:
+                assets=self.assets.read();text.configure(state='normal');text.delete('1.0','end')
+                text.insert('1.0','\n'.join(['素材：']+[a['id']+' · '+a['kind']+' · '+a['description'] for a in assets]+
+                    ['','事件：']+[b['id']+' · '+b['audience_learns'] for b in story['beats']]))
+                text.configure(state='disabled')
+            except (ConfigError,ValueError) as exc:manager.error(exc)
+        ttk.Button(page,text='刷新引用列表',command=refresh).pack(anchor='w',pady=8);refresh()
 
     def read(self):
-        return {**copy.deepcopy(self.original),'scenes':self.scenes.read(),'shots':self.shots.read()}
+        return {**copy.deepcopy(self.original),'assets':self.assets.read(),'scenes':self.scenes.read(),'shots':self.shots.read()}

@@ -34,6 +34,11 @@ def contracts(root: Path, bundle: dict, *, output_name: str = "preview.mp4", inc
     assets = {asset["id"]: asset for asset in bundle["director"].get("assets", [])}
     def make(path, duration, selected, scope, windows):
         selected_assets = [assets[aid] for shot in selected for aid in shot.get("asset_ids", []) if aid in assets]
+        voice_assets=[assets[line['voice_asset_id']] for shot in selected for line in shot.get('audio',{}).get('lines',[])
+            if line.get('voice_asset_id') in assets]
+        if selected_assets or voice_assets:
+            from ..project_assets import asset_context
+            scope={**scope,'asset_context':asset_context(root,selected_assets+voice_assets)}
         return {"path": path.relative_to(root).as_posix(), "sha256": file_hash(path), "duration": duration,
             "windows": windows, "contract_hash": content_hash(scope),
             "required_layers": [layer for layer in LAYERS if

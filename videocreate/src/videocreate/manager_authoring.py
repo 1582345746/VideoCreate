@@ -157,9 +157,10 @@ class BeatList:
     def read(self):self.commit();return copy.deepcopy(self.beats)
 
 
-def open_editor(manager,root,layer,completed=None):
+def open_editor(manager,root,layer,completed=None,assets_only=False):
     root=Path(root).resolve();snapshot=authoring.describe(root,layer);value=snapshot['value']
-    win,book,basic=manager.dialog({'brief':'主题与规格','story':'故事大纲','director':'剧本与分镜'}[layer])
+    if assets_only and layer!='director':raise ConfigError('Asset cards belong to the director layer')
+    win,book,basic=manager.dialog('角色与项目素材' if assets_only else {'brief':'主题与规格','story':'故事大纲','director':'剧本与分镜'}[layer])
     win.geometry('1100x820')
     ttk.Label(basic,text=snapshot['title'],font=('Microsoft YaHei UI',15,'bold')).pack(anchor='w')
     ttk.Label(basic,text=str(root),wraplength=900).pack(anchor='w',pady=8)
@@ -178,7 +179,10 @@ def open_editor(manager,root,layer,completed=None):
     else:
         from .manager_screenplay import DirectorEditor
         from .planning.project import load_project
-        form=DirectorEditor(manager,book,value,load_project(root)['story'])
+        if assets_only:
+            from .manager_assets import DirectorAssetsEditor
+            form=DirectorAssetsEditor(manager,book,value,root)
+        else:form=DirectorEditor(manager,book,value,load_project(root)['story'],root)
         def read():return form.read()
     report=manager.json_tab(book,'修改预览',{'提示':'填写后点击“预览修改影响”。'})
     report.configure(state='disabled')

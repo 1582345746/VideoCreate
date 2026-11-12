@@ -300,6 +300,41 @@
                   "type": "string"
                 },
                 "uniqueItems": true
+              },
+              "visual_design": {
+                "type": "object",
+                "properties": {
+                  "identity": {
+                    "type": "string"
+                  },
+                  "wardrobe": {
+                    "type": "string"
+                  },
+                  "expression_range": {
+                    "type": "string"
+                  },
+                  "visual_style": {
+                    "type": "string"
+                  }
+                },
+                "required": [],
+                "additionalProperties": false
+              },
+              "physical_design": {
+                "type": "object",
+                "properties": {
+                  "scale": {
+                    "type": "string"
+                  },
+                  "placement": {
+                    "type": "string"
+                  },
+                  "contact_constraints": {
+                    "type": "string"
+                  }
+                },
+                "required": [],
+                "additionalProperties": false
               }
             },
             "required": [
@@ -2023,6 +2058,41 @@
                           "type": "string"
                         },
                         "uniqueItems": true
+                      },
+                      "visual_design": {
+                        "type": "object",
+                        "properties": {
+                          "identity": {
+                            "type": "string"
+                          },
+                          "wardrobe": {
+                            "type": "string"
+                          },
+                          "expression_range": {
+                            "type": "string"
+                          },
+                          "visual_style": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [],
+                        "additionalProperties": false
+                      },
+                      "physical_design": {
+                        "type": "object",
+                        "properties": {
+                          "scale": {
+                            "type": "string"
+                          },
+                          "placement": {
+                            "type": "string"
+                          },
+                          "contact_constraints": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [],
+                        "additionalProperties": false
                       }
                     },
                     "required": [

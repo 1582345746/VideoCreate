@@ -434,6 +434,10 @@ def compile_job(bundle: dict[str, Any], job: dict[str, Any], *, max_bytes: int, 
             sections.append("Visible " + aid + ": " + asset["description"])
             if asset.get("invariants"):
                 sections.append("Maintain identity/wardrobe: " + "; ".join(asset["invariants"]))
+            for field,label in (("visual_design","Visual design"),("physical_design","Physical constraints")):
+                if asset.get(field):
+                    sections.append(label+" for "+aid+": "+json.dumps(asset[field],ensure_ascii=False,separators=(",", ":")))
+                    retained.append(aid+"."+field)
         for action in shot["actions"]:
             sections.append("Subject action: " + action["description"])
         if shot.get("performance"):

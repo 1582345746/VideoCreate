@@ -17,7 +17,7 @@ from .planning.project import content_hash, load_project, within
 from .runtime.state import state_lock
 
 KINDS = ('character', 'scene', 'prop', 'voice')
-DESCRIPTOR_FIELDS = {'kind', 'description', 'identity_origin', 'invariants'}
+DESCRIPTOR_FIELDS = {'kind', 'description', 'identity_origin', 'invariants', 'visual_design', 'physical_design'}
 
 
 def identifier(value):
@@ -62,6 +62,11 @@ def _validate_payload(payload):
             or not isinstance(card.get('invariants', []), list)
             or not all(isinstance(i, str) for i in card.get('invariants', []))):
         raise ConfigError('Invalid library asset description')
+    from .planning.schema import VISUAL_DESIGN_FIELDS, PHYSICAL_DESIGN_FIELDS
+    for field,keys in (('visual_design',VISUAL_DESIGN_FIELDS),('physical_design',PHYSICAL_DESIGN_FIELDS)):
+        if field in card and (not isinstance(card[field],dict) or set(card[field])-set(keys)
+                or any(not isinstance(value,str) for value in card[field].values())):
+            raise ConfigError('Invalid library asset design')
     if not isinstance(payload['media'], list):
         raise ConfigError('Library media must be an array')
     for media in payload['media']:

@@ -1,4 +1,4 @@
-"""Offline creation and versioned editing of the authoritative brief/story layers."""
+"""Offline creation and versioned editing of authoritative authoring layers."""
 from __future__ import annotations
 
 import copy

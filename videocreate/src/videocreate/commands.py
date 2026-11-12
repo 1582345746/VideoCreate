@@ -416,9 +416,10 @@ def assets_command(argv: list[str]) -> int:
     from .cli import print_result, read_config
     from .assets import generate_image, generate_images, register, recover_image, reprocess_image
     parser = argparse.ArgumentParser(prog="videocreate assets")
-    parser.add_argument("action", choices=["register", "image", "batch", "recover", "reprocess", "handoff"])
+    parser.add_argument("action", choices=["register", "stage-reference", "board", "image", "batch", "recover", "reprocess", "handoff"])
     parser.add_argument("project", type=Path)
     parser.add_argument("--asset-id")
+    parser.add_argument("--asset-kind",choices=['character','scene','prop','voice'])
     parser.add_argument("--source", type=Path)
     parser.add_argument("--job-id")
     parser.add_argument("--at", type=float)
@@ -438,7 +439,15 @@ def assets_command(argv: list[str]) -> int:
     args = parser.parse_args(argv)
     root = args.project.resolve()
     load_project(root)
-    if args.action == "handoff":
+    if args.action=='stage-reference':
+        if not args.source or not args.asset_kind:raise ConfigError('Reference staging needs --source and --asset-kind')
+        from .project_assets import stage_reference
+        print_result(stage_reference(root,args.source,kind=args.asset_kind))
+    elif args.action=='board':
+        if not args.asset_id:raise ConfigError('Comparison board needs --asset-id')
+        from .project_assets import board
+        print_result(board(root,args.asset_id))
+    elif args.action == "handoff":
         from .runtime.candidates import handoff
         if not args.job_id or args.at is None:
             raise ConfigError("Handoff requires --job-id and --at source timestamp")
