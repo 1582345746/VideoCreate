@@ -42,7 +42,22 @@ Save binds the exact proposed value, plan and task state to the preview. Editing
 
 New-project creation claims a new directory exclusively; it rejects existing empty folders, partial projects and populated projects. Layer files are saved before `project.json`. An interrupted/failed creation may leave a partial directory for inspection; it is preserved rather than deleted or overwritten automatically. Choose a new directory or repair that partial project explicitly.
 
-## CLI
+## Continue the current project
+
+**项目与任务 → 继续制作** resolves the current `production.status` next step each time. An authoring step shows its exact current inputs, input hash and associated editor; **登记本阶段计划已核对** requires an explanation and rechecks that hash. Another saved edit makes the old inspection stale. Animation sidecar stages keep their original source instead of offering an ordinary story/director/generation editor. Local GIF recipes keep their explicit conversion/rebuild service.
+
+For edit/review/delivery, the button runs one local action in the background: render the saved timeline, export and open the actual review page, or export a delivery manifest. It does not automatically approve any stage or dispatch provider jobs. Existing task IDs, original routes, candidates and ledger remain authoritative. Generation and unknown submissions show the current task rows and explicit next entries; an unknown submission does not fall through to a new request. Empty local/mixed/GIF projects offer their corresponding import or authoring entry. Invalid plans show their actual errors.
+
+The CLI uses the same resolver:
+
+```powershell
+python scripts/videocreate.py production continue-local PROJECT
+python scripts/videocreate.py production continue-local PROJECT --execute --token <returned token>
+```
+
+The first command only describes. The second executes only a currently executable local render, review-page export or delivery, and rejects a changed description. It never opens a browser itself; use the returned `page` path. This is a check at action start, not a long project lock across FFmpeg or an immutable filesystem snapshot. Concurrent subsequent edits can stale the output through the existing manifest/review rules. Assisted authoring and authorized automatic continuation retain the existing policy semantics; this entry grants no spending authorization.
+
+## CLI authoring
 
 The CLI uses the same service as the manager. It requires no provider configuration:
 

@@ -699,10 +699,10 @@ def main():
                         yield from widgets(child)
                 labels = {w.cget('text') for w in widgets(panel) if isinstance(w, ttk.Button)}
                 expected_render = profile not in {'image-only', 'gif-only', 'gif-local'}
-                verified = ('导出交付清单' in labels and ('渲染当前时间线' in labels) == expected_render)
+                verified = ('继续制作' in labels and '导出交付清单' in labels and ('渲染当前时间线' in labels) == expected_render)
                 if not verified:
                     raise ConfigError('Packaged local project controls are incomplete: ' + profile)
-                local_controls[profile] = {'render': expected_render, 'delivery': True}
+                local_controls[profile] = {'render': expected_render, 'delivery': True, 'continue': True}
             with tempfile.TemporaryDirectory(prefix='videocreate-manager-smoke-') as temporary:
                 project = Path(temporary) / 'edit-only'
                 save_bundle(project, create('edit-only', title='Offline import panel smoke'))
@@ -737,6 +737,11 @@ def main():
                 panel = project_panel(manager, authored)
                 inspect_controls(panel, 'video')
                 panel.withdraw();root.update_idletasks();panel.destroy()
+                from .production_continue import describe
+                from .manager_continuation import open_inspection
+                dialog = open_inspection(manager, authored, describe(authored),
+                    edit_layer=lambda *args, **kwargs: None, completed=lambda value: None)
+                dialog.withdraw();root.update_idletasks();dialog.destroy()
                 for layer in ('brief','story','director','generation-plan','timeline'):
                     dialog=open_editor(manager,authored,layer)
                     dialog.withdraw();root.update_idletasks();dialog.destroy()
@@ -759,6 +764,7 @@ def main():
                 'generation_job_forms_created': True,
                 'timeline_forms_created': True,
                 'local_project_action_controls': local_controls,
+                'continuation_inspection_form_created': True,
                 'network_requests': 0, 'saved': False, 'visual_review': 'not-performed'})
         finally:
             root.destroy()

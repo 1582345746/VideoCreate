@@ -202,6 +202,7 @@
         "authoring outline",
         "production status",
         "production next",
+        "production continue-local",
         "production script-export",
         "production script-import",
         "production impact",
@@ -225,9 +226,10 @@
         "F09"
       ],
       "status": "partial",
-      "limitations": "Native theme/outline/screenplay/assets/jobs and timeline forms share token-bound single-layer saves. Timeline mappings, ordered trims/rates, source sound, independent audio, subtitles and overlays have a proportional schematic. The manager now exposes local render and delivery actions with status/hash re-read and no provider task dispatch; content approval remains separate. Static-image timelines, drag editing and broader online acceptance remain incomplete.",
+      "limitations": "Native authoring/timeline forms share token-bound saves. Continue-local resolves live steps and offers version-bound plan checkpoints, imports/task explanations or one local render/review-page/delivery action. It never dispatches generation, resolves unknown submissions or approves media. Static-image timelines, drag editing, full task execution UI and broader online acceptance remain incomplete.",
       "test_evidence": [
         "test_production_progress.py",
+        "test_production_continue.py",
         "test_authoring.py",
         "test_screenplay_authoring.py",
         "test_edit_only_production.py",

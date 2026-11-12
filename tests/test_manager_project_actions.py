@@ -272,6 +272,59 @@ class ProjectPanelLocalActionTests(unittest.TestCase):
                     return value
         return ''
 
+    def test_continue_renders_latest_local_edit_then_opens_actual_review_without_approval(self):
+        from videocreate import production
+        root = self.local_project()
+        production.policy(root, 'auto-within-authorization', 'Continue local edit')
+        panel = open_panel(self.manager, root);panel.withdraw()
+        before = {p.name:p.read_bytes() for p in root.glob('*.json')}
+        with mock.patch('urllib.request.urlopen', side_effect=AssertionError('No network')), \
+                mock.patch('videocreate.cli.read_config', side_effect=AssertionError('No provider config')), \
+                mock.patch('videocreate.runtime.jobs.client', side_effect=AssertionError('No task client')), \
+                mock.patch('videocreate.manager_projects.webbrowser.open') as browser, \
+                mock.patch.object(self.manager, 'error') as error:
+            self.button(panel, '继续制作').invoke()
+            self.wait_for(lambda: '本地下一步完成：' in self._message_text(panel), timeout=20)
+            self.assertTrue((root / 'deliverables/preview.mp4').is_file())
+            self.assertEqual(production.status(root)['next']['id'], 'review')
+            self.button(panel, '继续制作').invoke()
+            self.wait_for(lambda: browser.called)
+            self.assertTrue((root / 'reviews/viewer.html').is_file())
+            self.assertEqual(production.status(root)['review']['status'], 'review_pending')
+            error.assert_not_called()
+        self.assertEqual(before, {p.name:p.read_bytes() for p in root.glob('*.json')})
+        panel.destroy()
+
+    def test_continue_authoring_requires_reason_and_rejects_changed_content(self):
+        from tkinter import ttk
+        from videocreate import production, production_continue
+        from videocreate.manager_continuation import open_inspection
+        root = self.parent / 'authored'
+        save_bundle(root, create('scenic', title='Plan checks', topic='A real scene'))
+        completed = mock.Mock();edit = mock.Mock()
+        decision = production_continue.describe(root)
+        dialog = open_inspection(self.manager, root, decision, edit_layer=edit, completed=completed)
+        dialog.withdraw()
+        self.button(dialog, '登记本阶段计划已核对').invoke()
+        self.assertFalse((root / 'production/stages.json').exists())
+        entry = next(w for w in self.widgets(dialog) if isinstance(w, ttk.Entry))
+        entry.insert(0, 'Checked intended audience and viewing goal')
+        value = load_project(root)['brief'];value['audience'] = 'Saved after inspection'
+        atomic_json(root / 'brief.json', value)
+        with mock.patch.object(self.manager, 'error') as error:
+            self.button(dialog, '登记本阶段计划已核对').invoke()
+            self.wait_for(lambda:error.called)
+        self.assertFalse((root / 'production/stages.json').exists())
+        completed.assert_not_called();dialog.destroy()
+        dialog = open_inspection(self.manager, root, production_continue.describe(root), edit_layer=edit, completed=completed)
+        dialog.withdraw()
+        entry = next(w for w in self.widgets(dialog) if isinstance(w, ttk.Entry))
+        entry.insert(0, 'Checked the current saved plan')
+        self.button(dialog, '登记本阶段计划已核对').invoke()
+        self.wait_for(lambda:completed.called)
+        self.assertEqual(production.status(root)['stages'][0]['status'], 'complete')
+        self.assertEqual(production.status(root)['review']['status'], 'draft_preview')
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -11,7 +11,7 @@ def production_command(argv):
     parser = argparse.ArgumentParser(prog='videocreate production')
     parser.add_argument('action', choices=['status', 'next', 'impact', 'script-export', 'script-import',
         'checkpoint', 'policy', 'track', 'projects', 'deliver', 'metrics', 'import-clip', 'images-run',
-        'gif-video', 'gif-frames', 'gif-rebuild'])
+        'gif-video', 'gif-frames', 'gif-rebuild', 'continue-local'])
     parser.add_argument('project', type=Path, nargs='?')
     parser.add_argument('--file', type=Path)
     parser.add_argument('--stage', choices=production.AUTHORING)
@@ -35,11 +35,15 @@ def production_command(argv):
     parser.add_argument('--mute', action='store_true')
     parser.add_argument('--job', action='append')
     parser.add_argument('--retry',choices=['content','replan'])
+    parser.add_argument('--execute', action='store_true')
+    parser.add_argument('--token')
     args = parser.parse_args(argv)
     if args.action != 'projects' and not args.project:
         raise ConfigError('This action requires a project directory')
     if args.shot_id is not None and args.action!='import-clip':
         raise ConfigError('--shot-id is only consumed by import-clip')
+    if args.action != 'continue-local' and (args.execute or args.token):
+        raise ConfigError('--execute/--token are only consumed by continue-local')
     if args.action in {'gif-video','gif-frames','gif-rebuild'}:
         from .local_gifs import build
         if not args.gif:
@@ -59,6 +63,14 @@ def production_command(argv):
             fps=args.fps if args.fps is not None else 15, width=args.width if args.width is not None else 480,
             loop=args.loop if args.loop is not None else 0,
             rebuild=args.action=='gif-rebuild')
+    elif args.action == 'continue-local':
+        from . import production_continue
+        if args.execute:
+            result = production_continue.execute(args.project, expected_token=args.token, output_name=args.output_name)
+        else:
+            if args.token:
+                raise ConfigError('--token requires --execute')
+            result = production_continue.describe(args.project, output_name=args.output_name)
     elif args.action == 'images-run':
         from . import image_production
         from .cli import read_config

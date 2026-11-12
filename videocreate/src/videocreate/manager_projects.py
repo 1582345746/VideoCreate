@@ -20,6 +20,12 @@ STATUS = {'ready':'可继续', 'complete':'已完成', 'pending':'待执行', 'b
 def local_action(root, operation):
     """Explicit local actions always read current files, never a UI/config snapshot."""
     root = Path(root).resolve()
+    if operation == 'continue':
+        from . import production_continue
+        decision = production_continue.describe(root)
+        if decision['executable']:
+            return production_continue.execute(root, expected_token=decision['token'])
+        return {'ok': True, 'decision': decision, 'paid_creates': 0}
     if operation == 'render':
         from .image_production import is_image
         from .planning.project import validate_plan
@@ -233,6 +239,24 @@ def open_panel(manager, root):
                 message.set(label + '未完成：' + str(result))
                 manager.error(result)
                 return
+            if operation == 'continue':
+                refresh()
+                if 'decision' in result:
+                    from .manager_continuation import open_inspection
+                    from .manager_gifs import open_form
+                    def converted(value):
+                        if win.winfo_exists():refresh()
+                    open_inspection(manager, root, result['decision'], edit_layer=edit_layer,
+                        completed=converted, import_video=import_local,
+                        import_gif=lambda frames:open_form(manager,root,frames=frames,parent=win,completed=converted))
+                    message.set('当前步骤：' + result['decision']['name'] + '；' + result['decision']['note'])
+                elif result['action'] == 'review-page':
+                    webbrowser.open(Path(result['page']).as_uri())
+                    message.set('已打开实际审片页；完成观察与听音后导出记录，再导入审核结果。')
+                else:
+                    target = result.get('manifest') or result.get('path')
+                    message.set('本地下一步完成：' + str(target or result['action']) + '；内容审核状态仍以当前审片记录为准。')
+                return
             target = result.get('manifest') if isinstance(result, dict) else None
             if operation == 'render' and isinstance(result, dict):
                 target = result.get('path') or result.get('manifest')
@@ -252,6 +276,8 @@ def open_panel(manager, root):
         ttk.Button(actions,text=text,command=fn).pack(side='left',padx=6)
     bundle=production.load_project(root)
     local_actions = ttk.Frame(footer, padding=(12, 0, 12, 8));local_actions.pack(fill='x')
+    continue_button = ttk.Button(local_actions,text='继续制作',command=lambda:start_local_action('定位并执行本地下一步','continue'))
+    local_buttons.append(continue_button);continue_button.pack(side='left',padx=6)
     if bundle['brief'].get('workflow_profile') not in {'image-only','gif-only','gif-local'}:
         local_buttons.append(ttk.Button(local_actions,text='渲染当前时间线',command=lambda:start_local_action('时间线渲染','render')))
         local_buttons[-1].pack(side='left',padx=6)
