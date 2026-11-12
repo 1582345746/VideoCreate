@@ -51,7 +51,8 @@
       "limitations": "Character counting, pricing and typed per-kind/combined bytes/duration/roles/combination constraints implemented. Model-specific live boundaries, refunds and general conditional rules remain incomplete.",
       "test_evidence": [
         "test_provider_management.py",
-        "test_v3_config.py"
+        "test_v3_config.py",
+        "test_catalog_presentation.py"
       ],
       "online_acceptance": "Not claimed by source implementation; consult binding receipts and the dated acceptance report."
     },
@@ -83,7 +84,8 @@
       "id": "manager",
       "name": "Windows 管理器",
       "entry_points": [
-        "manager"
+        "manager",
+        "providers compare"
       ],
       "work_packages": [
         "C01",
@@ -95,9 +97,13 @@
         "C07"
       ],
       "status": "partial",
-      "limitations": "Native Tk forms, media hosting panel and portable EXE on this host; clean-machine and human visual review remain pending.",
-      "test_evidence": [],
-      "online_acceptance": "Not claimed by source implementation; consult binding receipts and the dated acceptance report."
+      "limitations": "Native forms include multiline notes, reference combination/boolean controls, conditional pricing tiers, media/family filters, selected side-by-side comparison and per-operation evidence. Portable EXE verified locally; clean-machine and human visual review remain pending. No manager temporal-slice form yet.",
+      "test_evidence": [
+        "test_catalog_presentation.py",
+        "test_manager_catalog_ui.py",
+        "test_provider_management.py"
+      ],
+      "online_acceptance": "No generation or provider connection is performed by filtering/comparison. Current live bindings and reference failures remain recorded independently; UI readiness does not certify model quality."
     },
     {
       "id": "xingapi",

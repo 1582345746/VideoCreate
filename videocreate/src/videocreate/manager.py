@@ -36,6 +36,9 @@ class Manager:
         self.dirty = self.value != self.record['config']
         self.search = tk.StringVar()
         self.favorites_only = tk.BooleanVar()
+        self.kind_filter = tk.StringVar(value='全部类型')
+        self.family_filter = tk.StringVar(value='全部家族')
+        self.sort_order = tk.StringVar(value='配置顺序')
         self.current_upstream = None
         self.status = tk.StringVar()
         self.build()
@@ -75,8 +78,19 @@ class Manager:
         ttk.Checkbutton(bar, text='收藏', variable=self.favorites_only, command=self.refresh_models).pack(side='left', padx=8)
         ttk.Button(bar, text='新增型号', command=lambda: self.edit_binding()).pack(side='right', padx=(8, 0))
         self.search.trace_add('write', lambda *_: self.refresh_models())
+        filters = ttk.Frame(right)
+        filters.pack(fill='x', pady=(0,8))
+        for label,var,choices,width in [('媒体',self.kind_filter,['全部类型','视频','图片'],10),
+                ('家族',self.family_filter,['全部家族',*sorted({m['family'] for m in self.value['models'].values()})],16),
+                ('排序',self.sort_order,['配置顺序','名称','上游','家族'],12)]:
+            ttk.Label(filters,text=label).pack(side='left',padx=(0,5))
+            field=ttk.Combobox(filters,textvariable=var,values=choices,state='readonly',width=width)
+            field.pack(side='left',padx=(0,12))
+            field.bind('<<ComboboxSelected>>',lambda _:self.refresh_models())
+            if label=='家族':self.family_choices=field
+        ttk.Label(filters,text='Ctrl / Shift 可选 2–4 个型号比较',style='Muted.TLabel').pack(side='left')
         columns = ('upstream', 'model', 'state', 'price', 'notes')
-        self.models = ttk.Treeview(right, columns=columns, show='headings', selectmode='browse', height=10)
+        self.models = ttk.Treeview(right, columns=columns, show='headings', selectmode='extended', height=10)
         for col, title, width in zip(columns, ['上游', '型号', '接入状态', '价格', '备注'], [140, 210, 110, 130, 270]):
             self.models.heading(col, text=title)
             self.models.column(col, width=width, minwidth=70)
@@ -87,7 +101,7 @@ class Manager:
         actions.pack(fill='x', pady=8)
         for title, action in [('编辑型号', self.edit_selected_binding), ('收藏 / 取消', self.favorite),
                               ('归档 / 恢复型号', self.archive_binding), ('设为以后默认', self.default_binding),
-                              ('比较型号', self.compare)]:
+                              ('比较所选', self.compare), ('逐操作实测', self.evidence_panel)]:
             ttk.Button(actions, text=title, command=action).pack(side='left', padx=(0, 7))
         self.detail = tk.Text(right, height=12, wrap='word', font=('Microsoft YaHei UI', 10),
                               background='#f4f7fb', foreground='#27354a', borderwidth=0, padx=14, pady=12)
@@ -108,6 +122,9 @@ class Manager:
         for uid, u in self.value['upstreams'].items():
             self.providers.insert('', 'end', iid=uid, text=u.get('display_name', uid) + (' · 已归档' if u.get('archived') else ''))
         self.providers.selection_set(self.current_upstream or '__all')
+        families = ['全部家族',*sorted({m['family'] for m in self.value['models'].values()})]
+        self.family_choices.configure(values=families)
+        if self.family_filter.get() not in families:self.family_filter.set('全部家族')
         self.refresh_models()
         self.status.set(('有未保存修改  ·  ' if self.dirty else '已保存  ·  ') +
             f"配置 v{self.value['schema_version']} / 修订 {self.record['revision']}  ·  保存和查看不会生成媒体")
@@ -123,48 +140,34 @@ class Manager:
             return
         selected = self.models.selection()
         self.models.delete(*self.models.get_children())
-        term = self.search.get().casefold().strip()
-        for row in service.catalog(self.value, upstream=self.current_upstream):
-            if self.favorites_only.get() and not row['favorite']:
-                continue
-            if term and term not in ' '.join(str(row[k]) for k in ('display_name', 'remote_model', 'family', 'notes', 'upstream_name')).casefold():
-                continue
-            price = row.get('pricing')
-            if price:
-                parts = []
-                for key, unit in [('per_request', '次'), ('per_second', '秒')]:
-                    if key in price:
-                        parts.append(str(price[key]) + '/' + unit)
-                price_text = price['currency'] + ' ' + '+'.join(parts)
-                if price.get('status') == 'unverified':
-                    price_text += ' 待核实'
-            elif row.get('listed_pricing'):
-                p = row['listed_pricing']
-                price_text = str(p.get('display_symbol', p.get('currency') or '')) + str(p.get('amount', '?')) + ' 声明价'
-            else:
-                price_text = '未录入'
-            status = '已归档' if row['archived'] else '待接入' if row['adapter'] == 'unconfigured' or row['setup_status'] == 'draft' else '已启用' if row['enabled'] else '已禁用'
+        from .catalog.presentation import rows
+        visible = rows(self.value,upstream=self.current_upstream,
+            kind={'视频':'video','图片':'image'}.get(self.kind_filter.get()),
+            family=None if self.family_filter.get()=='全部家族' else self.family_filter.get(),
+            query=self.search.get(),favorites=self.favorites_only.get(),
+            order={'配置顺序':'configured','名称':'name','上游':'upstream','家族':'family'}[self.sort_order.get()])
+        for row in visible:
             self.models.insert('', 'end', iid=row['id'], values=(row['upstream_name'],
-                ('★ ' if row['favorite'] else '') + row['display_name'], status, price_text, row['notes'].replace('\n', ' ')))
-        if selected and self.models.exists(selected[0]):
-            self.models.selection_set(selected[0])
+                ('★ ' if row['favorite'] else '') + row['display_name'], row['state_text'],
+                row['price_text'].replace('\n',' · '), row['notes'].replace('\n', ' ')))
+        self.models.selection_set([bid for bid in selected if self.models.exists(bid)])
+        self.show_details()
 
     def selected_binding(self):
         items = self.models.selection()
+        if len(items)>1:
+            self.error('此操作只处理一个型号。请先单选；并排查看请使用“比较所选”。')
+            return None
         return items[0] if items else None
 
     def show_details(self, _=None):
-        bid = self.selected_binding()
-        if not bid:
-            return
-        b = self.value['bindings'][bid]
-        data = {'型号': b['remote_model'], '接入标识': bid, '备注': b.get('notes', ''),
-                '操作': b['operations'], '供应商声明': b.get('declared_capabilities', {}),
-                '实际参数约束': b.get('capability_overrides', {}), '报价说明': b.get('listed_pricing', {}),
-                '预算计价': b.get('pricing', {}), '说明': '已启用仅表示允许调用；实际质量请查看对应任务审核。'}
+        selected = self.models.selection()
+        from .catalog.presentation import card
+        data = card(self.value, selected[0]) if len(selected)==1 else None
         self.detail.configure(state='normal')
         self.detail.delete('1.0', 'end')
-        self.detail.insert('1.0', json.dumps(data, ensure_ascii=False, indent=2))
+        self.detail.insert('1.0', '\n\n'.join(key+'：'+value for key,value in data['fields'].items()) if data else
+            ('已选择 '+str(len(selected))+' 个型号。点击“比较所选”查看报价与参数对照。' if selected else '选择型号可查看参数、报价、备注与来源。'))
         self.detail.configure(state='disabled')
 
     def save(self):
@@ -285,7 +288,7 @@ class Manager:
         ref = self.field(basic, 8, '凭据引用 / 环境变量', auth.get('secret_ref', auth.get('env', '')))
         from .manager_forms import Fields
         notes = Fields(book, '备注', {'notes': original.get('notes', ''), 'capacity_group': original.get('capacity_group', '')},
-            [('notes','说明与备注','text'), ('capacity_group','共享并发容量组（可空）','text')],
+            [('notes','说明与备注','multiline'), ('capacity_group','共享并发容量组（可空）','text')],
             '同一账户的多个入口可填写相同容量组；共用最严格的同时提交数。')
         ttk.Label(basic, text='先建立上游，再用“管理凭据”录入密钥。更换地址或账户请新增上游。',
                   style='Muted.TLabel', wraplength=600).grid(row=9, column=0, columnspan=2, sticky='w', pady=12)
@@ -338,11 +341,12 @@ class Manager:
                                       readonly=bool(bid and key in {'id', 'model'}))
         enabled = tk.BooleanVar(value=original.get('enabled', False))
         ttk.Checkbutton(basic, text='启用此型号（协议与参数必须配置完整）', variable=enabled).grid(row=9, column=0, columnspan=2, sticky='w', pady=10)
-        from .manager_forms import Fields, DECLARED, CAPABILITIES, PRICES, MEDIA_REFERENCE_LIMITS
+        from .manager_forms import Fields, DECLARED, CAPABILITIES, MEDIA_REFERENCE_LIMITS
+        from .manager_pricing import Prices
         notes = Fields(book, '备注与来源', {'notes': original.get('notes', ''),
             'tags': original.get('tags', []), 'documentation_url': original.get('documentation_url', ''),
             'sort_order': original.get('sort_order', 0)},
-            [('notes','说明与备注','text'),('tags','标签（逗号分隔）','list'),
+            [('notes','说明与备注','multiline'),('tags','标签（逗号分隔）','list'),
              ('documentation_url','文档链接','text'),('sort_order','排序数值（小值在前）','integer')],
             '备注用于展示和选型，不会自动改变接口行为或要求重新生成。')
         declared = Fields(book, '供应商声明', original.get('declared_capabilities', {}), DECLARED,
@@ -352,11 +356,10 @@ class Manager:
         caps = Fields(book, '执行参数', cap_values, CAPABILITIES,
             '仅填写已核实的接口约束。其他字段在高级页；最终仍由共用校验器和 adapter 预检。')
         media_caps = Fields(book, '多媒体限制', media_values, MEDIA_REFERENCE_LIMITS,
-            '仅适用星光 v2。未知不是无限；高级页还需明确 allowed_combinations（类型组合数组）和 '
-            'audio_reference_with_generated_audio（布尔值）。未使用的素材类型数量填 0。')
+            '仅适用星光 v2。未知不是无限；勾选已确认的素材组合，明确音频参考能否与声音生成同时使用。'
+            '未使用的素材类型数量填 0。')
         options = self.json_tab(book, '协议选项', original.get('adapter_options', {}))
-        prices = Fields(book, '价格', {k: original[k] for k in ('pricing', 'listed_pricing') if k in original}, PRICES,
-            '展示价与预算价分开。未知币种不推算；每次与每秒价格同时填写会相加。')
+        prices = Prices(book, {k: original[k] for k in ('pricing', 'listed_pricing') if k in original})
         def apply():
             try:
                 f = {k: v.get().strip() for k, v in fields.items()}
@@ -434,14 +437,26 @@ class Manager:
             self.changed()
 
     def compare(self):
-        win, book, _ = self.dialog('当前列表型号比较')
-        book.forget(0)
-        columns = ['upstream_name', 'remote_model', 'setup_status', 'operations',
-                   'declared_capabilities', 'capability_overrides', 'pricing', 'listed_pricing']
-        data = [{k: row.get(k) for k in columns} for row in service.catalog(self.value, upstream=self.current_upstream)
-                if self.models.exists(row['id'])]
-        editor = self.json_tab(book, '比较详情', {'models': data})
-        editor.configure(state='disabled')
+        from .manager_comparison import open_panel
+        try:
+            return open_panel(self,list(self.models.selection()))
+        except (ConfigError,OSError,ValueError) as exc:self.error(exc)
+
+    def evidence_panel(self):
+        bid = self.selected_binding()
+        if not bid:return
+        try:
+            from .catalog.presentation import card
+            data = card(self.value,bid,store_root=self.path.parent)
+            win,book,basic = self.dialog('逐操作实测记录')
+            book.tab(0,text='观察范围')
+            ttk.Label(basic,text=data['name'],font=('Microsoft YaHei UI',14,'bold')).pack(anchor='w')
+            ttk.Label(basic,text=data['fields']['逐操作实测'],wraplength=690,justify='left').pack(anchor='w',pady=15)
+            ttk.Label(basic,text='目录、合同、生成小样和内容质量分别记录。旧价格、备注或默认修改不会让原任务改换路线。',wraplength=690).pack(anchor='w')
+            editor=self.json_tab(book,'记录详情',data['evidence'])
+            editor.configure(state='disabled')
+            return win
+        except (ConfigError,OSError,ValueError) as exc:self.error(exc)
 
     def discover(self):
         uid = self.current_upstream
@@ -608,9 +623,26 @@ def main():
         root.withdraw()
         try:
             manager = Manager(root, user_config_path(args.config))
+            # Exercise the packaged comparison and price-form modules too;
+            # row counts alone do not prove the new UI is distributable.
+            identities = list(manager.models.get_children())[:2]
+            comparison_count = 0
+            if len(identities) == 2:
+                from .manager_comparison import open_panel
+                panel = open_panel(manager, identities)
+                panel.withdraw()
+                comparison_count = len(panel.comparison_result['cards'])
+                panel.destroy()
+            from .manager_pricing import Prices
+            book = ttk.Notebook(root)
+            original = manager.value['bindings'][identities[0]] if identities else {}
+            price_form = Prices(book, {k: original[k] for k in ('pricing','listed_pricing') if k in original})
+            price_value = price_form.read()
             root.update_idletasks()
             atomic_json(args.smoke_report, {'ok': True, 'upstreams': len(manager.value['upstreams']),
                 'bindings': len(manager.models.get_children()), 'config_version': manager.value['schema_version'],
+                'comparison_count': comparison_count, 'conditional_tiers': len(price_value.get('pricing',{}).get('tiers',[])),
+                'comparison_and_pricing_forms_created': True,
                 'network_requests': 0, 'saved': False, 'visual_review': 'not-performed'})
         finally:
             root.destroy()

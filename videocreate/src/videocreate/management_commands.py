@@ -9,7 +9,7 @@ def providers_command(argv):
     from .cli import print_result
     from .config import management as m
     parser = argparse.ArgumentParser(prog='videocreate providers')
-    parser.add_argument('action', choices=['list', 'show', 'migrate', 'save', 'archive', 'restore', 'credential', 'discover', 'pricing', 'import-models'])
+    parser.add_argument('action', choices=['list', 'compare', 'show', 'migrate', 'save', 'archive', 'restore', 'credential', 'discover', 'pricing', 'import-models'])
     parser.add_argument('--config', type=Path)
     parser.add_argument('--upstream')
     parser.add_argument('--kind', choices=['video', 'image'])
@@ -21,11 +21,20 @@ def providers_command(argv):
     parser.add_argument('--id')
     parser.add_argument('--version')
     parser.add_argument('--family', default='custom')
+    parser.add_argument('--binding', action='append', help='Two to four binding IDs for offline comparison')
+    parser.add_argument('--seconds', type=float, default=5)
+    parser.add_argument('--operation', default='text-to-video')
+    parser.add_argument('--resolution', default='720p')
+    parser.add_argument('--aspect-ratio', default='16:9')
     parser.add_argument('--reason', default='explicit catalog edit')
     args = parser.parse_args(argv)
     path = user_config_path(args.config)
     record = m.load(path)
-    if args.action == 'pricing':
+    if args.action == 'compare':
+        from .catalog.presentation import compare
+        result = compare(record['config'], args.binding or [], store_root=path.parent,
+            scenario={'operation':args.operation,'seconds':args.seconds,'resolution':args.resolution,'aspect_ratio':args.aspect_ratio})
+    elif args.action == 'pricing':
         if not args.upstream:
             raise ConfigError('Pricing discovery requires --upstream')
         from .catalog.pricing import discover

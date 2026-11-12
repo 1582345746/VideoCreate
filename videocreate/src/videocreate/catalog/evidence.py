@@ -135,13 +135,15 @@ def record(store_root: Path, binding, receipt: dict) -> dict:
     return {"ok": True, "receipt": str(destination), "stage": stage, "result": saved["result"], "paid_creates": 0}
 
 
-def status(store_root: Path, binding) -> dict:
+def status(store_root: Path, binding, *, operation=None) -> dict:
     folder = store_root / "binding-evidence" / binding.snapshot()["fingerprint"]
     rows = {stage: {"status": "unverified", "receipts": []} for stage in STAGES}
     stale = []
     for path in sorted(folder.glob("*.json")):
         try:
             receipt = load_json(path)
+            if operation is not None and receipt.get('operation') != operation:
+                continue
             if receipt["stage"] not in rows or receipt["binding_fingerprint"] != binding.snapshot()["fingerprint"]:
                 raise ConfigError("Mismatched evidence")
             verified_evidence(receipt["evidence"])
@@ -153,4 +155,5 @@ def status(store_root: Path, binding) -> dict:
         except (ConfigError, OSError, KeyError, TypeError, ValueError):
             stale.append(str(path))
     return {"binding": binding.id, "fingerprint": binding.snapshot()["fingerprint"], "configured": True,
+            **({'operation': operation} if operation is not None else {}),
             "stages": rows, "stale_receipts": stale, "note": "Stages are independent observations for the listed operations. No evidence changes capability limits or guarantees artistic quality."}
