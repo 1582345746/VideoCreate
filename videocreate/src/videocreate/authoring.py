@@ -12,7 +12,7 @@ from .planning.project import content_hash, load_project, save_bundle, validate_
 from .planning.schema import schema_errors
 from .runtime.state import read_state, state_lock
 
-LAYERS = ('brief', 'story', 'director')
+LAYERS = ('brief', 'story', 'director', 'generation-plan')
 
 
 def create(root, *, profile, title, topic='', audience='', viewer_goal='', seconds=None, aspect_ratio='16:9'):
@@ -41,11 +41,11 @@ def create(root, *, profile, title, topic='', audience='', viewer_goal='', secon
 
 def describe(root, layer):
     if layer not in LAYERS:
-        raise ConfigError('Authoring edits support brief, story or director only')
+        raise ConfigError('Unsupported authoring layer')
     root = Path(root).resolve()
     bundle = load_project(root)
-    if layer in {'story','director'} and 'animation' in bundle:
-        raise ConfigError('Animation story/director is projected from its animation sidecar; edit that authoring source instead')
+    if layer in {'story','director','generation-plan'} and 'animation' in bundle:
+        raise ConfigError('Animation story/director/generation-plan is projected from its animation sidecar; edit that authoring source instead')
     return {'ok':True,'layer':layer,'title':bundle['project']['title'],
         'source_token':content_hash(bundle),'value':copy.deepcopy(bundle[layer]),'paid_creates':0}
 
@@ -67,6 +67,10 @@ def _preview(root, layer, value, source_token):
     from .production import impact
     report = impact(root,candidate=candidate)
     state = read_state(root)
+    generation_changes=None
+    if layer=='generation-plan':
+        from .generation_authoring import changes
+        generation_changes=changes(bundle,candidate,state)
     changed = report.get('changed_job_inputs',[])
     tasks = [{'job_id':jid,'status':item.get('status','unknown'),
               'inputs_changed':jid in changed,'has_task_id':bool(item.get('task_id'))}
@@ -76,6 +80,7 @@ def _preview(root, layer, value, source_token):
         'plan_validation':validate_plan(candidate,root),'impact':report,'existing_tasks':tasks,
         'paid_creates':0,'approval_scope':'authoring edit only; no stage or media approval',
         'note':'Semantic errors may be saved as a draft. Execution remains blocked until plan validation passes. Existing tasks and candidates are preserved.'}
+    if generation_changes is not None:result['generation_changes']=generation_changes
     result['preview_token'] = content_hash({'project':str(root),'layer':layer,'source_token':source_token,
         'value':value,'state':state,'report':result})
     return result,bundle,candidate,state

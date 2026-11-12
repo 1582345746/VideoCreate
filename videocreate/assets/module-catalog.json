@@ -220,7 +220,7 @@
         "F09"
       ],
       "status": "partial",
-      "limitations": "Native project/theme/outline, scene/shot/dialogue and project asset forms share offline token-bound brief/story/director saves with the CLI. Visible assets contribute separated design fields to consuming jobs. Draft errors retain execution gates and task history; ID/order edits do not remap jobs or playback. Job/timeline graphical editors, static-image timeline clips and broader online acceptance remain incomplete. Plans and exports do not certify actual film content.",
+      "limitations": "Native project/theme/outline, scene/shot/dialogue, asset and generation-job forms share token-bound layer saves. Generation jobs expose saved model/binding catalogs and ordered local references; active jobs are held, saved task IDs and local-source/GIF ownership preserved. Timeline/static-image graphical editing and broader online acceptance remain incomplete. Saving does not select defaults, publish links, create tasks or approve film content.",
       "test_evidence": [
         "test_production_progress.py",
         "test_authoring.py",
@@ -229,7 +229,8 @@
         "test_image_production.py",
         "test_local_gif_production.py",
         "test_mixed_video_production.py",
-        "test_project_asset_authoring.py"
+        "test_project_asset_authoring.py",
+        "test_generation_authoring.py"
       ],
       "online_acceptance": "Not claimed by source implementation; consult binding receipts and the dated acceptance report."
     },

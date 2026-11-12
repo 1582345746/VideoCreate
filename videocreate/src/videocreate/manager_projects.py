@@ -170,6 +170,8 @@ def open_panel(manager, root):
     if 'animation' not in bundle:
         asset_actions=ttk.Frame(win,padding=(12,0,12,8));asset_actions.pack(fill='x')
         ttk.Button(asset_actions,text='角色与项目素材',command=lambda:edit_layer('director',assets_only=True)).pack(side='left',padx=6)
+        if bundle['brief'].get('workflow_profile')!='edit-only':
+            ttk.Button(asset_actions,text='生成任务与参考',command=lambda:edit_layer('generation-plan')).pack(side='left',padx=6)
     if bundle['brief'].get('workflow_profile') not in {'edit-only','image-only','gif-only','gif-local'} and 'animation' not in bundle:
         outline_actions=ttk.Frame(win,padding=(12,0,12,12));outline_actions.pack(fill='x')
         ttk.Button(outline_actions,text='编辑故事大纲',command=lambda:edit_layer('story')).pack(side='left',padx=6)

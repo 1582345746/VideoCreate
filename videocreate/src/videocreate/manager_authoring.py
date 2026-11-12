@@ -160,7 +160,7 @@ class BeatList:
 def open_editor(manager,root,layer,completed=None,assets_only=False):
     root=Path(root).resolve();snapshot=authoring.describe(root,layer);value=snapshot['value']
     if assets_only and layer!='director':raise ConfigError('Asset cards belong to the director layer')
-    win,book,basic=manager.dialog('角色与项目素材' if assets_only else {'brief':'主题与规格','story':'故事大纲','director':'剧本与分镜'}[layer])
+    win,book,basic=manager.dialog('角色与项目素材' if assets_only else {'brief':'主题与规格','story':'故事大纲','director':'剧本与分镜','generation-plan':'生成任务与参考'}[layer])
     win.geometry('1100x820')
     ttk.Label(basic,text=snapshot['title'],font=('Microsoft YaHei UI',15,'bold')).pack(anchor='w')
     ttk.Label(basic,text=str(root),wraplength=900).pack(anchor='w',pady=8)
@@ -176,6 +176,11 @@ def open_editor(manager,root,layer,completed=None,assets_only=False):
         page=ttk.Frame(book,padding=12);book.add(page,text='开场状态');states=StateMap(page,initial)
         page=ttk.Frame(book);book.add(page,text='因果事件');events=BeatList(manager,page,beats)
         def read():return {**form_value(form,remaining),'initial_state':states.read(),'beats':events.read()}
+    elif layer=='generation-plan':
+        from .manager_generation import GenerationEditor
+        from .planning.project import load_project
+        form=GenerationEditor(manager,book,value,root,load_project(root))
+        def read():return form.read()
     else:
         from .manager_screenplay import DirectorEditor
         from .planning.project import load_project
@@ -256,6 +261,7 @@ def open_editor(manager,root,layer,completed=None,assets_only=False):
     win.authoring_read=weakref.proxy(read);win.authoring_form=weakref.proxy(form)
     if layer=='story':win.authoring_events=weakref.proxy(events);win.authoring_states=weakref.proxy(states)
     if layer=='director':win.authoring_director=weakref.proxy(form)
+    if layer=='generation-plan':win.authoring_generation=weakref.proxy(form)
     return win
 
 
