@@ -67,11 +67,12 @@ def open_panel(manager, root):
             if result['ok']:
                 measured = report(root)
                 seconds = measured['seconds']
-                metrics.insert('1.0', f"已生成（可核实）：{seconds['generated_known']:.2f} 秒\n"
+                header = ('纯图 / GIF：'+json.dumps(measured['images'],ensure_ascii=False)+'\n\n') if 'images' in measured else (
+                    f"已生成（可核实）：{seconds['generated_known']:.2f} 秒\n"
                     f"已保留（当前素材可用）：{seconds['retained_available_playback']:.2f} 秒\n"
                     f"源片审核通过的保留时长：{seconds['reviewed_usable_playback']} 秒\n"
-                    "源片审核不代表成片已验收；以下保留样本范围、费用未知项与分币种明细。\n\n"
-                    + json.dumps(measured, ensure_ascii=False, indent=2))
+                    "源片审核不代表成片已验收；以下保留样本范围、费用未知项与分币种明细。\n\n")
+                metrics.insert('1.0',header+json.dumps(measured,ensure_ascii=False,indent=2))
             else:
                 metrics.insert('1.0','完成导入或修复计划后可查看有效时长统计。\n\n'+json.dumps(result['errors'],ensure_ascii=False,indent=2))
             metrics.configure(state='disabled')
@@ -85,10 +86,15 @@ def open_panel(manager, root):
         except (ConfigError,OSError,ValueError) as exc:manager.error(exc)
     def review():
         try:
-            from .review.page import export
-            result=export(root)
+            from . import image_production
+            bundle=production.load_project(root)
+            if image_production.is_image(bundle):
+                result=image_production.page(root,bundle)
+            else:
+                from .review.page import export
+                result=export(root)
             webbrowser.open(Path(result['page']).as_uri())
-            message.set('已打开本地审片页。完成观察后导出记录，用 review apply 导入校验。')
+            message.set('已打开图片 / GIF 审核页；实际观察后用 review image 记录，动图需完整播放。' if image_production.is_image(bundle) else '已打开本地审片页。完成观察后导出记录，用 review apply 导入校验。')
         except (ConfigError,OSError,ValueError) as exc:manager.error(exc)
     def import_local():
         from tkinter import filedialog

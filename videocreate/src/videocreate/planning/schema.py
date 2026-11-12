@@ -56,7 +56,7 @@ def plan_schema():
         "brief": obj({"intent": enum("narrative", "demonstration", "montage", "single-shot"), "genre": STR, "pace_profile": STR,
             "audience": STR, "aspect_ratio": STR, "resolution": STR, "visual_style": STR,
             "allowed_elements": STRING_LIST, "forbidden_elements": STRING_LIST,
-            "workflow_profile": enum("portrait", "action-insert", "action-montage", "animal-comedy", "scenic", "explainer", "series-episode", "animation-story", "edit-only"),
+            "workflow_profile": enum("portrait", "action-insert", "action-montage", "animal-comedy", "scenic", "explainer", "series-episode", "animation-story", "edit-only", "image-only", "gif-only"),
             "audio_policy": enum("silent", "ambience", "voiceover", "dialogue", "native-experimental"),
             "target_seconds": {"type": "number", "exclusiveMinimum": 0},
             "reference_profiles": array(obj({"path": STR, "sha256": STR}, ("path", "sha256"))),
@@ -68,7 +68,12 @@ def plan_schema():
                 "audience_learns": STR, "visible_evidence_needed": STRING_LIST},
                 ("id", "requires", "effects", "causes", "audience_learns", "visible_evidence_needed")))}, ("beats", "initial_state")),
         "director": obj({"assets": array(asset), "scenes": array(scene), "shots": array(shot)}, ("assets", "scenes", "shots")),
-        "generation-plan": obj({"jobs": array(job), "local_sources": array(obj({
+        "generation-plan": obj({"jobs": array(job), "image_jobs": array(obj({
+            "id": STR, "prompt": STR, "operation": enum('text-to-image','image-edit'),
+            "size": STR, "quality": STR, "output_format": enum('png','jpeg','webp','gif'),
+            "model": STR, "binding_id": STR,
+            "references": array(obj({"path": STR, "sha256": STR}, ('path','sha256')))},
+            ('id','prompt','operation','size','quality','output_format'))), "local_sources": array(obj({
             "id": STR, "kind": enum("video"), "path": STR, "sha256": STR,
             "shot_ids": {**STRING_LIST, "minItems": 1},
             "media": obj({"duration": {"type": "number", "exclusiveMinimum": 0}, "width": POS,

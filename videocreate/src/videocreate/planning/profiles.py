@@ -5,6 +5,8 @@ from .project import LAYERS
 from ..config.storage import ConfigError
 
 PROFILES = {
+    "image-only": {"title":"独立图片","seconds":0,"intent":"montage","pace":"slow-cinema","audio":"silent","focus":"图片创作与实际审核"},
+    "gif-only": {"title":"独立动图","seconds":0,"intent":"montage","pace":"slow-cinema","audio":"silent","focus":"动图创作与完整播放审核"},
     "edit-only": {"title": "已有视频剪辑", "seconds": 0, "intent": "montage", "pace": "slow-cinema",
                   "audio": "ambience", "focus": "导入真实本地素材，选择保留区间并审核剪辑"},
     "portrait": {"title": "写实人物", "seconds": 15, "intent": "single-shot", "pace": "slow-cinema",
@@ -28,6 +30,18 @@ def create(profile: str, *, title: str = "", seconds: float | None = None, topic
            aspect_ratio: str = "16:9") -> dict:
     if profile not in PROFILES:
         raise ConfigError("Unknown production profile")
+    if profile in {'image-only','gif-only'}:
+        if seconds is not None:
+            raise ConfigError('Image/GIF profiles use image requests, not video seconds; omit --seconds')
+        animated = profile == 'gif-only'
+        return {'project':{'schema_version':3,'product':'VideoCreate','title':title or PROFILES[profile]['title']},
+            'brief':{'intent':'montage','pace_profile':'slow-cinema','workflow_profile':profile,
+                'audience':topic,'aspect_ratio':aspect_ratio,'resolution':'720p','audio_policy':'silent'},
+            'story':{'initial_state':{},'beats':[]}, 'director':{'assets':[],'scenes':[],'shots':[]},
+            'generation-plan':{'jobs':[],'image_jobs':[{'id':'image-001','operation':'text-to-image',
+                'prompt':topic,'size':'1024x1024','quality':'auto','output_format':'gif' if animated else 'png'}]},
+            'timeline':{'fps':'24','width':1280,'height':720,'clips':[],'segments':[],
+                'audio_tracks':[],'subtitles':[]}}
     if profile == 'edit-only':
         if seconds is not None:
             raise ConfigError('Edit-only duration comes from retained source windows; omit --seconds')

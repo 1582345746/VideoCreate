@@ -21,7 +21,27 @@ Import requires local FFmpeg/FFprobe and full decoding; no tool is downloaded. O
 
 The three changed plan layers are backed up under `production/backups`. An ordinary write error attempts to restore their exact original bytes; a rollback error identifies the backup. This is not a claim of atomic recovery from power loss across multiple files. Changing a registered copy's bytes, duration or metadata blocks render/review; restore the original or import a new source ID. Edit retained windows in `timeline.json` instead of reimporting the same ID. Later trimming, audio, subtitles and overlays use the existing timeline pipeline.
 
-Status lists imported sources separately from remote tasks, skips unused outline/script/generation stages, and keeps actual review pending. `production script-export` renders the current source-to-timeline mapping as a read-only edit list; its structured JSON still projects only the director layer. Deliveries include local provenance separately from provider jobs. Metrics include retained footage in playback/source seconds and exclude it from generated attempts and model quality rates. Real playback/listening is still required; a successful import or local render approves no content. This branch currently accepts local videos only; mixed local/generated plans and pure-image/GIF production stages remain separate development work.
+Status lists imported sources separately from remote tasks, skips unused outline/script/generation stages, and keeps actual review pending. `production script-export` renders the current source-to-timeline mapping as a read-only edit list; its structured JSON still projects only the director layer. Deliveries include local provenance separately from provider jobs. Metrics include retained footage in playback/source seconds and exclude it from generated attempts and model quality rates. Real playback/listening is still required; a successful import or local render approves no content. This branch currently accepts local videos only; mixed local/generated plans remain separate development work. Pure generated images/GIFs use the following independent profiles.
+
+## Pure generated images and native GIFs
+
+`image-only` and `gif-only` create independent v3 image plans. They have `generation-plan.image_jobs`, with no video jobs, shots, retained windows or fictional video duration. Each job declares ID, operation, prompt, size, quality, output format, optional model/binding and ordered reference-image paths with hashes. Blank prompts remain drafts; `--seconds` is rejected. `gif-only` requires a binding whose actual image contract supports native multi-frame GIF output; it does not automatically substitute another model or invoke video generation. Local `media export-gif/frames-gif` conversions remain separate from these native generation plans.
+
+```powershell
+python scripts/videocreate.py plan init projects/poster --profile image-only --topic "A boat at sunset"
+python scripts/videocreate.py plan validate projects/poster
+python scripts/videocreate.py plan compile projects/poster --config <config-file>
+python scripts/videocreate.py production images-run projects/poster --config <config-file>
+python scripts/videocreate.py review page projects/poster
+python scripts/videocreate.py review image projects/poster --job image-001 --status pass --reviewer <reviewer> --observation "Actual observed detail"
+python scripts/videocreate.py production deliver projects/poster
+```
+
+Use `image-edit` only with registered in-project references whose actual bytes still match their declared hashes. `plan compile/route` prepares the selected image route and parameter-consumption report offline. `production images-run` reuses the existing whole-batch parameter preflight, task ledger, quota and selection services. It does not grant spending permission. A malformed later item blocks dispatch before any image create. A completed unchanged image keeps its original model/binding even when defaults change. An active/unknown image create stays held for reconciliation; do not submit another job as recovery. Explicit content/replan retries require one selected `--job`, `--retry content|replan` and a nonempty `--reason`.
+
+The production panel skips unused outline/script/video editing stages and uses image output/review state. `production script-export` emits a read-only image creative brief, edited at its source `generation-plan.image_jobs`. `review page` uses actual local output files; it approves nothing. Static images need observed image review; GIFs require full temporal observation as well as a structurally valid multi-frame result. Video-layer template/apply/packet receipts are inapplicable here. Missing or mismatched image receipts never grant acceptance. Title changes preserve source review; prompt/reference/size/quality/output format/model/binding changes invalidate the corresponding image plan. Changed result bytes block delivery.
+
+`production deliver` writes `deliverables/images.delivery.json` with artifact hashes, actual available metadata, source reference mappings, original route identifiers, budget and pending/rejected observations. It is a collection manifest referencing project outputs, not a separate media archive. All current planned outputs must exist; final acceptance additionally requires their own valid receipts. Static-image width/height may remain unknown in the retained header inspector; requested size is not proof of actual dimensions or provider internals. Metrics count images/GIFs separately and report no generated video seconds for them. GUI checks remain distinct from real content observation.
 
 ## Photorealistic shorts
 

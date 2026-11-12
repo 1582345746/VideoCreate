@@ -24,7 +24,9 @@ def union_seconds(windows):
 def report(root, *, output_name='preview.mp4'):
     root = Path(root).resolve()
     bundle, state = load_project(root), read_state(root)
-    errors = validate_timeline(bundle['timeline'])
+    from . import image_production
+    image_only=image_production.is_image(bundle)
+    errors = [] if image_only else validate_timeline(bundle['timeline'])
     if errors:
         raise ConfigError('; '.join(errors))
     hashes, warnings = {}, []
@@ -65,7 +67,7 @@ def report(root, *, output_name='preview.mp4'):
 
     try:
         from .review.receipts import summary
-        review = summary(root, bundle, output_name=output_name)
+        review = image_production.review_summary(image_production.rows(root,bundle,state)) if image_only else summary(root, bundle, output_name=output_name)
         review_available = True
     except (ConfigError, OSError, ValueError) as exc:
         review = {'status': 'unavailable', 'assets': {}, 'valid_receipts': 0}
@@ -162,7 +164,12 @@ def report(root, *, output_name='preview.mp4'):
             'project_actual_cost_per_reviewed_playback_second': float(actual_total / Decimal(str(usable_playback)))
                 if all_actual and review_available and usable_playback > 0 else None}
 
+    image_rows=image_production.rows(root,bundle,state) if image_only else []
     return {'ok': True, 'project': str(root), 'paid_creates': 0,
+        **({'images':{'planned':len(image_rows),'completed_current':sum(r['status']=='completed' for r in image_rows),
+            'reviewed':sum(r['content_status']=='reviewed' for r in image_rows),'rejected':sum(r['content_status']=='rejected' for r in image_rows),
+            'animated_current':sum(r.get('media',{}).get('animated',False) for r in image_rows),
+            'note':'Image/GIF counts do not represent generated video seconds or motion quality scores.'}} if image_only else {}),
         'sample': {'scope': 'this project only; all saved attempts, current selected candidates and retained windows',
             'create_attempts': len(ledger), 'recorded_video_attempts': len(videos), 'completed_video_attempts': len(completed),
             'retained_jobs': len(retained_jobs), 'available_selected_jobs': len(available_jobs),

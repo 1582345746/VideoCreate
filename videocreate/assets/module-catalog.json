@@ -197,7 +197,8 @@
         "production script-export",
         "production script-import",
         "production impact",
-        "production import-clip"
+        "production import-clip",
+        "production images-run"
       ],
       "work_packages": [
         "F01",
@@ -211,10 +212,11 @@
         "F09"
       ],
       "status": "partial",
-      "limitations": "Progress derives from v3 files. Explicit edit-only imports use hash-bound local footage without provider/config/job/ledger requirements; playback review remains mandatory. Pure image/GIF stages, mixed imported/generated plans and guided forms need further work.",
+      "limitations": "v3 stages support explicit local-video editing and pure generated image/native-GIF plans. Existing image attempts, budgets and actual receipts are reused. Mixed video/image/local projects, local GIF-export stage integration and richer guided forms remain open.",
       "test_evidence": [
         "test_production_progress.py",
-        "test_edit_only_production.py"
+        "test_edit_only_production.py",
+        "test_image_production.py"
       ],
       "online_acceptance": "Not claimed by source implementation; consult binding receipts and the dated acceptance report."
     },

@@ -690,6 +690,13 @@ def main():
                 panel.withdraw()
                 root.update_idletasks()
                 panel.destroy()
+                for profile in ('image-only','gif-only'):
+                    pure = Path(temporary) / profile
+                    save_bundle(pure,create(profile,title='Offline pure media panel',topic='Synthetic offline prompt'))
+                    panel = project_panel(manager,pure)
+                    panel.withdraw()
+                    root.update_idletasks()
+                    panel.destroy()
             root.update_idletasks()
             atomic_json(args.smoke_report, {'ok': True, 'upstreams': len(manager.value['upstreams']),
                 'bindings': len(manager.models.get_children()), 'config_version': manager.value['schema_version'],
@@ -697,6 +704,7 @@ def main():
                 'comparison_and_pricing_forms_created': True,
                 'quota_module_loaded': True, 'quota_upstreams': len(quota_reports),
                 'edit_only_panel_created': True, 'local_source_module_loaded': callable(import_clip),
+                'image_and_gif_panels_created': True,
                 'network_requests': 0, 'saved': False, 'visual_review': 'not-performed'})
         finally:
             root.destroy()

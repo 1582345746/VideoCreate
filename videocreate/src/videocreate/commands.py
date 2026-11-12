@@ -89,9 +89,21 @@ def plan_command(argv: list[str]) -> int:
         save_bundle(root, bundle)
         print_result({"ok": True, "project": str(root / "project.json"), "status": "draft_plan",
             "next": "Use production import-clip to register existing footage, then plan validate and timeline render"
-                if args.profile=='edit-only' else "Author brief/story/director/generation-plan/timeline, then plan validate and plan preview", "paid_creates": 0})
+                if args.profile=='edit-only' else 'Author generation-plan.image_jobs, then plan validate/compile and production images-run'
+                if args.profile in {'image-only','gif-only'} else "Author brief/story/director/generation-plan/timeline, then plan validate and plan preview", "paid_creates": 0})
         return 0
     bundle = load_project(root)
+    from . import image_production
+    if image_production.is_image(bundle) and args.action in {'route','compile','preview'}:
+        checked=validate_plan(bundle,root)
+        if not checked['ok']:raise ConfigError('; '.join(checked['errors']))
+        if args.action=='preview':
+            if args.video:raise ConfigError('Pure image/GIF preview uses actual image files; no video cards are generated')
+            result=image_production.page(root,bundle)
+        else:
+            path=user_config_path(args.config)
+            result=image_production.compile_plan(root,bundle,read_config(path),path.parent,job_ids=args.job,binding_override=args.binding)
+        print_result(result);return 0
     if args.action == "audit":
         from .planning.creative_audit import audit
         result = audit(bundle)
@@ -323,6 +335,7 @@ def timeline_command(argv: list[str]) -> int:
 
 def review_command(argv: list[str]) -> int:
     from .cli import print_result
+    from .runtime.state import read_state
     from .review.receipts import apply, inbox, review_image, summary, template
     parser = argparse.ArgumentParser(prog="videocreate review")
     parser.add_argument("action", choices=["template", "apply", "status", "packet", "inbox", "image", "page"])
@@ -341,6 +354,9 @@ def review_command(argv: list[str]) -> int:
         print_result(inbox(root, pending_only=args.pending_only))
         return 0
     bundle = load_project(root)
+    from . import image_production
+    if image_production.is_image(bundle) and args.action in {'template','apply','packet'}:
+        raise ConfigError('Pure image/GIF review uses review page/inbox/image/status; video-layer receipts do not apply')
     if args.action == "packet":
         from .review.packet import packet
         print_result(packet(root, bundle, output_name=args.output_name))
@@ -350,8 +366,12 @@ def review_command(argv: list[str]) -> int:
         print_result(review_image(root, job_id=args.job, status=args.status,
             reviewer_id=args.reviewer, observation=args.observation, temporal_observation=args.temporal_observation))
     elif args.action == 'page':
-        from .review.page import export
-        print_result(export(root, output_name=args.output_name))
+        from . import image_production
+        if image_production.is_image(bundle):
+            print_result(image_production.page(root,bundle))
+        else:
+            from .review.page import export
+            print_result(export(root, output_name=args.output_name))
     elif args.action == "template":
         path = root / "reviews" / "content-review.template.json"
         atomic_json(path, template(root, bundle, output_name=args.output_name))
@@ -361,7 +381,11 @@ def review_command(argv: list[str]) -> int:
             raise ConfigError("--receipt required")
         print_result(apply(root, bundle, load_json(args.receipt)))
     else:
-        print_result({"ok": True, **summary(root, bundle, output_name=args.output_name)})
+        from . import image_production
+        if image_production.is_image(bundle):
+            print_result({'ok':True,**image_production.review_summary(image_production.rows(root,bundle,read_state(root)))})
+        else:
+            print_result({"ok": True, **summary(root, bundle, output_name=args.output_name)})
     return 0
 
 

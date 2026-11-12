@@ -28,6 +28,9 @@ def script_projection(bundle):
 def script_export(root):
     root = Path(root).resolve()
     bundle = load_project(root)
+    from . import image_production
+    if image_production.is_image(bundle):
+        return image_production.brief_export(root,bundle)
     value = script_projection(bundle)
     target = root / 'production' / 'script.json'
     atomic_json(target, value)
@@ -64,6 +67,9 @@ def import_script(root, value):
     root = Path(root).resolve()
     with state_lock(root):
         bundle = load_project(root)
+        from . import image_production
+        if image_production.is_image(bundle):
+            raise ConfigError('Pure image/GIF briefs are read-only exports; edit generation-plan.image_jobs')
         if value.get('schema_version') != 1 or value.get('source_hash') != content_hash(bundle['director']):
             raise ConfigError('Script source changed; export the current version before importing edits')
         if set(value) - {'schema_version', 'source', 'source_hash', 'title', 'logline', 'scenes', 'characters', 'shots'}:
@@ -87,6 +93,9 @@ def impact(root, candidate=None):
     from .runtime.jobs import current_inputs
     root = Path(root).resolve()
     bundle, state = candidate or load_project(root), read_state(root)
+    from . import image_production
+    if image_production.is_image(bundle):
+        return image_production.impact(root,bundle,state)
     changed, unchanged, pending = [], [], []
     for job in bundle['generation-plan']['jobs']:
         prior = state['jobs'].get(job['id'])
@@ -119,7 +128,7 @@ def _record(root):
 
 
 def _authoring_inputs(bundle, root):
-    refs = [r for job in bundle['generation-plan']['jobs'] for r in job.get('references', [])]
+    refs = [r for job in [*bundle['generation-plan']['jobs'],*bundle['generation-plan'].get('image_jobs',[])] for r in job.get('references', [])]
     observed = []
     for ref in refs:
         path = within(root, ref['path'], exists=False)
@@ -130,7 +139,7 @@ def _authoring_inputs(bundle, root):
         observed.append({**source, 'actual_hash': digest(path) if path.is_file() else None})
     return {'theme': {'brief': bundle['brief'], 'title': bundle['project']['title']},
         'outline': bundle['story'], 'script': script_projection(bundle),
-        'characters': bundle['director']['assets'], 'storyboard': bundle['director']['shots'], 'references': observed}
+        'characters': bundle['director']['assets'], 'storyboard': bundle['generation-plan'].get('image_jobs') or bundle['director']['shots'], 'references': observed}
 
 
 def status(root, *, output_name='preview.mp4'):
@@ -144,15 +153,19 @@ def status(root, *, output_name='preview.mp4'):
         decision = record['decisions'].get(stage, {})
         unused = stage in {'characters', 'references'} and not value
         edit_only = bundle['brief'].get('workflow_profile') == 'edit-only'
-        if stage == 'outline' and (bundle['brief']['intent'] == 'single-shot' or edit_only) and not bundle['story']['beats']:
+        from . import image_production
+        image_only = image_production.is_image(bundle)
+        if stage == 'outline' and (bundle['brief']['intent'] == 'single-shot' or edit_only or image_only) and not bundle['story']['beats']:
             unused = True
-        if stage == 'script' and edit_only:
+        if stage == 'script' and (edit_only or image_only):
             unused = True
         matches = decision.get('input_hash') == content_hash(value)
         state_name = 'skipped' if unused else 'complete' if matches and decision.get('decision') == 'accept' else 'stale' if decision else 'ready'
         stages.append({'id': stage, 'name': NAMES[stage], 'status': state_name,
             'input_hash': content_hash(value), 'reason': 'Edit-only plan uses an edit decision list; no generation screenplay' if unused and stage=='script' and edit_only else 'Not used by this plan' if unused else decision.get('reason', ''),
             'approval_scope': 'authoring-only; not media quality'})
+    if image_production.is_image(bundle):
+        return image_production.status(root,bundle,state,record,check,stages)
     planned = {j['id']: j for j in bundle['generation-plan']['jobs']}
     task_rows = []
     for jid in dict.fromkeys([*planned, *state['jobs']]):
@@ -265,6 +278,10 @@ def project_index(store_root, project=None):
 
 def delivery(root, *, output_name='preview.mp4'):
     root = Path(root).resolve()
+    from . import image_production
+    bundle=load_project(root)
+    if image_production.is_image(bundle):
+        return image_production.deliver(root,bundle)
     current = status(root, output_name=output_name)
     if not current['ok']:
         raise ConfigError('Repair plan validation errors before exporting delivery')

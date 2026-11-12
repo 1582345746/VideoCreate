@@ -109,7 +109,9 @@
             "explainer",
             "series-episode",
             "animation-story",
-            "edit-only"
+            "edit-only",
+            "image-only",
+            "gif-only"
           ]
         },
         "audio_policy": {
@@ -769,6 +771,76 @@
               "shot_ids",
               "operation",
               "seconds"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "image_jobs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "prompt": {
+                "type": "string"
+              },
+              "operation": {
+                "type": "string",
+                "enum": [
+                  "text-to-image",
+                  "image-edit"
+                ]
+              },
+              "size": {
+                "type": "string"
+              },
+              "quality": {
+                "type": "string"
+              },
+              "output_format": {
+                "type": "string",
+                "enum": [
+                  "png",
+                  "jpeg",
+                  "webp",
+                  "gif"
+                ]
+              },
+              "model": {
+                "type": "string"
+              },
+              "binding_id": {
+                "type": "string"
+              },
+              "references": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "type": "string"
+                    },
+                    "sha256": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "path",
+                    "sha256"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "id",
+              "prompt",
+              "operation",
+              "size",
+              "quality",
+              "output_format"
             ],
             "additionalProperties": false
           }
@@ -1647,7 +1719,9 @@
                     "explainer",
                     "series-episode",
                     "animation-story",
-                    "edit-only"
+                    "edit-only",
+                    "image-only",
+                    "gif-only"
                   ]
                 },
                 "audio_policy": {

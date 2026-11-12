@@ -10,7 +10,7 @@ def production_command(argv):
     from .config.storage import user_config_path
     parser = argparse.ArgumentParser(prog='videocreate production')
     parser.add_argument('action', choices=['status', 'next', 'impact', 'script-export', 'script-import',
-        'checkpoint', 'policy', 'track', 'projects', 'deliver', 'metrics', 'import-clip'])
+        'checkpoint', 'policy', 'track', 'projects', 'deliver', 'metrics', 'import-clip', 'images-run'])
     parser.add_argument('project', type=Path, nargs='?')
     parser.add_argument('--file', type=Path)
     parser.add_argument('--stage', choices=production.AUTHORING)
@@ -25,10 +25,18 @@ def production_command(argv):
     parser.add_argument('--end', type=float)
     parser.add_argument('--description', default='')
     parser.add_argument('--mute', action='store_true')
+    parser.add_argument('--job', action='append')
+    parser.add_argument('--retry',choices=['content','replan'])
     args = parser.parse_args(argv)
     if args.action != 'projects' and not args.project:
         raise ConfigError('This action requires a project directory')
-    if args.action == 'import-clip':
+    if args.action == 'images-run':
+        from . import image_production
+        from .cli import read_config
+        path=user_config_path(args.config)
+        result=image_production.run(args.project.resolve(),production.load_project(args.project),read_config(path),path.parent,
+            job_ids=args.job,retry=args.retry,reason=args.reason)
+    elif args.action == 'import-clip':
         if not args.source or not args.source_id:
             raise ConfigError('Import requires --source and --source-id')
         from .local_sources import import_clip

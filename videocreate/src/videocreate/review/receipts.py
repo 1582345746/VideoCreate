@@ -307,6 +307,14 @@ def review_image(root: Path, *, job_id: str, status: str, reviewer_id: str, obse
         record = state["jobs"].get(job_id, {})
         if record.get("kind") != "image" or record.get("status") != "completed":
             raise ConfigError("Only a completed image job can be reviewed")
+        if (root/'project.json').is_file():
+            from ..planning.project import load_project
+            from .. import image_production
+            bundle=load_project(root)
+            if image_production.is_image(bundle):
+                current=next((r for r in image_production.rows(root,bundle,state) if r['job_id']==job_id),None)
+                if not current or current['status']!='completed':
+                    raise ConfigError('Planned image is missing or stale; restore inputs/output or explicitly replan before review')
         artifact = record.get("artifact", {})
         path = within(root, artifact.get("path", ""))
         digest = file_hash(path)
@@ -318,7 +326,7 @@ def review_image(root: Path, *, job_id: str, status: str, reviewer_id: str, obse
                 raise ConfigError("Animated GIF review needs full playback observation and --temporal-observation")
         receipt = {"schema_version": 1, "job_id": job_id, "reviewer_id": reviewer_id,
             "status": status, "observation": observation, "temporal_observation": temporal_observation,
-            "artifact": artifact, "reviewed_at": int(time.time())}
+            "artifact": artifact, "input_hash":record.get('input_hash'), "reviewed_at": int(time.time())}
         target = root / "reviews" / "images" / f"{time.time_ns()}-{uuid.uuid4().hex[:8]}.json"
         atomic_json(target, receipt)
         previously_failed = record.get("content_status") == "rejected" and record.get("reviewed_sha256") == digest
