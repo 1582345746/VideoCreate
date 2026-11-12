@@ -24,6 +24,6 @@
 
 文档允许按模型能力发送 `images` / `videos` / `audios` 独立 HTTPS URL 字符串数组，顺序必须保持；音频参考与 `generate_audio` 开关不同。通用合同没有本站上传接口：本地文件需先上传自己的 COS/OSS/S3 等存储。URL 必须无需额外 Cookie 或认证头并在生成期间有效，不能用本机路径、网盘页面、blob URL 或局域网地址。Base64、multipart、火山 content 不是通用协议。
 
-**dev15 执行范围：文生视频。** 本地引用在创建前拒绝，不悄悄转换为 base64 或丢弃素材。URL 素材映射、过期重传和混合引用仍待实现。`generate_audio` 仅在 binding 明确配置 explicit 时发送；当前 V 小样采用模型默认声音，没有验证开关。seed 同样不推定支持。
+**dev16 生成执行范围仍为文生视频。** 本地引用在创建前拒绝，不悄悄转换为 base64 或丢弃素材。[素材托管与传输绑定](media-hosting.md) 已独立实现，生成请求消费这些链接及混合参考仍待接入。`generate_audio` 仅在 binding 明确配置 explicit 时发送；当前 V 小样采用模型默认声音，没有验证开关。seed 同样不推定支持。
 
 六个目录 ID 保留原大小写：seedance-933、seedance2.0-933-C、seedance2.0-933-Q、seedance2.5-V、seedance2.5-s、wan3.0-prime-720P。文档中特别提到的 seedance-2.5-480p-M2 不等于这些型号，不套用它的 25 秒限制。截图的参考数量、5–30 秒、全比例和 `$` 标价分别保留为供应商声明；不据此认定账户币种、实际扣款或所有参数组合已测。

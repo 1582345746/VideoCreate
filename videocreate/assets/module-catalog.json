@@ -95,7 +95,7 @@
         "C07"
       ],
       "status": "partial",
-      "limitations": "Native Tk forms and portable EXE launch verified on this Windows host outside the repo. Clean-machine and human visual review remain pending.",
+      "limitations": "Native Tk forms, media hosting panel and portable EXE on this host; clean-machine and human visual review remain pending.",
       "test_evidence": [],
       "online_acceptance": "Not claimed by source implementation; consult binding receipts and the dated acceptance report."
     },
@@ -122,14 +122,19 @@
         "test_xingapi.py",
         "test_pricing_discovery.py"
       ],
-      "online_acceptance": "2026-11-12: one Seedance2.5-V create, requested 5 s / 16:9 / 720p, downloaded 5.05 s / 1280x720 / 24 fps, full decode pass. Response omitted model. Content/audio/billing unverified; no reference types tested."
+      "online_acceptance": "2026-11-12: Seedance2.5-V text-only 5-second test and 30-second historical computing comedy downloaded and fully decoded. Reference types, exact speech/lip sync and actual billing remain unverified."
     },
     {
       "id": "references",
       "name": "参考素材",
       "entry_points": [
         "assets register",
-        "reference analyze"
+        "reference analyze",
+        "media-ref register",
+        "media-ref host",
+        "media-ref link",
+        "media-ref check",
+        "media-server start"
       ],
       "work_packages": [
         "D05",
@@ -137,11 +142,12 @@
         "D07"
       ],
       "status": "partial",
-      "limitations": "Existing image references implemented; mixed video/audio transport not yet available.",
+      "limitations": "Typed, hash-bound local snapshots and account-scoped private HTTPS transport registry implemented. Image/video/audio hosting through an existing tunnel verified; generation plans/adapters do not yet consume these transports.",
       "test_evidence": [
-        "test_reference_analysis.py"
+        "test_reference_analysis.py",
+        "test_media_hosting.py"
       ],
-      "online_acceptance": "Not claimed by source implementation; consult binding receipts and the dated acceptance report."
+      "online_acceptance": "2026-11-12: public HTTPS PNG/MP4/WAV full GET hashes match; Range returns 206; revocation returns 404. Synthetic files only, zero provider creates; model reference semantics unverified."
     },
     {
       "id": "runtime",
@@ -572,7 +578,7 @@
     {
       "id": "D06",
       "priority": "P0",
-      "status": "external-contract-needed",
+      "status": "partial",
       "requirement": "按实需实现文件/URL/asset_id 上传、失效重传、来源哈希、过期和恢复；禁止静默丢视频/音频或把参考视频降为首帧。"
     },
     {

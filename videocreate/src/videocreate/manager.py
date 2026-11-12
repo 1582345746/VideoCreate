@@ -66,6 +66,7 @@ class Manager:
                               ('只读检查 / 导入目录', self.discover), ('项目与任务', self.project_panel),
                               ('角色与素材库', self.library_panel)]:
             ttk.Button(left, text=title, command=action).pack(fill='x', pady=(7, 0))
+        ttk.Button(left, text='本机素材与 HTTPS 直链', command=self.media_panel).pack(fill='x', pady=(7, 0))
         right = ttk.Frame(main)
         main.add(right, weight=5)
         bar = ttk.Frame(right)
@@ -514,6 +515,13 @@ class Manager:
         except (ConfigError, OSError, ValueError) as exc:
             self.error(exc)
 
+    def media_panel(self):
+        from .manager_media import open_panel
+        try:
+            return open_panel(self)
+        except (ConfigError, OSError, ValueError) as exc:
+            self.error(exc)
+
     def default_binding(self):
         bid = self.selected_binding()
         if not bid:
@@ -572,6 +580,7 @@ def main():
     import sys
     parser = argparse.ArgumentParser(prog='VideoCreateManager')
     parser.add_argument('--config', type=Path)
+    parser.add_argument('--media-server-run', action='store_true', help=argparse.SUPPRESS)
     parser.add_argument('--smoke-report', type=Path, help='Load UI offscreen, report row counts, then exit without saving or network')
     args = parser.parse_args()
     # A desktop host may virtualize LOCALAPPDATA. The local installer pins the
@@ -582,6 +591,9 @@ def main():
         if not isinstance(location, str) or not Path(location).is_absolute():
             raise ConfigError('Installed manager settings require an absolute configuration path')
         args.config = Path(location)
+    if args.media_server_run:
+        from .media_server_commands import command
+        return command(['run', '--config', str(user_config_path(args.config))])
     if args.smoke_report:
         from .config.storage import atomic_json
         root = tk.Tk()

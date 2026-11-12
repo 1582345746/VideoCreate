@@ -1275,6 +1275,29 @@
     },
     "updated_at": {
       "type": "string"
+    },
+    "local_media_server": {
+      "type": "object",
+      "properties": {
+        "port": {
+          "type": "integer",
+          "minimum": 1024,
+          "maximum": 65535
+        },
+        "public_base_url": {
+          "type": "string"
+        },
+        "max_link_seconds": {
+          "type": "integer",
+          "minimum": 60,
+          "maximum": 2592000
+        }
+      },
+      "required": [
+        "port",
+        "public_base_url"
+      ],
+      "additionalProperties": false
     }
   },
   "required": [

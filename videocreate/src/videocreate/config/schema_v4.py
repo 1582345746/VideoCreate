@@ -60,11 +60,23 @@ def extend(schema):
     p['selection'] = obj({'image': selection, 'video': selection})
     p['revision'] = {'type': 'integer', 'minimum': 0}
     p['updated_at'] = STR
+    p['local_media_server'] = obj({'port': {'type': 'integer', 'minimum': 1024, 'maximum': 65535},
+        'public_base_url': STR, 'max_link_seconds': {'type': 'integer', 'minimum': 60, 'maximum': 2592000}},
+        ('port', 'public_base_url'))
     return schema
 
 
 def semantic_errors(config):
     errors = []
+    if config.get('local_media_server', {}).get('public_base_url'):
+        from ..media_references import public_url
+        from .storage import ConfigError
+        try:
+            parsed = public_url(config['local_media_server']['public_base_url'])
+            if parsed.query or parsed.path not in {'', '/'}:
+                errors.append('$.local_media_server.public_base_url: use an HTTPS origin without path/query')
+        except ConfigError as error:
+            errors.append('$.local_media_server.public_base_url: ' + str(error))
     for bid, binding in config['bindings'].items():
         path = '$.bindings.' + bid
         if binding.get('enabled') and (binding['adapter'] == 'unconfigured' or

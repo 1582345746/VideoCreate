@@ -19,6 +19,8 @@ For cross-project character/scene/prop/voice reuse, read [asset-library.md](refe
 
 The `xingapi-video-v1` adapter implements the user-supplied create/query/content contract described in [xingapi-contract.md](references/xingapi-contract.md). This revision executes text-to-video only. Do not pass local images as base64 or infer support for all URL reference types. Use only the enabled binding's parameters; preserve complete task IDs and recover on the same account. Model-specific reference/audio/price claims still require separate verification.
 
+For local image/video/audio hosting behind the user's HTTPS tunnel, read [media-hosting.md](references/media-hosting.md). `media-server` manages a persistent loopback file service; `media-ref host/link/check` binds exact source hashes to private transport records scoped to an upstream/account. A verified link establishes file reachability, not model reference semantics. This revision does not yet consume these links in generation adapters. Expired links never justify recreating an accepted video task.
+
 ## Muse and mixed workflows
 
 For Muse/browser generation, read [muse-browser.md](references/muse-browser.md). `browser_services` and `workflows` share the existing user JSON. Use `workflow list/describe/prepare` for API-image/API-video, Muse image or video, Muse-image/Muse-video, and API-image/Muse-video routes. Browser preparation is offline; it does not certify website capabilities or execute a full workflow. Prefer the user's chosen built-in browser, verify actual operation tools before asking for login, and do not silently switch to Edge. Keep unavailable tools, login status and untested generation capabilities explicit.

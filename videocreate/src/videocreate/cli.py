@@ -181,7 +181,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if not argv or argv in (["--help"], ["-h"]):
             print("VideoCreate " + __version__ + "\n\n"
-                  "Commands: config, providers, selection, manager, production, library, modules, doctor, models, capabilities, workflow, plan, assets, media, jobs, timeline, review, reference, education, series, animation, version\n"
+                  "Commands: config, providers, selection, manager, production, library, media-ref, media-server, modules, doctor, models, capabilities, workflow, plan, assets, media, jobs, timeline, review, reference, education, series, animation, version\n"
                   "Start: config init; config open; config validate --ready\n"
                   "Offline preview: plan init PROJECT --example smart-car; plan preview PROJECT --video\n"
                   "Each command accepts --help. Existing project commands remain available; use legacy COMMAND to select the retained engine explicitly.")
@@ -202,6 +202,12 @@ def main(argv: list[str] | None = None) -> int:
             return command(argv[1:])
         if argv[0] == 'library':
             from .library_commands import command
+            return command(argv[1:])
+        if argv[0] == 'media-ref':
+            from .media_reference_commands import command
+            return command(argv[1:])
+        if argv[0] == 'media-server':
+            from .media_server_commands import command
             return command(argv[1:])
         if argv and argv[0] == "version":
             print_result({"ok": True, "product": "VideoCreate", "version": __version__})

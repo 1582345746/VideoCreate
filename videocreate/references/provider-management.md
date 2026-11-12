@@ -17,7 +17,7 @@ videocreate providers discover --upstream UPSTREAM_ID
 
 管理器提供上游/型号表单、备注、收藏、排序、能力与价格页、只读目录查询和草稿导入。添加型号时分别指定媒体类型、远端 ID、adapter 与操作。远端 ID 大小写原样保留。供应商声明放入 `declared_capabilities`，展示报价放入 `listed_pricing`；这些字段不会授予执行能力。可执行约束放入 `capability_overrides`。草稿的 adapter 为 `unconfigured`、enabled 为 false，不会进入生成候选。
 
-提示词上限支持 Unicode 码点、UTF-16 单元或 UTF-8 字节。`prompt_limit` 配置必须指定计数规则；不能把未知的“15000 字符”假设成 15000 字节。现有图片 adapter 仍有 4096 字节硬上限。视频/音频参考尚无已核实的上传合同，不接受把它们塞进图片字段。
+提示词上限支持 Unicode 码点、UTF-16 单元或 UTF-8 字节。`prompt_limit` 配置必须指定计数规则；不能把未知的“15000 字符”假设成 15000 字节。现有图片 adapter 仍有 4096 字节硬上限。图片/视频/音频可通过 [本机素材服务](media-hosting.md) 建立 HTTPS 传输绑定；生成适配器的混合参考接入仍待完成，不接受把视频/音频塞进图片字段。
 
 价格可记录按次、按秒、最小秒数、取整步长、有效期和条件档位。档位须唯一匹配；未知报价不能满足硬金额上限。`listed_pricing` 不用于预算。报价和实际账单分开；不同币种分别汇总，不自动折算。共享账户的多个入口可填相同 `capacity_group`，共用最严格的提交并发上限；远端在途和 RPM 配额仍待扩展。
 
