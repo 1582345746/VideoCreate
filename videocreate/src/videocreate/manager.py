@@ -716,7 +716,7 @@ def main():
                 from .planning.examples import smart_car
                 authored=Path(temporary)/'authoring'
                 save_bundle(authored,smart_car())
-                for layer in ('brief','story'):
+                for layer in ('brief','story','director'):
                     dialog=open_editor(manager,authored,layer)
                     dialog.withdraw();root.update_idletasks();dialog.destroy()
             root.update_idletasks()
@@ -731,6 +731,7 @@ def main():
                 'local_gif_conversion_forms_created': True,
                 'mixed_video_panel_created': True,
                 'authoring_forms_created': True,
+                'screenplay_forms_created': True,
                 'network_requests': 0, 'saved': False, 'visual_review': 'not-performed'})
         finally:
             root.destroy()

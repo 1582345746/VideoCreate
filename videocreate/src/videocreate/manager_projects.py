@@ -170,6 +170,7 @@ def open_panel(manager, root):
     if bundle['brief'].get('workflow_profile') not in {'edit-only','image-only','gif-only','gif-local'} and 'animation' not in bundle:
         outline_actions=ttk.Frame(win,padding=(12,0,12,12));outline_actions.pack(fill='x')
         ttk.Button(outline_actions,text='编辑故事大纲',command=lambda:edit_layer('story')).pack(side='left',padx=6)
+        ttk.Button(outline_actions,text='编辑剧本与分镜',command=lambda:edit_layer('director')).pack(side='left',padx=6)
         ttk.Button(outline_actions,text='导出主题与大纲',command=outline).pack(side='left',padx=6)
     if production.load_project(root)['brief'].get('workflow_profile') in {'edit-only','mixed-video'}:
         ttk.Button(actions,text='导入本地视频',command=import_local).pack(side='left',padx=6)

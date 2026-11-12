@@ -35,7 +35,9 @@ def script_export(root):
     target = root / 'production' / 'script.json'
     atomic_json(target, value)
     lines = ['# ' + value['title'], '', value['logline'], '',
-        '来源：director 层。此阅读稿为单向导出；结构化 script.json 可经版本检查导入。', '']
+        '来源：director 层。此阅读稿为单向导出；结构化 script.json 可经版本检查导入。',
+        '导演层版本：'+value['source_hash'], '',
+        '以下对白与表演是制作计划，实际声音、口型与动作仍需播放核验。', '']
     if bundle['brief'].get('workflow_profile') == 'edit-only':
         from .timeline.model import mapping
         mapped = mapping(bundle['timeline'])
@@ -49,14 +51,24 @@ def script_export(root):
                 f"原片区间：{segment['source_in']}–{segment['source_out']} 秒；速度：{segment.get('rate',1)}",
                 f"成片区间：{segment['timeline_start']}–{segment['timeline_end']} 秒",
                 '声音：'+segment.get('source_audio','mute'), '切点用途：'+segment['cut_reason'], ''])
+    if bundle['brief'].get('workflow_profile')!='edit-only':
+        for scene in value['scenes']:
+            lines.extend(['## 场景 '+scene['id'],'','布局：'+scene['map'],'轴线：'+scene['axis'],''])
     for shot in value['shots']:
         if bundle['brief'].get('workflow_profile') == 'edit-only':
             break
         lines.extend(['## ' + shot['id'] + ' · ' + shot['scene_id'], '',
+            '对应事件：'+shot.get('beat_id','未安排'),
+            '计划镜头时长：'+str(shot['planned_seconds'])+' 秒；实际生成时长与剪辑区间分别记录。',
             shot.get('information_goal', ''), '', '画面：' + shot.get('opening_frame', ''),
+            '构图：'+shot.get('framing',''),
+            '机位与摄影运动：'+shot.get('camera_position','')+'；'+shot.get('camera_motion',''),
             '动作：' + '；'.join(a['description'] for a in shot['actions']),
             '情绪与表演：' + '；'.join(shot.get('performance', {}).values())])
-        lines.extend(f"{line['speaker']}：{line['text']}" for line in shot.get('audio', {}).get('lines', []))
+        for line in shot.get('audio',{}).get('lines',[]):
+            lines.append(f"{line['speaker']}：{line['text']}（镜头内 {line['start']}–{line['end']} 秒，"+
+                ('画内' if line['on_screen'] else '画外')+'）')
+        if shot.get('timing'):lines.append('动作时间约束：'+str(shot['timing']))
         lines.extend(['转场：' + shot.get('cut_motivation', ''), ''])
     if bundle['brief'].get('workflow_profile')=='mixed-video':
         from .timeline.model import mapping
@@ -75,28 +87,26 @@ def script_export(root):
 
 def import_script(root, value):
     root = Path(root).resolve()
-    with state_lock(root):
-        bundle = load_project(root)
-        from . import image_production
-        if image_production.is_image(bundle):
-            raise ConfigError('Pure image/GIF briefs are read-only exports; edit generation-plan.image_jobs')
-        if value.get('schema_version') != 1 or value.get('source_hash') != content_hash(bundle['director']):
-            raise ConfigError('Script source changed; export the current version before importing edits')
-        if set(value) - {'schema_version', 'source', 'source_hash', 'title', 'logline', 'scenes', 'characters', 'shots'}:
-            raise ConfigError('Unknown script exchange fields')
-        if value.get('title') != bundle['project']['title'] or value.get('logline') != bundle['story'].get('logline', ''):
-            raise ConfigError('Edit title/logline in project/story; this import only edits the director layer')
-        changed = copy.deepcopy(bundle)
-        changed['director'] = {'assets': value.get('characters'), 'scenes': value.get('scenes'), 'shots': value.get('shots')}
-        check = validate_plan(changed, root)
-        if not check['ok']:
-            raise ConfigError('; '.join(check['errors']))
-        report = impact(root, candidate=changed)
-        backup = root / 'production' / 'backups' / (content_hash(bundle['director']) + '.director.json')
-        atomic_json(backup, bundle['director'])
-        target = within(root, bundle['project'].get('files', {}).get('director', 'director.json'))
-        atomic_json(target, changed['director'])
-    return {'ok': True, 'backup': str(backup), 'impact': report, 'paid_creates': 0}
+    from . import authoring, image_production
+    bundle=load_project(root)
+    if image_production.is_image(bundle):
+        raise ConfigError('Pure image/GIF briefs are read-only exports; edit generation-plan.image_jobs')
+    snapshot=authoring.describe(root,'director')
+    if snapshot['source_token']!=content_hash(bundle):
+        raise ConfigError('Script source changed; export the current version before importing edits')
+    if not isinstance(value,dict):raise ConfigError('Script exchange must be an object')
+    if value.get('schema_version')!=1 or value.get('source_hash')!=content_hash(bundle['director']):
+        raise ConfigError('Script source changed; export the current version before importing edits')
+    if set(value)-{'schema_version','source','source_hash','title','logline','scenes','characters','shots'}:
+        raise ConfigError('Unknown script exchange fields')
+    if value.get('title')!=bundle['project']['title'] or value.get('logline')!=bundle['story'].get('logline',''):
+        raise ConfigError('Edit title/logline in project/story; this import only edits the director layer')
+    director={'assets':value.get('characters'),'scenes':value.get('scenes'),'shots':value.get('shots')}
+    report=authoring.preview(root,'director',director,source_token=snapshot['source_token'])
+    if not report['plan_validation']['ok']:
+        raise ConfigError('; '.join(report['plan_validation']['errors']))
+    saved=authoring.save(root,'director',director,source_token=snapshot['source_token'],preview_token=report['preview_token'])
+    return {'ok':True,'backup':saved['backup'],'impact':saved['impact'],'changed':saved['changed'],'paid_creates':0}
 
 
 def impact(root, candidate=None):
@@ -114,7 +124,7 @@ def impact(root, candidate=None):
             continue
         try:
             same = current_inputs(root, bundle, job, prior) == prior.get('input_hash')
-        except (ConfigError, OSError, ValueError):
+        except (ConfigError, OSError, ValueError, KeyError):
             same = False
         (unchanged if same else changed).append(job['id'])
     dependents = set()

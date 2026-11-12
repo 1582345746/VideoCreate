@@ -159,7 +159,7 @@ class BeatList:
 
 def open_editor(manager,root,layer,completed=None):
     root=Path(root).resolve();snapshot=authoring.describe(root,layer);value=snapshot['value']
-    win,book,basic=manager.dialog('主题与规格' if layer=='brief' else '故事大纲')
+    win,book,basic=manager.dialog({'brief':'主题与规格','story':'故事大纲','director':'剧本与分镜'}[layer])
     win.geometry('1100x820')
     ttk.Label(basic,text=snapshot['title'],font=('Microsoft YaHei UI',15,'bold')).pack(anchor='w')
     ttk.Label(basic,text=str(root),wraplength=900).pack(anchor='w',pady=8)
@@ -169,12 +169,17 @@ def open_editor(manager,root,layer,completed=None):
         form=Fields(book,'主题与规格',value,BRIEF_FIELDS,
             '生成规格不会自动改写时间线尺寸。主题、受众和理解目标用于策划；实际请求由分镜与已消费参数决定。')
         def read():return form_value(form,value)
-    else:
+    elif layer=='story':
         remaining=copy.deepcopy(value);initial=remaining.pop('initial_state',{});beats=remaining.pop('beats',[])
         form=Fields(book,'故事整体',remaining,STORY_FIELDS,'大纲只写回 story；分镜、剧本和已提交任务保持各自记录。')
         page=ttk.Frame(book,padding=12);book.add(page,text='开场状态');states=StateMap(page,initial)
         page=ttk.Frame(book);book.add(page,text='因果事件');events=BeatList(manager,page,beats)
         def read():return {**form_value(form,remaining),'initial_state':states.read(),'beats':events.read()}
+    else:
+        from .manager_screenplay import DirectorEditor
+        from .planning.project import load_project
+        form=DirectorEditor(manager,book,value,load_project(root)['story'])
+        def read():return form.read()
     report=manager.json_tab(book,'修改预览',{'提示':'填写后点击“预览修改影响”。'})
     report.configure(state='disabled')
     note=tk.StringVar(win,value='保存仅修改当前创作层；已提交任务、候选和账本不会被替换。')
@@ -246,6 +251,7 @@ def open_editor(manager,root,layer,completed=None):
     # Public widget references support real form interaction without a second UI model.
     win.authoring_read=weakref.proxy(read);win.authoring_form=weakref.proxy(form)
     if layer=='story':win.authoring_events=weakref.proxy(events);win.authoring_states=weakref.proxy(states)
+    if layer=='director':win.authoring_director=weakref.proxy(form)
     return win
 
 

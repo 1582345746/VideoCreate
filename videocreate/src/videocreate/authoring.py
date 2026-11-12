@@ -12,7 +12,7 @@ from .planning.project import content_hash, load_project, save_bundle, validate_
 from .planning.schema import schema_errors
 from .runtime.state import read_state, state_lock
 
-LAYERS = ('brief', 'story')
+LAYERS = ('brief', 'story', 'director')
 
 
 def create(root, *, profile, title, topic='', audience='', viewer_goal='', seconds=None, aspect_ratio='16:9'):
@@ -41,11 +41,11 @@ def create(root, *, profile, title, topic='', audience='', viewer_goal='', secon
 
 def describe(root, layer):
     if layer not in LAYERS:
-        raise ConfigError('Authoring edits support brief or story only')
+        raise ConfigError('Authoring edits support brief, story or director only')
     root = Path(root).resolve()
     bundle = load_project(root)
-    if layer=='story' and 'animation' in bundle:
-        raise ConfigError('Animation story is projected from its animation sidecar; edit that authoring source instead')
+    if layer in {'story','director'} and 'animation' in bundle:
+        raise ConfigError('Animation story/director is projected from its animation sidecar; edit that authoring source instead')
     return {'ok':True,'layer':layer,'title':bundle['project']['title'],
         'source_token':content_hash(bundle),'value':copy.deepcopy(bundle[layer]),'paid_creates':0}
 
