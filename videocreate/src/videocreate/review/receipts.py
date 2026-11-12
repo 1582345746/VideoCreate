@@ -21,6 +21,11 @@ def file_hash(path: Path) -> str:
 
 def contracts(root: Path, bundle: dict, *, output_name: str = "preview.mp4") -> dict:
     root = root.resolve()
+    if bundle['generation-plan'].get('local_sources'):
+        from ..planning.project import validate_plan
+        check = validate_plan(bundle, root)
+        if not check['ok']:
+            raise ConfigError('; '.join(check['errors']))
     if not isinstance(output_name, str) or Path(output_name).name != output_name or not output_name.endswith(".mp4"):
         raise ConfigError("Review output must be a plain MP4 filename")
     state, result = read_state(root), {}
@@ -57,6 +62,15 @@ def contracts(root: Path, bundle: dict, *, output_name: str = "preview.mp4") -> 
         duration = artifact.get("media", {}).get("duration", jobs[jid]["seconds"])
         windows = retained[jid]
         result[jid] = make(path, duration, selected, {"shots": selected, "references": jobs[jid].get("references", [])}, windows)
+    for source in bundle['generation-plan'].get('local_sources', []):
+        identity = source['id']
+        if identity not in retained:
+            continue
+        from ..local_sources import verify_source
+        path = verify_source(root, source)
+        selected_shots = [shots[sid] for sid in source['shot_ids']]
+        result[identity] = make(path, source['media']['duration'], selected_shots,
+            {'local_source':source,'shots':selected_shots}, retained[identity])
     final_path = root / "deliverables" / output_name
     if final_path.is_file():
         manifest = load_json(final_path.with_suffix(".manifest.json"))

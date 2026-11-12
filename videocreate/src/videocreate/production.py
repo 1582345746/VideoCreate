@@ -33,7 +33,22 @@ def script_export(root):
     atomic_json(target, value)
     lines = ['# ' + value['title'], '', value['logline'], '',
         '来源：director 层。此阅读稿为单向导出；结构化 script.json 可经版本检查导入。', '']
+    if bundle['brief'].get('workflow_profile') == 'edit-only':
+        from .timeline.model import mapping
+        mapped = mapping(bundle['timeline'])
+        clips = {c['id']:c for c in bundle['timeline']['clips']}
+        lines = ['# ' + value['title'] + ' · 剪辑清单', '',
+            '来源：timeline 与已登记本地素材；只读投射。实际内容与音轨仍须播放审查。', '']
+        for segment in mapped['segments']:
+            clip = clips[segment['clip_id']]
+            lines.extend(['## '+segment['id'], '',
+                f"来源：{clip['job_id']} · {clip.get('path', '')}",
+                f"原片区间：{segment['source_in']}–{segment['source_out']} 秒；速度：{segment.get('rate',1)}",
+                f"成片区间：{segment['timeline_start']}–{segment['timeline_end']} 秒",
+                '声音：'+segment.get('source_audio','mute'), '切点用途：'+segment['cut_reason'], ''])
     for shot in value['shots']:
+        if bundle['brief'].get('workflow_profile') == 'edit-only':
+            break
         lines.extend(['## ' + shot['id'] + ' · ' + shot['scene_id'], '',
             shot.get('information_goal', ''), '', '画面：' + shot.get('opening_frame', ''),
             '动作：' + '；'.join(a['description'] for a in shot['actions']),
@@ -109,6 +124,10 @@ def _authoring_inputs(bundle, root):
     for ref in refs:
         path = within(root, ref['path'], exists=False)
         observed.append({**ref, 'actual_hash': hashlib.sha256(path.read_bytes()).hexdigest() if path.is_file() else None})
+    for source in bundle['generation-plan'].get('local_sources', []):
+        from .local_sources import digest
+        path = within(root, source['path'], exists=False)
+        observed.append({**source, 'actual_hash': digest(path) if path.is_file() else None})
     return {'theme': {'brief': bundle['brief'], 'title': bundle['project']['title']},
         'outline': bundle['story'], 'script': script_projection(bundle),
         'characters': bundle['director']['assets'], 'storyboard': bundle['director']['shots'], 'references': observed}
@@ -124,12 +143,15 @@ def status(root, *, output_name='preview.mp4'):
         value = inputs[stage]
         decision = record['decisions'].get(stage, {})
         unused = stage in {'characters', 'references'} and not value
-        if stage == 'outline' and bundle['brief']['intent'] == 'single-shot' and not bundle['story']['beats']:
+        edit_only = bundle['brief'].get('workflow_profile') == 'edit-only'
+        if stage == 'outline' and (bundle['brief']['intent'] == 'single-shot' or edit_only) and not bundle['story']['beats']:
+            unused = True
+        if stage == 'script' and edit_only:
             unused = True
         matches = decision.get('input_hash') == content_hash(value)
         state_name = 'skipped' if unused else 'complete' if matches and decision.get('decision') == 'accept' else 'stale' if decision else 'ready'
         stages.append({'id': stage, 'name': NAMES[stage], 'status': state_name,
-            'input_hash': content_hash(value), 'reason': 'Not used by this plan' if unused else decision.get('reason', ''),
+            'input_hash': content_hash(value), 'reason': 'Edit-only plan uses an edit decision list; no generation screenplay' if unused and stage=='script' and edit_only else 'Not used by this plan' if unused else decision.get('reason', ''),
             'approval_scope': 'authoring-only; not media quality'})
     planned = {j['id']: j for j in bundle['generation-plan']['jobs']}
     task_rows = []
@@ -147,12 +169,26 @@ def status(root, *, output_name='preview.mp4'):
     complete = bool(active) and all(r['status'] == 'completed' for r in active)
     generation = 'skipped' if not planned else 'blocked' if ambiguous else 'stale' if affected['changed_job_inputs'] else 'complete' if complete else 'pending'
     stages.append({'id': 'generation', 'name': NAMES['generation'], 'status': generation, 'blocked_by': ambiguous})
+    local_rows = []
+    for source in bundle['generation-plan'].get('local_sources', []):
+        from .local_sources import verify_source
+        try:
+            verify_source(root, source)
+            source_status, source_error = 'available', ''
+        except (ConfigError,OSError,ValueError) as exc:
+            source_status, source_error = 'stale', str(exc)
+        local_rows.append({'source_id':source['id'],'kind':'imported-video','status':source_status,
+            'path':source['path'],'sha256':source['sha256'],'content_status':'unverified','error':source_error})
     try:
         from .review.receipts import summary
         review = summary(root, bundle, output_name=output_name)
         review_error = ''
     except (ConfigError, OSError, ValueError) as exc:
         review, review_error = {'status': 'review_pending', 'assets': {}}, str(exc)
+    for source in local_rows:
+        layers = review['assets'].get(source['source_id'], {})
+        source['content_status'] = 'rejected' if 'fail' in layers.values() else 'reviewed' \
+            if layers and all(v in {'pass','not_applicable'} for v in layers.values()) else 'unverified'
     final = 'final' in review['assets']
     stages.extend([
         {'id': 'editing', 'name': NAMES['editing'], 'status': 'stale' if review_error else 'complete' if final else 'pending', 'reason': review_error},
@@ -161,6 +197,8 @@ def status(root, *, output_name='preview.mp4'):
     next_step = next((s for s in stages if s['status'] not in {'complete', 'skipped'}), None)
     if ambiguous:
         next_step = {'id': 'reconcile', 'name': '核对原提交；不重复创建', 'jobs': ambiguous}
+    elif bundle['brief'].get('workflow_profile') == 'edit-only' and not bundle['generation-plan'].get('local_sources'):
+        next_step = {'id':'import-local-sources','name':'导入本地视频并选择保留区间','errors':check['errors']}
     elif not check['ok']:
         next_step = {'id': 'repair-plan', 'name': '修复计划结构', 'errors': check['errors']}
     elif record.get('policy') == 'auto-within-authorization':
@@ -169,7 +207,7 @@ def status(root, *, output_name='preview.mp4'):
     return {'ok': check['ok'], 'project': str(root), 'title': bundle['project']['title'],
         'branch': 'animation' if 'animation' in bundle else bundle['brief'].get('workflow_profile', bundle['brief']['intent']),
         'policy': record.get('policy', 'assisted'), 'stages': stages, 'next': next_step,
-        'jobs': task_rows, 'impact': affected, 'budget': budget_summary(state),
+        'jobs': task_rows, 'local_sources': local_rows, 'impact': affected, 'budget': budget_summary(state),
         'review': review, 'errors': check['errors'], 'warnings': check['warnings'], 'paid_creates': 0}
 
 
@@ -239,7 +277,7 @@ def delivery(root, *, output_name='preview.mp4'):
         'video': {'path': str(target), 'sha256': hashlib.sha256(target.read_bytes()).hexdigest()},
         'script': script, 'subtitles': str(target.with_suffix('.srt')) if target.with_suffix('.srt').exists() else None,
         'mapping': manifest.get('mapping'), 'source_hashes': manifest.get('source_hashes'),
-        'jobs': current['jobs'], 'budget': current['budget'], 'review': current['review'],
+        'jobs': current['jobs'], 'local_sources':current['local_sources'], 'budget': current['budget'], 'review': current['review'],
         'unverified': [s for s in current['stages'] if s['id'] in {'editing', 'review'} and s['status'] != 'complete'],
         'paid_creates': 0}
     path = root / 'deliverables' / (target.stem + '.delivery.json')

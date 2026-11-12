@@ -196,7 +196,8 @@
         "production next",
         "production script-export",
         "production script-import",
-        "production impact"
+        "production impact",
+        "production import-clip"
       ],
       "work_packages": [
         "F01",
@@ -210,9 +211,10 @@
         "F09"
       ],
       "status": "partial",
-      "limitations": "Progress derives from v3 files. General branches and guided forms require further work; checkpoints approve authoring only.",
+      "limitations": "Progress derives from v3 files. Explicit edit-only imports use hash-bound local footage without provider/config/job/ledger requirements; playback review remains mandatory. Pure image/GIF stages, mixed imported/generated plans and guided forms need further work.",
       "test_evidence": [
-        "test_production_progress.py"
+        "test_production_progress.py",
+        "test_edit_only_production.py"
       ],
       "online_acceptance": "Not claimed by source implementation; consult binding receipts and the dated acceptance report."
     },

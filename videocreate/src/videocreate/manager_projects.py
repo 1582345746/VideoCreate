@@ -1,5 +1,7 @@
-"""Read-only production and task panels for the local manager."""
+"""Production, imported-source and task panels for the local manager."""
 import json
+import queue as queue_module
+import threading
 import tkinter as tk
 from tkinter import ttk
 from pathlib import Path
@@ -9,6 +11,7 @@ from . import production
 from .config.storage import ConfigError
 
 STATUS = {'ready':'可继续', 'complete':'已完成', 'pending':'待执行', 'blocked':'有阻塞',
+    'available':'本地可用',
     'stale':'内容已变更', 'skipped':'本项目不适用', 'not-submitted':'未提交',
     'queued':'排队中', 'in_progress':'生成中', 'read_pending':'等待恢复读取',
     'submission_unknown':'提交结果未知', 'completed':'生成完成', 'failed':'失败'}
@@ -30,7 +33,7 @@ def open_panel(manager, root):
     ttk.Label(steps,textvariable=next_step,wraplength=920).pack(anchor='w',pady=12)
     tasks = ttk.Frame(book,padding=16);book.add(tasks,text='任务与路线')
     queue = ttk.Treeview(tasks,columns=('job','status','route','content'),show='headings',height=15)
-    for key,text,width in [('job','任务',160),('status','状态',140),('route','原始路线',390),('content','内容审核',150)]:
+    for key,text,width in [('job','任务 / 来源',160),('status','状态',140),('route','原始路线 / 本地路径',390),('content','内容审核',150)]:
         queue.heading(key,text=text);queue.column(key,width=width)
     queue.pack(fill='both',expand=True)
     budget = tk.StringVar();ttk.Label(tasks,textvariable=budget,wraplength=920).pack(anchor='w',pady=10)
@@ -50,6 +53,9 @@ def open_panel(manager, root):
             for item in result['jobs']:
                 queue.insert('','end',values=(item['job_id'],STATUS.get(item['status'],item['status']),
                     item.get('binding') or '尚未提交',item['content_status']))
+            for item in result.get('local_sources',[]):
+                queue.insert('','end',values=(item['source_id'],STATUS.get(item['status'],item['status']),
+                    '本地：'+item['path'],item['content_status']))
             next_step.set('下一步：'+(result['next'] or {}).get('name','查看交付清单'))
             b=result['budget']
             budget.set(f"已记录 {b['requests']} 次创建；报价未知 {b['unknown_price_requests']} 次；实际账单待核实 {b['actual_unverified_requests']} 次。")
@@ -57,14 +63,17 @@ def open_panel(manager, root):
             evidence.insert('1.0',json.dumps({'impact':result['impact'],'budget':b,'review':result['review']},ensure_ascii=False,indent=2))
             evidence.configure(state='disabled')
             from .production_metrics import report
-            measured = report(root)
             metrics.configure(state='normal');metrics.delete('1.0','end')
-            seconds = measured['seconds']
-            metrics.insert('1.0', f"已生成（可核实）：{seconds['generated_known']:.2f} 秒\n"
-                f"已保留（当前素材可用）：{seconds['retained_available_playback']:.2f} 秒\n"
-                f"源片审核通过的保留时长：{seconds['reviewed_usable_playback']} 秒\n"
-                "源片审核不代表成片已验收；以下保留样本范围、费用未知项与分币种明细。\n\n"
-                + json.dumps(measured, ensure_ascii=False, indent=2))
+            if result['ok']:
+                measured = report(root)
+                seconds = measured['seconds']
+                metrics.insert('1.0', f"已生成（可核实）：{seconds['generated_known']:.2f} 秒\n"
+                    f"已保留（当前素材可用）：{seconds['retained_available_playback']:.2f} 秒\n"
+                    f"源片审核通过的保留时长：{seconds['reviewed_usable_playback']} 秒\n"
+                    "源片审核不代表成片已验收；以下保留样本范围、费用未知项与分币种明细。\n\n"
+                    + json.dumps(measured, ensure_ascii=False, indent=2))
+            else:
+                metrics.insert('1.0','完成导入或修复计划后可查看有效时长统计。\n\n'+json.dumps(result['errors'],ensure_ascii=False,indent=2))
             metrics.configure(state='disabled')
             message.set('此面板直接读取项目文件；查看与导出不提交生成。')
         except (ConfigError,OSError,ValueError) as exc:
@@ -81,7 +90,61 @@ def open_panel(manager, root):
             webbrowser.open(Path(result['page']).as_uri())
             message.set('已打开本地审片页。完成观察后导出记录，用 review apply 导入校验。')
         except (ConfigError,OSError,ValueError) as exc:manager.error(exc)
+    def import_local():
+        from tkinter import filedialog
+        from .manager_forms import Fields
+        path=filedialog.askopenfilename(parent=win,title='选择已有本地视频',filetypes=[('视频','*.mp4 *.mov *.mkv *.webm')])
+        if not path:return
+        dialog,form_book,basic=manager.dialog('导入本地视频（仅剪辑项目）')
+        ttk.Label(basic,text=path,wraplength=700).pack(anchor='w',pady=12)
+        form=Fields(form_book,'保留区间',{'source_id':'source-001','start':0},
+            [('source_id','来源标识（唯一 ASCII）','text'),('start','开始秒','number'),
+             ('end','结束秒（留空至片尾）','number'),('description','实际画面用途','multiline')],
+             '保留原视频和音轨，只登记本地副本；不发送模型请求。源片和剪辑仍需实际审片。')
+        channel=queue_module.Queue()
+        busy=[False]
+        note=tk.StringVar()
+        ttk.Label(dialog,textvariable=note,wraplength=700).pack(pady=6)
+        def finish():
+            if not dialog.winfo_exists():return
+            try:
+                ok,result=channel.get_nowait()
+            except queue_module.Empty:
+                dialog.after(100,finish);return
+            busy[0]=False
+            submit.configure(state='normal')
+            if not ok:
+                note.set('导入失败；请检查原素材和保留区间。')
+                manager.error(result);return
+            if win.winfo_exists():
+                message.set('已登记本地来源：'+result['source']['id']+'；零模型创建，内容待审。')
+                refresh()
+            dialog.destroy()
+        def apply():
+            if busy[0]:return
+            try:
+                values=form.read()
+            except (ConfigError,ValueError) as exc:
+                manager.error(exc);return
+            busy[0]=True
+            submit.configure(state='disabled')
+            note.set('正在复制、校验哈希并完整解码；大文件可能需要较长时间。')
+            def worker():
+                try:
+                    from .local_sources import import_clip
+                    result=import_clip(root,Path(path),source_id=values.get('source_id',''),
+                        start=values.get('start',0),end=values.get('end'),description=values.get('description',''))
+                    channel.put((True,result))
+                except Exception as exc:channel.put((False,exc))
+            # Finish a started local transaction even if the application window closes.
+            threading.Thread(target=worker,daemon=False).start()
+            dialog.after(100,finish)
+        submit=ttk.Button(dialog,text='导入并加入时间线',command=apply)
+        submit.pack(pady=12)
+        dialog.protocol('WM_DELETE_WINDOW',lambda:note.set('正在导入，请等待完成。') if busy[0] else dialog.destroy())
     for text,fn in [('刷新状态',refresh),('导出剧本阅读稿',reading),('打开实际审片页',review)]:
         ttk.Button(actions,text=text,command=fn).pack(side='left',padx=6)
+    if production.load_project(root)['brief'].get('workflow_profile')=='edit-only':
+        ttk.Button(actions,text='导入本地视频',command=import_local).pack(side='left',padx=6)
     refresh()
     return win

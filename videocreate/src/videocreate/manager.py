@@ -678,12 +678,25 @@ def main():
             from .runtime.quotas import status as quota_status
             quota_reports = [quota_status(manager.path.parent, manager.value, uid)
                 for uid in manager.value['upstreams']]
+            import tempfile
+            from .planning.profiles import create
+            from .planning.project import save_bundle
+            from .manager_projects import open_panel as project_panel
+            from .local_sources import import_clip
+            with tempfile.TemporaryDirectory(prefix='videocreate-manager-smoke-') as temporary:
+                project = Path(temporary) / 'edit-only'
+                save_bundle(project, create('edit-only', title='Offline import panel smoke'))
+                panel = project_panel(manager, project)
+                panel.withdraw()
+                root.update_idletasks()
+                panel.destroy()
             root.update_idletasks()
             atomic_json(args.smoke_report, {'ok': True, 'upstreams': len(manager.value['upstreams']),
                 'bindings': len(manager.models.get_children()), 'config_version': manager.value['schema_version'],
                 'comparison_count': comparison_count, 'conditional_tiers': len(price_value.get('pricing',{}).get('tiers',[])),
                 'comparison_and_pricing_forms_created': True,
                 'quota_module_loaded': True, 'quota_upstreams': len(quota_reports),
+                'edit_only_panel_created': True, 'local_source_module_loaded': callable(import_clip),
                 'network_requests': 0, 'saved': False, 'visual_review': 'not-performed'})
         finally:
             root.destroy()

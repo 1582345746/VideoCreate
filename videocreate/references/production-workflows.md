@@ -2,6 +2,27 @@
 
 Choose the profile by the viewer's task. Profiles create editable starting plans, not finished scripts or guaranteed model behavior.
 
+## Existing local video editing
+
+Use the explicit `edit-only` profile for MP4/MOV/MKV/WebM footage already on disk. It starts as an empty draft: `production next` asks for an import. Do not add placeholder generation jobs or select an upstream. Retained source windows determine duration; omit `--seconds` during initialization.
+
+```powershell
+python scripts/videocreate.py plan init projects/local-edit --profile edit-only --title "Local edit"
+python scripts/videocreate.py production import-clip projects/local-edit --source "D:/media/source.mp4" --source-id take-001 --start 2 --end 8
+python scripts/videocreate.py plan validate projects/local-edit
+python scripts/videocreate.py plan compile projects/local-edit
+python scripts/videocreate.py timeline render projects/local-edit
+python scripts/videocreate.py production script-export projects/local-edit
+python scripts/videocreate.py review page projects/local-edit
+python scripts/videocreate.py production deliver projects/local-edit
+```
+
+Import requires local FFmpeg/FFprobe and full decoding; no tool is downloaded. Original bytes remain intact. The registered project copy is content-addressed under `assets/local-sources`; each source ID gets its own shot/clip/segment. Identical bytes can share storage while retaining different windows. IDs must be unique (1–48 ASCII letters/digits/dots/underscores/hyphens); `final` is reserved for final review. `--mute` discards source sound in the edit; otherwise available audio is retained at speed 1. The manager's project panel provides the same import form and performs file checks in a background thread.
+
+The three changed plan layers are backed up under `production/backups`. An ordinary write error attempts to restore their exact original bytes; a rollback error identifies the backup. This is not a claim of atomic recovery from power loss across multiple files. Changing a registered copy's bytes, duration or metadata blocks render/review; restore the original or import a new source ID. Edit retained windows in `timeline.json` instead of reimporting the same ID. Later trimming, audio, subtitles and overlays use the existing timeline pipeline.
+
+Status lists imported sources separately from remote tasks, skips unused outline/script/generation stages, and keeps actual review pending. `production script-export` renders the current source-to-timeline mapping as a read-only edit list; its structured JSON still projects only the director layer. Deliveries include local provenance separately from provider jobs. Metrics include retained footage in playback/source seconds and exclude it from generated attempts and model quality rates. Real playback/listening is still required; a successful import or local render approves no content. This branch currently accepts local videos only; mixed local/generated plans and pure-image/GIF production stages remain separate development work.
+
 ## Photorealistic shorts
 
 Use `portrait` for one quiet human performance, `action-insert` for a controlled single-action demonstration, and `scenic` for a landscape or vehicle movement. For brisk exchanges use `action-montage`; for a pet/action reversal use `animal-comedy`. These profiles target 10–20 seconds with jobs of at most 10 seconds. `muse-video` has a hard 10-second maximum per request, so longer edits use multiple jobs and are assembled locally. The demonstration profile holds preparation, contact and recovery for inspection; it is not a fast fight preset. The new coverage profiles create seven editable source takes with shorter retained windows. Read [fast-action-and-animal-comedy.md](fast-action-and-animal-comedy.md) before adapting them. Keep one primary subject action per take and build a new opening image only when identity, pose or composition needs stronger control.

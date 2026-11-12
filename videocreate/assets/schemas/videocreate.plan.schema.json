@@ -108,7 +108,8 @@
             "scenic",
             "explainer",
             "series-episode",
-            "animation-story"
+            "animation-story",
+            "edit-only"
           ]
         },
         "audio_policy": {
@@ -768,6 +769,89 @@
               "shot_ids",
               "operation",
               "seconds"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "local_sources": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "video"
+                ]
+              },
+              "path": {
+                "type": "string"
+              },
+              "sha256": {
+                "type": "string"
+              },
+              "shot_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "uniqueItems": true,
+                "minItems": 1
+              },
+              "media": {
+                "type": "object",
+                "properties": {
+                  "duration": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  },
+                  "width": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "height": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "has_audio": {
+                    "type": "boolean"
+                  },
+                  "fps": {
+                    "type": "string"
+                  },
+                  "source_fps": {
+                    "type": "string"
+                  },
+                  "frame_count": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "codec": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "duration",
+                  "width",
+                  "height",
+                  "has_audio",
+                  "fps"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "id",
+              "kind",
+              "path",
+              "sha256",
+              "shot_ids",
+              "media"
             ],
             "additionalProperties": false
           }
@@ -1562,7 +1646,8 @@
                     "scenic",
                     "explainer",
                     "series-episode",
-                    "animation-story"
+                    "animation-story",
+                    "edit-only"
                   ]
                 },
                 "audio_policy": {

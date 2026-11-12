@@ -88,7 +88,8 @@ def plan_command(argv: list[str]) -> int:
                 bundle["timeline"][key] = []
         save_bundle(root, bundle)
         print_result({"ok": True, "project": str(root / "project.json"), "status": "draft_plan",
-            "next": "Author brief/story/director/generation-plan/timeline, then plan validate and plan preview", "paid_creates": 0})
+            "next": "Use production import-clip to register existing footage, then plan validate and timeline render"
+                if args.profile=='edit-only' else "Author brief/story/director/generation-plan/timeline, then plan validate and plan preview", "paid_creates": 0})
         return 0
     bundle = load_project(root)
     if args.action == "audit":
@@ -99,6 +100,11 @@ def plan_command(argv: list[str]) -> int:
         print_result(result)
         return 0
     if args.action == "route":
+        if bundle['brief'].get('workflow_profile') == 'edit-only':
+            check=validate_plan(bundle,root)
+            print_result({**check,'jobs':[],'local_sources':bundle['generation-plan'].get('local_sources',[]),
+                'route':'local-editing','provider_configuration_required':False})
+            return int(not check['ok'])
         from .routing import recommend
         path = user_config_path(args.config)
         print_result(recommend(bundle, read_config(path), store_root=path.parent, root=root))
@@ -113,6 +119,10 @@ def plan_command(argv: list[str]) -> int:
     if args.action == "preview":
         from .planning.preview import preview
         print_result(preview(root, bundle, video=args.video))
+        return 0
+    if bundle['brief'].get('workflow_profile') == 'edit-only':
+        print_result({'ok':True,'jobs':[],'local_sources':bundle['generation-plan'].get('local_sources',[]),
+            'verification':'local-editing-no-generation','paid_creates':0})
         return 0
     path = user_config_path(args.config)
     config = read_config(path)

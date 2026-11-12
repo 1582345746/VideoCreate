@@ -79,6 +79,11 @@ def auxiliary_hashes(root: Path, timeline: dict) -> dict:
 def render(root: Path, bundle: dict, state: dict, *, output_name: str = "preview.mp4", scope: str = "project-timeline") -> dict:
     if scope not in {"project-timeline", "animation-pilot"}:
         raise ConfigError("Unknown edit scope")
+    if bundle.get('generation-plan', {}).get('local_sources'):
+        from ..planning.project import validate_plan
+        check = validate_plan(bundle, root)
+        if not check['ok']:
+            raise ConfigError('; '.join(check['errors']))
     if "animation" in bundle:
         from ..animation.voices import validate_tracks
         validate_tracks(root, bundle)

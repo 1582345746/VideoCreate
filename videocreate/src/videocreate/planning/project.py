@@ -94,9 +94,20 @@ def validate_plan(bundle: dict[str, Any], root: Path | None = None) -> dict[str,
     beats = _index(story.get("beats", []), "story.beats", errors)
     shots = _index(director.get("shots", []), "director.shots", errors)
     jobs = _index(generation.get("jobs", []), "generation-plan.jobs", errors)
+    local_sources = _index(generation.get('local_sources', []), 'generation-plan.local_sources', errors)
+    edit_only = brief.get('workflow_profile') == 'edit-only'
     clips = _index(timeline.get("clips", []), "timeline.clips", errors)
-    if not shots or not jobs:
+    if edit_only:
+        if jobs:
+            errors.append('Edit-only plans must not contain generation jobs')
+        if not shots or not local_sources:
+            errors.append('Edit-only plan needs registered local sources; use production import-clip')
+    elif not shots or not jobs:
         errors.append("At least one shot and one generation job are required")
+    if local_sources and not edit_only:
+        errors.append('Local sources currently require the explicit edit-only workflow')
+    if set(local_sources) & set(jobs):
+        errors.append('Local source IDs must not shadow generation job IDs')
     if intent == "narrative":
         for key in ("logline", "goal", "obstacle", "choice", "consequence"):
             if not isinstance(story.get(key), str) or not story[key].strip():
@@ -175,7 +186,7 @@ def validate_plan(bundle: dict[str, Any], root: Path | None = None) -> dict[str,
         seconds = shot.get("planned_seconds")
         if not _positive(seconds):
             errors.append(sid + ": invalid planned_seconds")
-        elif len(actions) > pace["max_actions"] or len(actions) * pace["seconds_per_action"] > seconds:
+        elif not edit_only and (len(actions) > pace["max_actions"] or len(actions) * pace["seconds_per_action"] > seconds):
             errors.append(sid + ": action load exceeds declared pace; split action/arrival/reaction coverage")
         timing = shot.get("timing")
         if timing and _positive(seconds):
@@ -249,8 +260,20 @@ def validate_plan(bundle: dict[str, Any], root: Path | None = None) -> dict[str,
         for dep in job.get("depends_on", []):
             if dep not in jobs or dep == jid:
                 errors.append(jid + ": invalid dependency")
+    for identity, source in local_sources.items():
+        if identity == 'final':
+            errors.append('Local source ID final is reserved for the final edit review')
+        assigned.update(source['shot_ids'])
+        if any(sid not in shots for sid in source['shot_ids']):
+            errors.append(identity + ': local source needs known shot IDs')
+        if root:
+            try:
+                from ..local_sources import verify_source
+                verify_source(root, source)
+            except (ConfigError, OSError, ValueError) as error:
+                errors.append(identity + ': ' + str(error))
     if set(shots) - assigned:
-        errors.append("Some planned shots have no generation job")
+        errors.append("Some planned shots have no source" if edit_only else "Some planned shots have no generation job")
     visiting, visited = set(), set()
     def visit(jid):
         if jid in visiting:
@@ -266,8 +289,17 @@ def validate_plan(bundle: dict[str, Any], root: Path | None = None) -> dict[str,
     for jid in jobs:
         visit(jid)
     for cid, clip in clips.items():
-        if clip.get("job_id") not in jobs:
+        identity = clip.get('job_id')
+        if identity not in jobs and identity not in local_sources:
             errors.append(cid + ": unknown source job")
+        if identity in local_sources:
+            source = local_sources[identity]
+            if clip.get('path') != source['path']:
+                errors.append(cid + ': imported clip must use its registered local source path')
+            for segment in timeline['segments']:
+                if segment['clip_id'] == cid and (segment['shot_id'] not in source['shot_ids'] or
+                        segment['source_out'] > source['media']['duration'] + .001):
+                    errors.append(segment['id'] + ': imported source shot/window does not match its registered media')
     from ..timeline.model import validate_timeline
     errors.extend(validate_timeline(timeline))
     target = brief.get("target_seconds")
@@ -296,13 +328,17 @@ def validate_plan(bundle: dict[str, Any], root: Path | None = None) -> dict[str,
                     errors.extend(validate_profile(path))
             except ConfigError as error:
                 errors.append(str(error))
-    clip_to_job = {cid: jobs.get(c.get("job_id"), {}) for cid, c in clips.items()}
+    clip_to_source = {cid: jobs.get(c.get("job_id"), local_sources.get(c.get("job_id"), {}))
+                      for cid, c in clips.items()}
     for seg in timeline.get("segments", []):
         sid = seg.get("shot_id")
-        if sid not in shots or sid not in clip_to_job.get(seg.get("clip_id"), {}).get("shot_ids", []):
-            errors.append(seg["id"] + ": segment shot is not covered by its source job")
-        if seg.get("source_out", 0) > clip_to_job.get(seg.get("clip_id"), {}).get("seconds", 0):
-            errors.append(seg["id"] + ": source window exceeds planned generated seconds")
+        source = clip_to_source.get(seg.get("clip_id"), {})
+        imported = source.get('id') in local_sources
+        if sid not in shots or sid not in source.get("shot_ids", []):
+            errors.append(seg["id"] + ": segment shot is not covered by its source " + ('import' if imported else 'job'))
+        duration = source.get('media', {}).get('duration', 0) if imported else source.get('seconds', 0)
+        if seg.get("source_out", 0) > duration:
+            errors.append(seg["id"] + ": source window exceeds " + ('actual imported duration' if imported else 'planned generated seconds'))
         if sid in shots:
             for line in shots[sid].get("audio", {}).get("lines", []):
                 if not seg["source_in"] <= line["start"] < line["end"] <= seg["source_out"]:

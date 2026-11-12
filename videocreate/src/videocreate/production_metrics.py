@@ -74,6 +74,9 @@ def report(root, *, output_name='preview.mp4'):
 
     clips = {c['id']: c for c in bundle['timeline']['clips']}
     planned_jobs = {j['id'] for j in bundle['generation-plan']['jobs']}
+    imported = {s['id']:s for s in bundle['generation-plan'].get('local_sources', [])}
+    imported_playback = imported_reviewed = 0.0
+    imported_available, imported_reviewed_ids = set(), set()
     windows, usable_windows = defaultdict(list), defaultdict(list)
     planned_playback = available_playback = usable_playback = 0.0
     retained_jobs, available_jobs, reviewed_jobs, rejected_jobs = set(), set(), set(), set()
@@ -84,6 +87,27 @@ def report(root, *, output_name='preview.mp4'):
         planned_playback += seconds
         clip = clips[segment['clip_id']]
         jid = clip['job_id']
+        if jid in imported:
+            source = imported[jid]
+            try:
+                from .local_sources import verify_source
+                path = verify_source(root,source)
+                if within(root,clip['path']) != path or end > source['media']['duration'] + .001:
+                    raise ConfigError('Imported retained interval/path does not match its source')
+            except (ConfigError,OSError,KeyError,ValueError):
+                unavailable_segments.append(segment['id'])
+                continue
+            available_playback += seconds
+            imported_playback += seconds
+            imported_available.add(jid)
+            windows[source['sha256']].append((start,end))
+            layers = review['assets'].get(jid,{})
+            if layers and all(v in {'pass','not_applicable'} for v in layers.values()):
+                usable_playback += seconds
+                imported_reviewed += seconds
+                imported_reviewed_ids.add(jid)
+                usable_windows[source['sha256']].append((start,end))
+            continue
         retained_jobs.add(jid)
         try:
             candidate = selected(state['jobs'].get(jid, {}))
@@ -146,6 +170,11 @@ def report(root, *, output_name='preview.mp4'):
             'rejected_source_jobs': len(rejected_jobs) if review_available else None,
             'unverified_source_jobs': len(available_jobs - reviewed_jobs - rejected_jobs) if review_available else None,
             'valid_review_receipts': review['valid_receipts']},
+        'local_sources': {'registered':len(imported),'available_retained_sources':len(imported_available),
+            'reviewed_retained_sources':len(imported_reviewed_ids) if review_available else None,
+            'retained_available_playback':imported_playback,
+            'reviewed_usable_playback':imported_reviewed if review_available else None,
+            'note':'Imported footage is excluded from generated-attempt counts and model quality rates.'},
         'seconds': {'generated_known': sum(known_durations), 'completed_duration_unknown': missing_durations,
             'completed_artifact_missing_or_changed': invalid_artifacts, 'retained_planned_playback': planned_playback,
             'retained_available_playback': available_playback, 'retained_unique_source': sum(union_seconds(w) for w in windows.values()),

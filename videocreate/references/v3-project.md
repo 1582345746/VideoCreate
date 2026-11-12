@@ -7,7 +7,7 @@ project.json           产品名、schema、标题和文件索引
 brief.json             受众、意图、节奏、产品功能、规格
 story.json             beats、前置状态/结果、因果、观众信息与可见证据
 director.json          角色/道具/场景资源、空间地图、表演、镜头
-generation-plan.json   generation jobs、shot 关系、参考、依赖
+generation-plan.json   generation jobs、shot 关系、参考、依赖；仅剪辑分支另存 local_sources
 timeline.json          源 clip、保留区间、字幕、独立声音轨和变速
 assets/                原始注册参考与生成资产
 jobs/<job>/<attempt>/  实际 request、attempt 和下载的原始片段
@@ -17,6 +17,8 @@ state.json             恢复与预算账本
 ```
 
 IDs 互不替代：beat 是状态事件，shot 是镜头覆盖，job 是 API create，clip 是返回素材，segment 是时间线采用区间。一个 job 可以涵盖多个 shots，但模型切点必须回看并拆成独立 clip 证据。
+
+仅剪辑使用 `plan init PROJECT --profile edit-only`，通过 `production import-clip` 登记本地视频。`generation-plan.jobs` 保持空数组，`local_sources` 单独保存来源 ID、路径、哈希、实际媒体信息及对应 shot。沿用时间线的 `clip.job_id` 作为来源查找键时，其值在此分支指向 `local_sources.id`，不代表存在远端任务；`state.json` 不会因此新增任务或账本。详见 [production-workflows.md](production-workflows.md) 的 Existing local video editing。
 
 ## 命令顺序
 

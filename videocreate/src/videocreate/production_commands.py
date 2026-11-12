@@ -10,7 +10,7 @@ def production_command(argv):
     from .config.storage import user_config_path
     parser = argparse.ArgumentParser(prog='videocreate production')
     parser.add_argument('action', choices=['status', 'next', 'impact', 'script-export', 'script-import',
-        'checkpoint', 'policy', 'track', 'projects', 'deliver', 'metrics'])
+        'checkpoint', 'policy', 'track', 'projects', 'deliver', 'metrics', 'import-clip'])
     parser.add_argument('project', type=Path, nargs='?')
     parser.add_argument('--file', type=Path)
     parser.add_argument('--stage', choices=production.AUTHORING)
@@ -19,10 +19,22 @@ def production_command(argv):
     parser.add_argument('--mode', choices=['assisted', 'auto-within-authorization'])
     parser.add_argument('--config', type=Path)
     parser.add_argument('--output-name', default='preview.mp4')
+    parser.add_argument('--source', type=Path)
+    parser.add_argument('--source-id')
+    parser.add_argument('--start', type=float, default=0)
+    parser.add_argument('--end', type=float)
+    parser.add_argument('--description', default='')
+    parser.add_argument('--mute', action='store_true')
     args = parser.parse_args(argv)
     if args.action != 'projects' and not args.project:
         raise ConfigError('This action requires a project directory')
-    if args.action in {'status', 'next'}:
+    if args.action == 'import-clip':
+        if not args.source or not args.source_id:
+            raise ConfigError('Import requires --source and --source-id')
+        from .local_sources import import_clip
+        result = import_clip(args.project,args.source,source_id=args.source_id,start=args.start,end=args.end,
+                             description=args.description,preserve_audio=not args.mute)
+    elif args.action in {'status', 'next'}:
         result = production.status(args.project, output_name=args.output_name)
         if args.action == 'next':
             result = {k: result[k] for k in ('ok', 'project', 'next', 'policy', 'paid_creates')}

@@ -5,6 +5,8 @@ from .project import LAYERS
 from ..config.storage import ConfigError
 
 PROFILES = {
+    "edit-only": {"title": "已有视频剪辑", "seconds": 0, "intent": "montage", "pace": "slow-cinema",
+                  "audio": "ambience", "focus": "导入真实本地素材，选择保留区间并审核剪辑"},
     "portrait": {"title": "写实人物", "seconds": 15, "intent": "single-shot", "pace": "slow-cinema",
                  "audio": "silent", "focus": "眼神、重心、呼吸与克制的反应"},
     "action-insert": {"title": "动作插镜", "seconds": 10, "intent": "demonstration", "pace": "action",
@@ -26,6 +28,18 @@ def create(profile: str, *, title: str = "", seconds: float | None = None, topic
            aspect_ratio: str = "16:9") -> dict:
     if profile not in PROFILES:
         raise ConfigError("Unknown production profile")
+    if profile == 'edit-only':
+        if seconds is not None:
+            raise ConfigError('Edit-only duration comes from retained source windows; omit --seconds')
+        return {'project':{'schema_version':3,'product':'VideoCreate','title':title or '已有视频剪辑'},
+            'brief':{'intent':'montage','pace_profile':'slow-cinema','workflow_profile':'edit-only',
+                'aspect_ratio':aspect_ratio,'resolution':'720p','audience':topic,
+                'visual_style':'Retain existing source imagery; edit locally without model generation'},
+            'story':{'initial_state':{},'beats':[]}, 'director':{'assets':[],'scenes':[],'shots':[]},
+            'generation-plan':{'jobs':[],'local_sources':[]},
+            'timeline':{'fps':'24','width':1280 if aspect_ratio=='16:9' else 720,
+                'height':720 if aspect_ratio=='16:9' else 1280,'clips':[],'segments':[],
+                'audio_tracks':[],'subtitles':[]}}
     p = PROFILES[profile]
     seconds = p["seconds"] if seconds is None else seconds
     if isinstance(seconds, bool) or not isinstance(seconds, (int, float)) or not 5 <= seconds <= 120:
