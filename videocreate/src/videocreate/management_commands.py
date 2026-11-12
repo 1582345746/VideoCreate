@@ -9,9 +9,10 @@ def providers_command(argv):
     from .cli import print_result
     from .config import management as m
     parser = argparse.ArgumentParser(prog='videocreate providers')
-    parser.add_argument('action', choices=['list', 'compare', 'show', 'migrate', 'save', 'archive', 'restore', 'credential', 'discover', 'pricing', 'import-models'])
+    parser.add_argument('action', choices=['list', 'compare', 'quotas', 'show', 'migrate', 'save', 'archive', 'restore', 'credential', 'discover', 'pricing', 'import-models'])
     parser.add_argument('--config', type=Path)
     parser.add_argument('--upstream')
+    parser.add_argument('--project', type=Path, help='Register an existing v3 project for local quota accounting')
     parser.add_argument('--kind', choices=['video', 'image'])
     parser.add_argument('--file', type=Path)
     parser.add_argument('--token')
@@ -30,7 +31,16 @@ def providers_command(argv):
     args = parser.parse_args(argv)
     path = user_config_path(args.config)
     record = m.load(path)
-    if args.action == 'compare':
+    if args.action == 'quotas':
+        if not args.upstream:
+            raise ConfigError('Quota status requires --upstream')
+        from .runtime import quotas
+        if args.project:
+            from .planning.project import load_project
+            load_project(args.project)
+            quotas.watch(path.parent, args.project)
+        result = quotas.status(path.parent, record['config'], args.upstream)
+    elif args.action == 'compare':
         from .catalog.presentation import compare
         result = compare(record['config'], args.binding or [], store_root=path.parent,
             scenario={'operation':args.operation,'seconds':args.seconds,'resolution':args.resolution,'aspect_ratio':args.aspect_ratio})

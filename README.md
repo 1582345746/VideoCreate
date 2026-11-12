@@ -2,7 +2,7 @@
 
 [![VideoCreate CI](https://github.com/1582345746/VideoCreate/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/1582345746/VideoCreate/actions/workflows/ci.yml)
 
-面向 Codex 的可恢复、多模型、多上游 AI 视频制作技能。产品名、技能入口和 Python 包统一为 **VideoCreate**。当前开发版为 `3.0.0.dev19`；这不是生产质量认证。
+面向 Codex 的可恢复、多模型、多上游 AI 视频制作技能。产品名、技能入口和 Python 包统一为 **VideoCreate**。当前开发版为 `3.0.0.dev20`；这不是生产质量认证。
 
 本轮增加单 JSON 上游管理、Windows 原生管理器、编号选型、配置 v4 迁移、制作步骤和剧本阅读稿。`providers`、`selection`、`production`、`modules` 共用现有任务与审核底座；`review page` 导出可播放的本地审片页。启动管理器可用 `python videocreate/scripts/videocreate_manager.py`，便携 EXE 的构建入口是 `tools/build_manager.py`。管理器不需要单独的模型数据库。
 

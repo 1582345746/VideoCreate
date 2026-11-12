@@ -60,6 +60,7 @@ class Manager:
         left = ttk.Frame(main, padding=(0, 0, 15, 0))
         main.add(left, weight=1)
         ttk.Label(left, text='服务与账户').pack(anchor='w', pady=(0, 8))
+        ttk.Button(left, text='查看共享账户配额', command=self.quota_panel).pack(fill='x', pady=(0, 8))
         self.providers = ttk.Treeview(left, show='tree', selectmode='browse', height=15)
         self.providers.pack(fill='both', expand=True)
         self.providers.bind('<<TreeviewSelect>>', self.select_upstream)
@@ -289,7 +290,13 @@ class Manager:
         from .manager_forms import Fields
         notes = Fields(book, '备注', {'notes': original.get('notes', ''), 'capacity_group': original.get('capacity_group', '')},
             [('notes','说明与备注','multiline'), ('capacity_group','共享并发容量组（可空）','text')],
-            '同一账户的多个入口可填写相同容量组；共用最严格的同时提交数。')
+            '同一账户标识或相同容量组的入口共用最严格限制；包含已归档入口。')
+        quotas = Fields(book, '配额', original.get('quotas', {}),
+            [('max_remote_inflight','远端在途任务上限','integer'),
+             ('create_rpm','每分钟创建准入数','integer'), ('poll_rpm','每分钟查询请求数','integer'),
+             ('download_rpm','每分钟下载请求数','integer')],
+            '留空表示未配置。只统计同一配置目录中登记的 v3 项目；其他机器和外部客户端不计入。'
+            '未知提交持续占用在途名额；本地停止等待不会释放。创建准入数可能包含后续被本地预算拒绝的请求，不能当作账单。')
         ttk.Label(basic, text='先建立上游，再用“管理凭据”录入密钥。更换地址或账户请新增上游。',
                   style='Muted.TLabel', wraplength=600).grid(row=9, column=0, columnspan=2, sticky='w', pady=12)
         def apply():
@@ -301,6 +308,11 @@ class Manager:
                         **notes.read()}
                 for k in ('max_concurrent_submissions', 'request_timeout_seconds'):
                     item[k] = int(item[k])
+                limits = quotas.read()
+                if limits:
+                    item['quotas'] = limits
+                else:
+                    item.pop('quotas', None)
                 if mode.get() != 'existing':
                     item['auth'] = {'type': 'bearer', mode.get(): ref.get().strip()}
                 elif 'auth' not in item:
@@ -531,6 +543,31 @@ class Manager:
         except (ConfigError, OSError, ValueError) as exc:
             self.error(exc)
 
+    def quota_panel(self):
+        if not self.current_upstream:
+            self.error(ConfigError('请先选择一个上游'))
+            return
+        try:
+            from .runtime.quotas import status
+            # Runtime limits follow saved configuration, never unsaved form edits.
+            value = service.load(self.path)['config']
+            report = status(self.path.parent, value, self.current_upstream)
+            win, book, page = self.dialog('共享账户配额（本机已登记项目）')
+            book.tab(0, text='配额状态')
+            text = tk.Text(page, wrap='word', font=('Microsoft YaHei UI',10))
+            text.pack(fill='both',expand=True)
+            limits = report['limits']
+            text.insert('1.0', '使用已保存配置。只统计本配置目录中的已登记 v3 项目。\n'
+                f"远端在途：{report['remote_inflight']} / {limits.get('max_remote_inflight','未配置')}\n"
+                '未知提交没有自动过期；缺失项目保留已观察到的占用。其他机器、外部客户端不在统计范围。\n'
+                '创建准入数可能包含被后续本地预算拦截的请求，不能据此计算实付。\n\n'
+                + json.dumps(report,ensure_ascii=False,indent=2))
+            text.configure(state='disabled')
+            win.quota_result = report
+            return win
+        except (ConfigError,OSError,ValueError) as exc:
+            self.error(exc)
+
     def library_panel(self):
         from .manager_library import open_panel
         try:
@@ -638,11 +675,15 @@ def main():
             original = manager.value['bindings'][identities[0]] if identities else {}
             price_form = Prices(book, {k: original[k] for k in ('pricing','listed_pricing') if k in original})
             price_value = price_form.read()
+            from .runtime.quotas import status as quota_status
+            quota_reports = [quota_status(manager.path.parent, manager.value, uid)
+                for uid in manager.value['upstreams']]
             root.update_idletasks()
             atomic_json(args.smoke_report, {'ok': True, 'upstreams': len(manager.value['upstreams']),
                 'bindings': len(manager.models.get_children()), 'config_version': manager.value['schema_version'],
                 'comparison_count': comparison_count, 'conditional_tiers': len(price_value.get('pricing',{}).get('tiers',[])),
                 'comparison_and_pricing_forms_created': True,
+                'quota_module_loaded': True, 'quota_upstreams': len(quota_reports),
                 'network_requests': 0, 'saved': False, 'visual_review': 'not-performed'})
         finally:
             root.destroy()

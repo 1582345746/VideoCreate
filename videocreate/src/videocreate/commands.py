@@ -393,7 +393,9 @@ def assets_command(argv: list[str]) -> int:
     elif args.action == "reprocess":
         if not args.job_id:
             raise ConfigError("Image reprocessing requires --job-id")
-        result = reprocess_image(root, args.job_id)
+        path = user_config_path(args.config)
+        result = reprocess_image(root, args.job_id,
+            config=read_config(path) if args.config or path.is_file() else None, store_root=path.parent)
         print_result(result)
         return int(not result.get("ok", False))
     elif args.action == "recover":

@@ -15,6 +15,8 @@ def extend(schema):
         p[group]['additionalProperties']['properties'].update(metadata)
     up = p['upstreams']['additionalProperties']['properties']
     up.update({'account_id': STR, 'credential_version': STR, 'capacity_group': STR})
+    up['quotas'] = obj({name: POS for name in
+        ('max_remote_inflight', 'create_rpm', 'poll_rpm', 'download_rpm')})
     binding = p['bindings']['additionalProperties']
     b = binding['properties']
     b['display_name'] = STR

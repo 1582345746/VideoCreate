@@ -39,7 +39,10 @@ def reconcile(root: Path, config: dict, receipt: dict, *, store_root: Path) -> d
             raise ConfigError("Accepted receipt needs an actual provider task ID")
         binding = pinned_binding(config, pinned, store_root)
         try:
-            status, _ = client(binding).query(task_id)
+            from .quotas import network_scope, watch
+            watch(store_root, root)
+            with network_scope(store_root, config, binding.upstream_id, 'poll'):
+                status, _ = client(binding).query(task_id)
         except Exception as error:
             raise ConfigError(safe_error(error, [binding.key])) from None
         if status in {"", "unknown"}:

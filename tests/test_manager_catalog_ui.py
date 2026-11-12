@@ -97,5 +97,39 @@ class ManagerCatalogUITests(unittest.TestCase):
         form.fields[0][1].insert('end','\n第三段')
         self.assertEqual(form.read()['notes'],'第一段\n第二段\n第三段')
 
+    def test_upstream_quota_form_applies_typed_values_without_saving(self):
+        manager=Manager(self.root,self.path)
+        before=self.path.read_bytes(); created={}
+        def fields(book,title,*args,**kwargs):
+            created[title]=Fields(book,title,*args,**kwargs)
+            return created[title]
+        with mock.patch('videocreate.manager_forms.Fields',side_effect=fields), mock.patch.object(manager,'error') as error:
+            manager.edit_upstream('primary-sub2api')
+            form=created['配额']
+            for name,var,kind in form.fields:
+                if name=='create_rpm':var.set('2')
+                if name=='max_remote_inflight':var.set('3')
+            def widgets(root):
+                for child in root.winfo_children():
+                    yield child
+                    yield from widgets(child)
+            button=next(w for w in widgets(self.root) if isinstance(w,ttk.Button) and w.cget('text')=='应用到待保存配置')
+            button.invoke();error.assert_not_called()
+        self.assertEqual(manager.value['upstreams']['primary-sub2api']['quotas'],{'create_rpm':2,'max_remote_inflight':3})
+        self.assertTrue(manager.dirty)
+        self.assertEqual(self.path.read_bytes(),before)
+
+    def test_quota_panel_uses_saved_policy_without_network_or_config_writes(self):
+        self.config['upstreams']['primary-sub2api']['quotas']={'create_rpm':2}
+        atomic_json(self.path,self.config);before=self.path.read_bytes()
+        manager=Manager(self.root,self.path);manager.current_upstream='primary-sub2api'
+        manager.value['upstreams']['primary-sub2api']['quotas']['create_rpm']=99
+        with mock.patch('urllib.request.urlopen') as network:
+            window=manager.quota_panel();window.withdraw()
+            self.assertEqual(window.quota_result['limits']['create_rpm'],2)
+            self.assertEqual(window.quota_result['network_requests'],0)
+            network.assert_not_called();window.destroy()
+        self.assertEqual(self.path.read_bytes(),before)
+
 
 if __name__=='__main__':unittest.main()

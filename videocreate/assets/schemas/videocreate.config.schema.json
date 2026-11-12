@@ -187,6 +187,29 @@
           },
           "capacity_group": {
             "type": "string"
+          },
+          "quotas": {
+            "type": "object",
+            "properties": {
+              "max_remote_inflight": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "create_rpm": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "poll_rpm": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "download_rpm": {
+                "type": "integer",
+                "minimum": 1
+              }
+            },
+            "required": [],
+            "additionalProperties": false
           }
         },
         "required": [

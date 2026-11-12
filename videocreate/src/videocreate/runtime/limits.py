@@ -11,12 +11,10 @@ from .state import state_lock
 
 def capacity(config, upstream_id):
     """Aliases of a shared account use the same gate and most restrictive limit."""
-    upstream = config['upstreams'][upstream_id]
-    group = upstream.get('capacity_group')
-    if not group:
-        return upstream_id, upstream.get('max_concurrent_submissions', 1)
-    members = [u for u in config['upstreams'].values() if u.get('capacity_group') == group]
-    return 'capacity-group:' + group, min(u.get('max_concurrent_submissions', 1) for u in members)
+    from .quotas import members
+    identities = members(config, upstream_id)
+    identity = ('shared:' + '|'.join(identities)) if len(identities) > 1 else upstream_id
+    return identity, min(config['upstreams'][uid].get('max_concurrent_submissions', 1) for uid in identities)
 
 
 @contextlib.contextmanager

@@ -15,6 +15,7 @@ from ..planning.project import compile_job, content_hash, load_project, validate
 from .budget import estimate, reserve, summary
 from .state import read_state, save_state, state_lock
 from .limits import submission_slot
+from . import quotas
 
 
 def request_error(error, binding):
@@ -218,6 +219,7 @@ def _generate_serial(root: Path, config: dict, *, store_root: Path, job_ids: lis
         execution_guard(root, bundle, requested)
     if retry and (retry not in {"network", "content", "replan"} or not reason.strip() or not job_ids):
         raise ConfigError("Retry needs explicit jobs, kind network/content/replan and a reason")
+    quotas.watch(store_root, root)
     ordered, seen = [], set()
     def add(jid):
         if jid in seen:
@@ -291,16 +293,17 @@ def _generate_serial(root: Path, config: dict, *, store_root: Path, job_ids: lis
                     if attempts > config.get("execution", {}).get("max_create_attempts_per_task", 2):
                         raise ConfigError(jid + ": maximum create attempts reached")
                     attempt_id = uuid.uuid4().hex
-                    reserve(state, config.get("budget", {}), attempt_id=attempt_id, job_id=jid, kind="video",
-                        estimated=estimate(binding, job["seconds"], config.get("budget", {}).get("currency", "CNY"),
-                            parameters={'operation': job['operation'], 'resolution': kwargs['resolution'], 'aspect_ratio': kwargs['aspect_ratio']}))
                     current = {"status": "submitting", "attempt_id": attempt_id, "task_id": "", "input_hash": input_hash,
                         "binding_snapshot": binding.snapshot(), "prepared_request": prepared, "compilation": compilation,
                         "history": history, "retry_kind": retry or "initial", "retry_reason": reason,
                         "pid": os.getpid(), "host": socket.gethostname(), "created_at": int(time.time())}
                     current["selection"] = selection
-                    state["jobs"][jid] = current
-                    save_state(root, state)  # Durable intent before the only billable call.
+                    with quotas.admission(store_root, config, binding.upstream_id):
+                        reserve(state, config.get("budget", {}), attempt_id=attempt_id, job_id=jid, kind="video",
+                            estimated=estimate(binding, job["seconds"], config.get("budget", {}).get("currency", "CNY"),
+                                parameters={'operation': job['operation'], 'resolution': kwargs['resolution'], 'aspect_ratio': kwargs['aspect_ratio']}))
+                        state["jobs"][jid] = current
+                        save_state(root, state)  # Durable intent before the only billable call.
                     job_dir = root / "jobs" / jid / attempt_id
                     atomic_json(job_dir / "request.json", {"prepared": prepared, "compilation": compilation, "input_hash": input_hash})
                     should_create = True
@@ -377,7 +380,8 @@ def _generate_serial(root: Path, config: dict, *, store_root: Path, job_ids: lis
                 except (ConfigError, OSError, UnicodeError):
                     pass  # A damaged local receipt can fall back to the known task's read path.
             if payload is None:
-                payload = video_client.poll(task_id, timeout_seconds=poll_timeout, on_status=status_update)
+                with quotas.network_scope(store_root, config, binding.upstream_id, 'poll'):
+                    payload = video_client.poll(task_id, timeout_seconds=poll_timeout, on_status=status_update)
                 atomic_json(result_path, payload)
             with state_lock(root):
                 state = read_state(root)
@@ -386,7 +390,8 @@ def _generate_serial(root: Path, config: dict, *, store_root: Path, job_ids: lis
                 save_state(root, state)
             if progress:
                 progress({"job_id": jid, "phase": "download", "task_id": task_id})
-            video_client.download(task_id, payload, destination)
+            with quotas.network_scope(store_root, config, binding.upstream_id, 'download'):
+                video_client.download(task_id, payload, destination)
             from ..timeline.render import probe
             media = probe(destination)
             artifact = {"path": destination.relative_to(root).as_posix(), "sha256": hashlib.sha256(destination.read_bytes()).hexdigest(), "media": media}

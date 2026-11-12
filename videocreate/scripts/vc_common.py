@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import base64
 import ctypes
+import contextvars
 import json
 import os
 import re
@@ -32,6 +33,24 @@ DEFAULT_VIDEO_MODEL = "seedance-2.0-mini-720p"
 MAX_JSON_BYTES = 48 * 1024 * 1024
 MAX_MULTIPART_BYTES = 128 * 1024 * 1024
 MAX_MEDIA_BYTES = 512 * 1024 * 1024
+
+_REQUEST_POLICY = contextvars.ContextVar('videocreate_request_policy', default=None)
+
+
+@contextmanager
+def request_policy(callback):
+    """Optional v3 runtime guard, scoped to this worker and restored on exit."""
+    token = _REQUEST_POLICY.set(callback)
+    try:
+        yield
+    finally:
+        _REQUEST_POLICY.reset(token)
+
+
+def _admit_request(method, url):
+    guard = _REQUEST_POLICY.get()
+    if guard is not None:
+        guard(method, url)
 
 _PROJECT_LOCKS: dict[str, threading.RLock] = {}
 _PROJECT_LOCKS_GUARD = threading.Lock()
@@ -602,6 +621,7 @@ def request_bytes(
     timeout: int = 90,
     max_bytes: int = MAX_JSON_BYTES,
 ) -> tuple[bytes, dict[str, str]]:
+    _admit_request(method, url)
     request = urllib.request.Request(url, data=body, method=method)
     request.add_header("Accept", accept)
     request.add_header("User-Agent", USER_AGENT)
@@ -733,6 +753,7 @@ def download_file(url: str, destination: Path, *, key: str = "", timeout: int = 
     loopback = parsed.hostname in {"127.0.0.1", "localhost", "::1"}
     if parsed.scheme != "https" and not (parsed.scheme == "http" and loopback):
         raise SkillError("media URL must use HTTPS; HTTP is allowed only for loopback tests")
+    _admit_request('GET', url)
     request = urllib.request.Request(url, method="GET")
     request.add_header("Accept", "video/mp4,video/*,image/*,application/octet-stream")
     request.add_header("User-Agent", USER_AGENT)

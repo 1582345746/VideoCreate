@@ -167,7 +167,8 @@
         "jobs status",
         "jobs run",
         "jobs resolve",
-        "jobs settle"
+        "jobs settle",
+        "providers quotas"
       ],
       "work_packages": [
         "E01",
@@ -178,11 +179,12 @@
         "E06"
       ],
       "status": "partial",
-      "limitations": "Unknown submissions held; shared capacity groups added. Remote in-flight/RPM quotas, native cancel and idempotency remain incomplete.",
+      "limitations": "Host-local v3 remote-inflight and separate create-admission/poll/download RPM windows persist across restarts; shared account/group aliases use strictest limits. External clients, other machines, unregistered/legacy projects, native cancel and idempotency remain outside this implementation.",
       "test_evidence": [
         "test_v3_pipeline.py",
         "test_submission_unknown.py",
-        "test_provider_management.py"
+        "test_provider_management.py",
+        "test_runtime_quotas.py"
       ],
       "online_acceptance": "2026-11-12: RapidAPI Grok single 6-second T2V create/query/download/decode passed, requested/reported IDs match. Aivalux reports muse-video and content download is read_pending. Two total creates; actual billing unknown."
     },

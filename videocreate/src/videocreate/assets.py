@@ -17,6 +17,7 @@ from .planning.project import content_hash, load_project, within
 from .runtime.budget import estimate, reserve, summary
 from .runtime.state import read_state, save_state, state_lock
 from .runtime.limits import submission_slot
+from .runtime import quotas
 
 
 def register(root: Path, asset_id: str, source: Path) -> dict:
@@ -210,6 +211,7 @@ def generate_image(root: Path, config: dict, *, store_root: Path, job_id: str, p
     capacity_id, maximum = capacity(config, binding.upstream_id)
     attempt_error = None
     fallback_index = None
+    quotas.watch(store_root, root)
     with submission_slot(store_root, capacity_id, maximum, wait=wait_for_slot,
             timeout_seconds=config["upstreams"][binding.upstream_id].get("request_timeout_seconds", 120)):
         with state_lock(root):
@@ -231,17 +233,19 @@ def generate_image(root: Path, config: dict, *, store_root: Path, job_id: str, p
             history = prior.get("history", []) + [{k: v for k, v in prior.items() if k != "history"}] if prior else []
             if len(history) >= config.get("execution", {}).get("max_create_attempts_per_task", 2):
                 raise ConfigError("Maximum image create attempts reached")
-            reserve(state, config.get("budget", {}), attempt_id=attempt, job_id=job_id, kind="image",
-                estimated=estimate(binding, 0, config.get("budget", {}).get("currency", "CNY"),
-                    parameters={'operation': 'image-edit' if refs else 'text-to-image'}))
-            state["jobs"][job_id] = {"kind": "image", "attempt_id": attempt, "status": "submitting",
+            current = {"kind": "image", "attempt_id": attempt, "status": "submitting",
                 "input_hash": input_hash, "binding_snapshot": binding.snapshot(), "request": inputs,
                 "prepared_request": prepared, "pid": os.getpid(), "host": socket.gethostname(),
                 "created_at": int(time.time()), "history": history,
                 "retry_kind": retry or "initial", "retry_reason": reason,
                 "requested_model": selection.get("requested_model", model),
                 "selected_model": model, "selection": selection, "output_format": output_format}
-            save_state(root, state)
+            with quotas.admission(store_root, config, binding.upstream_id):
+                reserve(state, config.get("budget", {}), attempt_id=attempt, job_id=job_id, kind="image",
+                    estimated=estimate(binding, 0, config.get("budget", {}).get("currency", "CNY"),
+                        parameters={'operation': 'image-edit' if refs else 'text-to-image'}))
+                state["jobs"][job_id] = current
+                save_state(root, state)
         provider_response = None
         try:
             provider_response = image_client.create_payload(prompt, refs, size=size, quality=quality,
@@ -249,7 +253,8 @@ def generate_image(root: Path, config: dict, *, store_root: Path, job_id: str, p
             from .cli import legacy_engine
             legacy_engine()
             import media_client as wire
-            data = wire._extract_image(provider_response)
+            with quotas.network_scope(store_root, config, binding.upstream_id, 'download'):
+                data = wire._extract_image(provider_response)
             from media_client import save_image_bytes
             path = save_image_bytes(data, root / "assets" / "generated" / job_id / attempt)
             artifact = _image_artifact(root, path, data, output_format, binding.capabilities)
@@ -411,7 +416,7 @@ def recover_image(root: Path, job_id: str, source: Path, receipt: dict) -> dict:
     return {"ok": True, "artifact": artifact, "content": "unverified", "paid_creates": 0}
 
 
-def reprocess_image(root: Path, job_id: str) -> dict:
+def reprocess_image(root: Path, job_id: str, *, config=None, store_root=None) -> dict:
     """Decode the saved response again; never create another upstream image."""
     with state_lock(root):
         current = read_state(root)["jobs"].get(job_id, {})
@@ -423,7 +428,11 @@ def reprocess_image(root: Path, job_id: str) -> dict:
     legacy_engine()
     import media_client as wire
     try:
-        data = wire._extract_image(load_json(response_path))
+        from contextlib import nullcontext
+        guard = quotas.network_scope(store_root, config, current['binding_snapshot']['upstream_id'], 'download') \
+            if config is not None and store_root is not None else nullcontext()
+        with guard:
+            data = wire._extract_image(load_json(response_path))
         path = wire.save_image_bytes(data, root / "assets" / "generated" / job_id / attempt)
         artifact = _image_artifact(root, path, data, current.get("output_format", "png"), current["binding_snapshot"]["capabilities"])
     except Exception as error:
