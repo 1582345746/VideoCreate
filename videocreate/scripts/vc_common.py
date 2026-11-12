@@ -44,9 +44,10 @@ class SkillError(RuntimeError):
 
 
 class APIError(SkillError):
-    def __init__(self, status: int, message: str, request_id: str = "") -> None:
+    def __init__(self, status: int, message: str, request_id: str = "", *, retry_after: str = "") -> None:
         self.status = status
         self.request_id = request_id
+        self.retry_after = retry_after
         suffix = f" (request_id={request_id})" if request_id else ""
         super().__init__(f"HTTP {status}: {message}{suffix}")
 
@@ -618,7 +619,8 @@ def request_bytes(
     except urllib.error.HTTPError as error:
         payload = error.read(min(max_bytes, 2 * 1024 * 1024))
         request_id = error.headers.get("x-request-id", "") or error.headers.get("x-oneapi-request-id", "")
-        raise APIError(error.code, _decode_error(payload), request_id) from None
+        raise APIError(error.code, _decode_error(payload), request_id,
+                       retry_after=error.headers.get('Retry-After', '')) from None
     except urllib.error.URLError as error:
         reason = getattr(error, "reason", None)
         name = type(reason).__name__ if reason is not None else "network error"
@@ -725,7 +727,8 @@ def assert_mp4(path: Path) -> None:
         raise SkillError(f"downloaded file is not an MP4: {path}")
 
 
-def download_file(url: str, destination: Path, *, key: str = "", timeout: int = 300, max_bytes: int = MAX_MEDIA_BYTES) -> None:
+def download_file(url: str, destination: Path, *, key: str = "", timeout: int = 300, max_bytes: int = MAX_MEDIA_BYTES,
+                  expected_content_types: tuple[str, ...] | None = None) -> None:
     parsed = urllib.parse.urlsplit(url)
     loopback = parsed.hostname in {"127.0.0.1", "localhost", "::1"}
     if parsed.scheme != "https" and not (parsed.scheme == "http" and loopback):
@@ -741,6 +744,10 @@ def download_file(url: str, destination: Path, *, key: str = "", timeout: int = 
     try:
         try:
             with urllib.request.urlopen(request, timeout=timeout) as response, temp.open("wb") as output:
+                if expected_content_types:
+                    mime = response.headers.get('Content-Type', '').split(';', 1)[0].strip().lower()
+                    if not any(mime.startswith(t) if t.endswith('/') else mime == t for t in expected_content_types):
+                        raise SkillError('Download response has an unexpected Content-Type; no media was saved')
                 while True:
                     chunk = response.read(1024 * 1024)
                     if not chunk:

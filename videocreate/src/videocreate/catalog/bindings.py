@@ -10,7 +10,8 @@ from ..config.storage import ConfigError, resolve_key
 
 
 ADAPTER_ALIASES = {"sub2api-json-v1": "sub2api-json", "newapi-json-v1": "newapi-json",
-                   "newapi-multipart-v1": "newapi-multipart", "openai-images-v1": "openai-images"}
+                   "newapi-multipart-v1": "newapi-multipart", "openai-images-v1": "openai-images",
+                   "xingapi-video-v1": "xingapi-json"}
 MUSE_VIDEO_MAX_SECONDS = 10
 
 
@@ -58,7 +59,7 @@ def capabilities(config: dict[str, Any], binding: dict[str, Any]) -> dict[str, A
         "max_prompt_bytes": 4096, "max_reference_images": 1,
         "max_additional_reference_images": 0, "image_to_video_requires_primary": False,
         "reference_mime_types": ["image/jpeg", "image/png", "image/webp"],
-        "audio_control": "model-default" if adapter == "sub2api-json-v1" else "explicit" if video else "not-applicable",
+        "audio_control": "model-default" if adapter in {"sub2api-json-v1", "xingapi-video-v1"} else "explicit" if video else "not-applicable",
         "native_fps": None, "idempotency": "unknown", "cancel": "unsupported",
     }
     if video:

@@ -223,6 +223,7 @@
               "newapi-json-v1",
               "newapi-multipart-v1",
               "openai-images-v1",
+              "xingapi-video-v1",
               "unconfigured"
             ]
           },

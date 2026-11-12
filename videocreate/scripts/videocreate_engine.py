@@ -2644,6 +2644,9 @@ def select_video_client(
         binding = Binding(str(upstream.get("id", provider)), canonical_model, remote_model,
             str(upstream["upstream_id"]), base_url, adapter_id, key,
             upstream["binding_capabilities"], upstream.get("adapter_options", {}))
+        if adapter_id == 'xingapi-video-v1':
+            from videocreate.adapters.xingapi import XingAPIVideoClient
+            return XingAPIVideoClient(binding)
         return BindingVideoClient(binding, client)
     return client
 

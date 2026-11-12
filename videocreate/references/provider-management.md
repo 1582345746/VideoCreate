@@ -41,6 +41,7 @@ videocreate jobs run PROJECT --job job-001 --binding BINDING_ID
 videocreate production status PROJECT
 videocreate production next PROJECT
 videocreate production impact PROJECT
+videocreate production metrics PROJECT
 videocreate production script-export PROJECT
 videocreate production script-import PROJECT --file EDITED_SCRIPT_JSON
 videocreate production checkpoint PROJECT --stage theme --hash CURRENT_HASH --reason USER_REVIEW
@@ -62,4 +63,6 @@ videocreate production deliver PROJECT --output-name preview.mp4
 
 `modules list` 显示模块入口、限制、测试文件；`modules roadmap` 映射 73 项开发工作包。`implemented-offline` 表示有本地实现与测试，不等于供应商合同、真实生成或艺术质量已经通过。具体已测范围看日期验收报告和 `binding-evidence`。
 
-本轮星光六个型号仅有目录与截图声明，保持禁用草稿。API key 可以读取 `/models`，但网站接入文档返回 401；取得 create/query/upload 合同前不猜测收费请求。Grok 的不同上游也可能返回不同型号，必须记录 `provider_reported_model` 并独立判断。
+星光接口文档已由用户提供，专用 `xingapi-video-v1` 支持文生视频的创建、原任务查询和下载。参见 [接口合同与限制](xingapi-contract.md)；各 binding 只开放核对的参数组合，其余型号仍保留草稿。多媒体参考需要独立 HTTPS 素材地址，当前版本不能发送本地多媒体参考。Grok 的不同上游也可能返回不同型号，必须记录 `provider_reported_model` 并独立判断。
+
+`library add/list/show/import/impact` 与管理器的“角色与素材库”共用本机配置目录下的素材库，项目保存独立快照。详见 [跨项目素材与统计](asset-library.md)。

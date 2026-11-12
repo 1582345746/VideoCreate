@@ -20,6 +20,9 @@ from .limits import submission_slot
 def client(binding: Binding):
     from ..cli import legacy_engine
     engine = legacy_engine()
+    if binding.adapter == 'xingapi-video-v1':
+        from ..adapters.xingapi import XingAPIVideoClient
+        return XingAPIVideoClient(binding)
     from ..adapters.video import BindingVideoClient
     readers = {"sub2api-json-v1": engine.Sub2ApiVideoClient,
                "newapi-json-v1": engine.NewApiJsonVideoClient,

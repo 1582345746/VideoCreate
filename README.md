@@ -2,11 +2,11 @@
 
 [![VideoCreate CI](https://github.com/1582345746/VideoCreate/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/1582345746/VideoCreate/actions/workflows/ci.yml)
 
-面向 Codex 的可恢复、多模型、多上游 AI 视频制作技能。产品名、技能入口和 Python 包统一为 **VideoCreate**。当前开发版为 `3.0.0.dev14`；这不是生产质量认证。
+面向 Codex 的可恢复、多模型、多上游 AI 视频制作技能。产品名、技能入口和 Python 包统一为 **VideoCreate**。当前开发版为 `3.0.0.dev15`；这不是生产质量认证。
 
 本轮增加单 JSON 上游管理、Windows 原生管理器、编号选型、配置 v4 迁移、制作步骤和剧本阅读稿。`providers`、`selection`、`production`、`modules` 共用现有任务与审核底座；`review page` 导出可播放的本地审片页。启动管理器可用 `python videocreate/scripts/videocreate_manager.py`，便携 EXE 的构建入口是 `tools/build_manager.py`。管理器不需要单独的模型数据库。
 
-使用方式与限制见 [上游和流程管理](videocreate/references/provider-management.md)。`modules list` 返回实际功能入口，`modules roadmap` 跟踪 73 个工作包；“已有实现”和“在线质量通过”分别记录。星光六个新型号目前只有目录与供应商声明资料，未开放生成；不把 30 图 / 10 视频 / 10 音频声明当成已经实现的多媒体上传。
+使用方式与限制见 [上游和流程管理](videocreate/references/provider-management.md)。`modules list` 返回实际功能入口，`modules roadmap` 跟踪 73 个工作包；“已有实现”和“在线质量通过”分别记录。dev15 增加跨项目角色/场景/道具/声音素材库、制作统计和星光专用文生视频协议；多媒体 URL 参考、逐型号参数和计费仍分别验收，不把 30 图 / 10 视频 / 10 音频声明当成已实现的传输能力。
 
 新工作使用分层 v3 计划：brief、story、director、generation-plan 和 timeline。旧的 v2 项目/任务仍保留兼容入口。v3 结构检查不会代替真实的视觉、动作和音频验收；模型和上游未通过实际样片验证时维持 unknown/unverified。
 

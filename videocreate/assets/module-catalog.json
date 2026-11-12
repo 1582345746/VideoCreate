@@ -103,7 +103,10 @@
       "id": "xingapi",
       "name": "星光 Seedance / Wan",
       "entry_points": [
-        "providers discover"
+        "providers discover",
+        "jobs run",
+        "jobs status",
+        "providers pricing"
       ],
       "work_packages": [
         "D01",
@@ -113,10 +116,13 @@
         "D06",
         "D08"
       ],
-      "status": "external-contract-needed",
-      "limitations": "Six exact IDs discovered. Website API documentation requires login; no new-model generation contract has been established.",
-      "test_evidence": [],
-      "online_acceptance": "Not claimed by source implementation; consult binding receipts and the dated acceptance report."
+      "status": "partial",
+      "limitations": "User-supplied create/query/download contract implemented as xingapi-video-v1. Text-to-video only; URL reference mapping/storage, per-model boundaries, audio control and billing still incomplete.",
+      "test_evidence": [
+        "test_xingapi.py",
+        "test_pricing_discovery.py"
+      ],
+      "online_acceptance": "2026-11-12: one Seedance2.5-V create, requested 5 s / 16:9 / 720p, downloaded 5.05 s / 1280x720 / 24 fps, full decode pass. Response omitted model. Content/audio/billing unverified; no reference types tested."
     },
     {
       "id": "references",
@@ -198,7 +204,12 @@
         "animation example",
         "animation plan",
         "animation run",
-        "animation preview"
+        "animation preview",
+        "library add",
+        "library list",
+        "library show",
+        "library import",
+        "library impact"
       ],
       "work_packages": [
         "G01",
@@ -209,10 +220,11 @@
         "G06"
       ],
       "status": "partial",
-      "limitations": "Existing theme/series/interaction systems retained; unified asset browser pending.",
+      "limitations": "Immutable cross-project visual/voice cards and copied snapshots added; theme/world/style packs and visual comparison remain incomplete. No media quality approval is inherited.",
       "test_evidence": [
         "test_animation.py",
-        "test_animation_reuse.py"
+        "test_animation_reuse.py",
+        "test_asset_library.py"
       ],
       "online_acceptance": "Not claimed by source implementation; consult binding receipts and the dated acceptance report."
     },
@@ -261,7 +273,8 @@
         "review template",
         "review apply",
         "review inbox",
-        "review page"
+        "review page",
+        "production metrics"
       ],
       "work_packages": [
         "H06",
@@ -269,10 +282,11 @@
         "H08"
       ],
       "status": "partial",
-      "limitations": "Offline playable review/export page added; browser playback and human interaction acceptance pending. Existing receipt checks remain authoritative.",
+      "limitations": "Current receipt-derived source quality, durations, retry rates and separate-currency cost components implemented. Playback UI visual acceptance, understanding feedback and comparable benchmarks remain open.",
       "test_evidence": [
         "test_v3_media_review.py",
-        "test_content_reviews.py"
+        "test_content_reviews.py",
+        "test_production_metrics.py"
       ],
       "online_acceptance": "Not claimed by source implementation; consult binding receipts and the dated acceptance report."
     },
@@ -528,25 +542,25 @@
     {
       "id": "D01",
       "priority": "P0",
-      "status": "external-contract-needed",
+      "status": "partial",
       "requirement": "取得星光实际 API 文档/脱敏合同样例，核对 create/query/download/upload、ID、错误语义和账户报价；页面 OPENAI 标签不作为协议证据。"
     },
     {
       "id": "D02",
       "priority": "P0",
-      "status": "external-contract-needed",
+      "status": "partial",
       "requirement": "将 Seedance2.5-V 做成独立 binding；协议一致则复用 adapter，不一致则新增版本；5–30 秒、实际 ID、720P、音频与按次报价各自验收。"
     },
     {
       "id": "D03",
       "priority": "P1",
-      "status": "external-contract-needed",
+      "status": "partial",
       "requirement": "分别登记并验证 Seedance2.5-S 与 933/C/Q；不继承 V 的计价或参数；仅开放已核对的操作组合。"
     },
     {
       "id": "D04",
       "priority": "P1",
-      "status": "external-contract-needed",
+      "status": "partial",
       "requirement": "Wan 独立家族/型号/绑定，核验 Wan3.0-Prime-720P 合同；同协议复用，新协议单独 adapter；与其他上游 Wan 的等价性另记。"
     },
     {
@@ -570,7 +584,7 @@
     {
       "id": "D08",
       "priority": "P1",
-      "status": "external-contract-needed",
+      "status": "partial",
       "requirement": "按合同补查询、下载、异步/SSE 及可选 cancel/idempotency；幂等和取消必须由真实服务支持，不能本地假实现；型号硬编码迁入版本化限制。"
     },
     {
@@ -666,7 +680,7 @@
     {
       "id": "G01",
       "priority": "P1",
-      "status": "partial",
+      "status": "implemented-offline",
       "requirement": "建立跨项目角色/场景/道具/声音索引及素材浏览；引用时复制或快照哈希，来源修改不悄悄改变已建立项目。"
     },
     {

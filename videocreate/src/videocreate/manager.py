@@ -63,7 +63,8 @@ class Manager:
         for title, action in [('新增上游', lambda: self.edit_upstream()), ('编辑上游', self.edit_selected_upstream),
                               ('复制为新上游', lambda: self.edit_upstream(copy_from=self.current_upstream)),
                               ('管理凭据', self.credential), ('归档 / 恢复上游', self.archive_upstream),
-                              ('只读检查 / 导入目录', self.discover), ('项目与任务', self.project_panel)]:
+                              ('只读检查 / 导入目录', self.discover), ('项目与任务', self.project_panel),
+                              ('角色与素材库', self.library_panel)]:
             ttk.Button(left, text=title, command=action).pack(fill='x', pady=(7, 0))
         right = ttk.Frame(main)
         main.add(right, weight=5)
@@ -503,6 +504,13 @@ class Manager:
         try:
             from .manager_projects import open_panel
             open_panel(self, Path(folder))
+        except (ConfigError, OSError, ValueError) as exc:
+            self.error(exc)
+
+    def library_panel(self):
+        from .manager_library import open_panel
+        try:
+            open_panel(self)
         except (ConfigError, OSError, ValueError) as exc:
             self.error(exc)
 

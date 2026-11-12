@@ -10,7 +10,7 @@ def production_command(argv):
     from .config.storage import user_config_path
     parser = argparse.ArgumentParser(prog='videocreate production')
     parser.add_argument('action', choices=['status', 'next', 'impact', 'script-export', 'script-import',
-        'checkpoint', 'policy', 'track', 'projects', 'deliver'])
+        'checkpoint', 'policy', 'track', 'projects', 'deliver', 'metrics'])
     parser.add_argument('project', type=Path, nargs='?')
     parser.add_argument('--file', type=Path)
     parser.add_argument('--stage', choices=production.AUTHORING)
@@ -26,6 +26,9 @@ def production_command(argv):
         result = production.status(args.project, output_name=args.output_name)
         if args.action == 'next':
             result = {k: result[k] for k in ('ok', 'project', 'next', 'policy', 'paid_creates')}
+    elif args.action == 'metrics':
+        from .production_metrics import report
+        result = report(args.project, output_name=args.output_name)
     elif args.action == 'impact':
         result = production.impact(args.project)
     elif args.action == 'script-export':

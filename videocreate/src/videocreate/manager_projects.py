@@ -35,6 +35,7 @@ def open_panel(manager, root):
     queue.pack(fill='both',expand=True)
     budget = tk.StringVar();ttk.Label(tasks,textvariable=budget,wraplength=920).pack(anchor='w',pady=10)
     evidence = manager.json_tab(book,'版本与影响',{})
+    metrics = manager.json_tab(book,'制作统计',{})
     message = tk.StringVar()
     ttk.Label(win,textvariable=message,wraplength=980).pack(anchor='w',padx=18,pady=5)
     actions = ttk.Frame(win,padding=12);actions.pack(fill='x')
@@ -55,6 +56,16 @@ def open_panel(manager, root):
             evidence.configure(state='normal');evidence.delete('1.0','end')
             evidence.insert('1.0',json.dumps({'impact':result['impact'],'budget':b,'review':result['review']},ensure_ascii=False,indent=2))
             evidence.configure(state='disabled')
+            from .production_metrics import report
+            measured = report(root)
+            metrics.configure(state='normal');metrics.delete('1.0','end')
+            seconds = measured['seconds']
+            metrics.insert('1.0', f"已生成（可核实）：{seconds['generated_known']:.2f} 秒\n"
+                f"已保留（当前素材可用）：{seconds['retained_available_playback']:.2f} 秒\n"
+                f"源片审核通过的保留时长：{seconds['reviewed_usable_playback']} 秒\n"
+                "源片审核不代表成片已验收；以下保留样本范围、费用未知项与分币种明细。\n\n"
+                + json.dumps(measured, ensure_ascii=False, indent=2))
+            metrics.configure(state='disabled')
             message.set('此面板直接读取项目文件；查看与导出不提交生成。')
         except (ConfigError,OSError,ValueError) as exc:
             manager.error(exc)

@@ -9,7 +9,7 @@ def providers_command(argv):
     from .cli import print_result
     from .config import management as m
     parser = argparse.ArgumentParser(prog='videocreate providers')
-    parser.add_argument('action', choices=['list', 'show', 'migrate', 'save', 'archive', 'restore', 'credential', 'discover', 'import-models'])
+    parser.add_argument('action', choices=['list', 'show', 'migrate', 'save', 'archive', 'restore', 'credential', 'discover', 'pricing', 'import-models'])
     parser.add_argument('--config', type=Path)
     parser.add_argument('--upstream')
     parser.add_argument('--kind', choices=['video', 'image'])
@@ -25,7 +25,12 @@ def providers_command(argv):
     args = parser.parse_args(argv)
     path = user_config_path(args.config)
     record = m.load(path)
-    if args.action == 'discover':
+    if args.action == 'pricing':
+        if not args.upstream:
+            raise ConfigError('Pricing discovery requires --upstream')
+        from .catalog.pricing import discover
+        result = discover(record['config'], args.upstream, store_root=path.parent)
+    elif args.action == 'discover':
         if not args.upstream:
             raise ConfigError('Discovery requires --upstream')
         from .catalog.discovery import models
