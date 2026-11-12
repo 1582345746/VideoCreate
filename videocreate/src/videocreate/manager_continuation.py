@@ -14,7 +14,7 @@ def _checkpoint(channel, root, stage, reason, expected_hash):
         channel.put((False, exc))
 
 
-def open_inspection(manager, root, decision, *, edit_layer, completed, import_video=None, import_gif=None):
+def open_inspection(manager, root, decision, *, edit_layer, completed, import_video=None, import_gif=None, open_tasks=None):
     win, book, basic = manager.dialog('继续制作 · ' + decision['name'])
     # Reserve controls before giving the notebook its remaining space.
     book.pack_forget()
@@ -79,6 +79,8 @@ def open_inspection(manager, root, decision, *, edit_layer, completed, import_vi
         for label, selected in [('编辑主题与规格', 'brief'), ('生成任务与参考', 'generation-plan')]:
             if selected in decision['editable_layers']:
                 ttk.Button(buttons, text=label, command=lambda key=selected: edit_layer(key)).pack(side='left', padx=4)
+    if decision['action'] in {'generation', 'reconcile'} and open_tasks:
+        ttk.Button(buttons, text='打开任务执行面板', command=open_tasks).pack(side='left', padx=4)
     if decision['action'] in {'import-video', 'choose-mixed-sources'} and import_video:
         ttk.Button(buttons, text='导入本地视频', command=import_video).pack(side='left', padx=4)
     if decision['action'] == 'import-gif' and import_gif:

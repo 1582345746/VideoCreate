@@ -739,6 +739,9 @@ def main():
                 panel.withdraw();root.update_idletasks();panel.destroy()
                 from .production_continue import describe
                 from .manager_continuation import open_inspection
+                from .manager_tasks import open_panel as execution_panel
+                task_window = execution_panel(manager, authored)
+                task_window.withdraw();root.update_idletasks();task_window.destroy()
                 dialog = open_inspection(manager, authored, describe(authored),
                     edit_layer=lambda *args, **kwargs: None, completed=lambda value: None)
                 dialog.withdraw();root.update_idletasks();dialog.destroy()
@@ -765,6 +768,7 @@ def main():
                 'timeline_forms_created': True,
                 'local_project_action_controls': local_controls,
                 'continuation_inspection_form_created': True,
+                'generation_execution_panel_created': True,
                 'network_requests': 0, 'saved': False, 'visual_review': 'not-performed'})
         finally:
             root.destroy()

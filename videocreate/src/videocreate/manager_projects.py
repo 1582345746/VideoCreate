@@ -198,6 +198,9 @@ def open_panel(manager, root):
             from .manager_authoring import open_editor
             open_editor(manager,root,layer,completed=lambda _:refresh() if win.winfo_exists() else None,assets_only=assets_only)
         except (ConfigError,OSError,ValueError) as exc:manager.error(exc)
+    def open_tasks():
+        from .manager_tasks import open_panel
+        return open_panel(manager, root, completed=lambda _:refresh() if win.winfo_exists() else None)
     def outline():
         try:
             from .authoring import outline as export
@@ -248,6 +251,7 @@ def open_panel(manager, root):
                         if win.winfo_exists():refresh()
                     open_inspection(manager, root, result['decision'], edit_layer=edit_layer,
                         completed=converted, import_video=import_local,
+                        open_tasks=open_tasks,
                         import_gif=lambda frames:open_form(manager,root,frames=frames,parent=win,completed=converted))
                     message.set('当前步骤：' + result['decision']['name'] + '；' + result['decision']['note'])
                 elif result['action'] == 'review-page':
@@ -278,6 +282,8 @@ def open_panel(manager, root):
     local_actions = ttk.Frame(footer, padding=(12, 0, 12, 8));local_actions.pack(fill='x')
     continue_button = ttk.Button(local_actions,text='继续制作',command=lambda:start_local_action('定位并执行本地下一步','continue'))
     local_buttons.append(continue_button);continue_button.pack(side='left',padx=6)
+    if bundle['brief'].get('workflow_profile') not in {'edit-only','gif-local'}:
+        ttk.Button(local_actions,text='生成任务执行',command=open_tasks).pack(side='left',padx=6)
     if bundle['brief'].get('workflow_profile') not in {'image-only','gif-only','gif-local'}:
         local_buttons.append(ttk.Button(local_actions,text='渲染当前时间线',command=lambda:start_local_action('时间线渲染','render')))
         local_buttons[-1].pack(side='left',padx=6)

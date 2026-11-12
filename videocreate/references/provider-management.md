@@ -33,7 +33,7 @@ videocreate providers compare --binding BINDING_A --binding BINDING_B --seconds 
 
 提示词上限支持 Unicode 码点、UTF-16 单元或 UTF-8 字节。`prompt_limit` 配置必须指定计数规则；不能把未知的“15000 字符”假设成 15000 字节。现有图片 adapter 仍有 4096 字节硬上限。图片/视频/音频可通过 [本机素材服务](media-hosting.md) 建立 HTTPS 传输绑定，`xingapi-video-v2` 在明确 media_reference_limits 后可传三类数组，不接受把视频/音频塞进图片字段。
 
-价格可记录按次、按秒、最小秒数、取整步长、有效期和条件档位。档位须唯一匹配；未知报价不能满足硬金额上限。`listed_pricing` 不用于预算。报价和实际账单分开；不同币种分别汇总，不自动折算。共享账户的多个入口可填相同 `capacity_group`，共用最严格的提交并发上限；远端在途和 RPM 配额仍待扩展。
+价格可记录按次、按秒、最小秒数、取整步长、有效期和条件档位。档位须唯一匹配；未知报价不能满足硬金额上限。`listed_pricing` 不用于预算。报价和实际账单分开；不同币种分别汇总，不自动折算。共享账户的多个入口可填相同 `capacity_group`，共用最严格的提交并发上限；远端在途与 RPM 的本机范围见下方共享账户配额说明。
 
 ## 编号选择
 
@@ -48,6 +48,8 @@ videocreate jobs run PROJECT --job job-001 --binding BINDING_ID
 缺项返回结构化 `selection_required`，退出码 2，没有收费创建。向用户展示 choices 的原序号、上游、远端型号、备注、报价和排除理由，再调用 choose。菜单绑定配置哈希及项目；配置改变后应重新列举。`--scope once` 返回 binding ID，不保存项目选择；把它传入当前生成命令。`--scope project` 保存独立的图片/视频选择。全局默认只由明确用户要求设置。
 
 命令行 `jobs run --model/--upstream/--binding` 只作用于未提交任务或明确选择的终态重做。已接受、未知或下载中的任务沿用原快照。改全局默认不重生视频。已完成片段需要换路重做时，使用指定 job、`--retry content/replan` 与原因；不能用普通继续请求触发新创建。明确固定选择不继承全局自动备用策略。
+
+管理器的“生成任务执行”与 `jobs prepare/execute` 共用带 token 的任务/依赖、路线与费用预检，缺项直接展示编号选择。当前窗口的临时选择或明确的项目选择只影响新尝试；已受理任务保留原快照。“仅恢复原任务”与 `jobs resume` 在运行时禁止创建。执行、重做和对账/账单回执入口详见 [runtime-and-review.md](runtime-and-review.md)。
 
 ## 共享账户配额
 
@@ -77,7 +79,7 @@ videocreate production projects
 videocreate production deliver PROJECT --output-name preview.mp4
 ```
 
-阶段包括主题、故事大纲、剧本、角色场景、分镜、参考、生成、剪辑、审核和交付。status 从当前五层计划、state.json、审核回执计算，不复制运行状态。stage 文件只保存创作检查点和内容哈希；修改内容后检查点过期。无角色/参考的计划会跳过相应步骤。完整的纯图/GIF、仅剪辑分支引导尚未完成。
+阶段包括主题、故事大纲、剧本、角色场景、分镜、参考、生成、剪辑、审核和交付。status 从当前五层计划、state.json、审核回执计算，不复制运行状态。stage 文件只保存创作检查点和内容哈希；修改内容后检查点过期。无角色/参考的计划会跳过相应步骤。纯图/GIF 与仅剪辑使用各自的导入、审核和交付路径；“继续制作”按当前步骤提供对应入口，完整策略界面仍在推进。
 
 剧本阅读稿由 director 单向导出。JSON 交换稿带源版本哈希；导入只更新 director 并保留备份，既有 job/candidate 不被删除。改字幕不改变视频输入哈希。impact 列出输入已变化的镜头、应检查的依赖和可复用输入；它不自行执行重做。
 

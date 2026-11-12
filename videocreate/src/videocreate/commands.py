@@ -177,7 +177,7 @@ def jobs_command(argv: list[str]) -> int:
     from .runtime.state import read_state
     from .runtime.budget import summary
     parser = argparse.ArgumentParser(prog="videocreate jobs")
-    parser.add_argument("action", choices=["run", "status", "cancel-local", "resolve", "settle", "candidates", "select"])
+    parser.add_argument("action", choices=["run", "resume", "prepare", "execute", "status", "cancel-local", "resolve", "settle", "candidates", "select"])
     parser.add_argument("project", type=Path)
     parser.add_argument("--job", action="append")
     parser.add_argument("--config", type=Path)
@@ -189,7 +189,14 @@ def jobs_command(argv: list[str]) -> int:
     parser.add_argument('--binding', help='Explicit one-time binding for selected new attempts')
     parser.add_argument('--model', help='Canonical model; ask for an upstream if ambiguous')
     parser.add_argument('--upstream', help='Upstream instance; ask for a model if ambiguous')
+    parser.add_argument('--mode', choices=['run', 'resume', 'content', 'replan'])
+    parser.add_argument('--new-requests', type=int)
+    parser.add_argument('--token')
     args = parser.parse_args(argv)
+    if args.action == 'resume' and (args.binding or args.model or args.upstream or args.retry):
+        raise ConfigError('Resume uses original known tasks; omit new routes and retry kinds')
+    if args.action not in {'prepare', 'execute'} and any(v is not None for v in (args.mode, args.new_requests, args.token)):
+        raise ConfigError('--mode/--new-requests/--token belong to prepare/execute')
     root = args.project.resolve()
     bundle=load_project(root)
     if args.action in {"candidates", "select"}:
@@ -222,7 +229,7 @@ def jobs_command(argv: list[str]) -> int:
         return 0
     if args.poll_timeout <= 0:
         raise ConfigError("poll timeout must be positive")
-    if args.action=='run' and not bundle['generation-plan']['jobs']:
+    if args.action in {'run', 'resume'} and not bundle['generation-plan']['jobs']:
         if args.job or args.binding or args.model or args.upstream or args.retry:
             raise ConfigError('No planned provider video jobs; local sources are not model task IDs')
         check=validate_plan(bundle,root)
@@ -231,6 +238,21 @@ def jobs_command(argv: list[str]) -> int:
         return int(not check['ok'])
     config_path = user_config_path(args.config)
     config = read_config(config_path)
+    if args.action in {'prepare', 'execute'}:
+        from . import generation_actions
+        if args.model or args.upstream or args.retry:
+            raise ConfigError('Prepare/execute use --mode and exact --binding, or the numbered selection')
+        arguments = {'job_ids': args.job, 'mode': args.mode or 'run', 'reason': args.reason,
+            'bindings': {jid: args.binding for jid in args.job or []} if args.binding else None,
+            'max_new_requests': args.new_requests if args.new_requests is not None else 1, 'poll_timeout': args.poll_timeout}
+        if args.action == 'prepare':
+            if args.token:
+                raise ConfigError('--token is consumed by execute')
+            result = generation_actions.preview(root, config_path, **arguments)
+        else:
+            result = generation_actions.execute(root, config_path, expected_token=args.token, **arguments)
+        print_result(result)
+        return int(not result.get('ok', False))
     if args.action == "resolve":
         if not args.receipt:
             raise ConfigError("Resolution needs a structured --receipt; absence from logs does not prove non-reception")
@@ -246,7 +268,8 @@ def jobs_command(argv: list[str]) -> int:
     def progress(value):
         print(json.dumps(value, ensure_ascii=False), file=sys.stderr, flush=True)
     result = generate(root, config, store_root=config_path.parent, job_ids=args.job,
-        poll_timeout=args.poll_timeout, retry=args.retry, reason=args.reason, progress=progress, binding_override=overrides)
+        poll_timeout=args.poll_timeout, retry=args.retry, reason=args.reason, progress=progress, binding_override=overrides,
+        allow_create=args.action != 'resume')
     print_result(result)
     return int(not result.get("ok", False))
 

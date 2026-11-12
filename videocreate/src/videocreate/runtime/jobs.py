@@ -209,7 +209,8 @@ def _prepare_job(root, bundle, job, config, store_root, prior, *, retry, explici
 def _generate_serial(root: Path, config: dict, *, store_root: Path, job_ids: list[str] | None = None,
              poll_timeout: int = 900, retry: str | None = None, reason: str = "", progress=None,
              binding_override: dict[str, str] | None = None, wait_for_slot: bool = False,
-             include_dependencies: bool = True, explicit_job_ids: set[str] | None = None) -> dict:
+             include_dependencies: bool = True, explicit_job_ids: set[str] | None = None,
+             allow_create: bool = True) -> dict:
     bundle = load_project(root)
     validation = validate_plan(bundle, root)
     if not validation["ok"]:
@@ -272,7 +273,7 @@ def _generate_serial(root: Path, config: dict, *, store_root: Path, job_ids: lis
                 current = state["jobs"].get(jid, {})
                 if current.get("attempt_id") != prior.get("attempt_id"):
                     raise ConfigError(jid + ": job changed while preparing; reread state before proceeding")
-                if current and current.get("input_hash") != input_hash and retry != "replan":
+                if current and current.get("input_hash") != input_hash and not (retry == "replan" and jid in explicitly_requested):
                     raise ConfigError(jid + ": generation inputs changed; explicitly replan only this job")
                 task_id = current.get("task_id", "")
                 if current.get("status") == "completed" and not (retry in {"content", "replan"} and jid in explicitly_requested):
@@ -290,6 +291,8 @@ def _generate_serial(root: Path, config: dict, *, store_root: Path, job_ids: lis
                 elif retry == "network" and current and current.get("status") != "rejected" and not task_id:
                     raise ConfigError(jid + ": network retry may create only after confirmed rejection")
                 if not task_id:
+                    if not allow_create:
+                        raise ConfigError(jid + ': recovery only permits the original known task; no create was sent')
                     if current and current.get("status") not in {"rejected", "failed", "completed"}:
                         raise ConfigError(jid + ": attempt is unresolved; no duplicate create")
                     if current and not retry:
@@ -362,7 +365,7 @@ def _generate_serial(root: Path, config: dict, *, store_root: Path, job_ids: lis
                 if next_id:
                     fallback_result = generate(root, config, store_root=store_root, job_ids=[jid], poll_timeout=poll_timeout,
                         retry="network", reason="configured same-model fallback after confirmed rejection",
-                        progress=progress, binding_override={jid: next_id})
+                        progress=progress, binding_override={jid: next_id}, allow_create=allow_create)
                     results.extend(fallback_result["jobs"])
                     continue
             raise ConfigError(request_error(create_error, binding)) from None
@@ -426,7 +429,7 @@ def _generate_serial(root: Path, config: dict, *, store_root: Path, job_ids: lis
 
 def generate(root: Path, config: dict, *, store_root: Path, job_ids: list[str] | None = None,
              poll_timeout: int = 900, retry: str | None = None, reason: str = "", progress=None,
-             binding_override: dict[str, str] | None = None) -> dict:
+             binding_override: dict[str, str] | None = None, allow_create: bool = True) -> dict:
     root = root.resolve()
     bundle = load_project(root)
     validation = validate_plan(bundle, root)
@@ -447,6 +450,14 @@ def generate(root: Path, config: dict, *, store_root: Path, job_ids: list[str] |
         ordered.append(jid)
     for jid in requested:
         add(jid)
+    if not allow_create:
+        if retry in {'content', 'replan'}:
+            raise ConfigError('Recovery-only execution cannot request a new candidate')
+        state = read_state(root)
+        for jid in ordered:
+            record = state['jobs'].get(jid, {})
+            if not record.get('task_id') or record.get('status') in {'submitting', 'submission_unknown'}:
+                raise ConfigError(jid + ': recovery requires the original known task; no create was sent')
     if retry and (retry not in {"network", "content", "replan"} or not reason.strip() or not job_ids):
         raise ConfigError("Retry needs explicit jobs, kind network/content/replan and a reason")
     if len(ordered) > 1:
@@ -466,14 +477,14 @@ def generate(root: Path, config: dict, *, store_root: Path, job_ids: list[str] |
             _, _, _, compilation, _, _ = _prepare_job(
                 root, bundle, jobs[jid], config, store_root, prior, retry=retry,
                 explicit_jobs=set(requested), binding_override=binding_override)
-            if prior and prior.get("input_hash") != generation_inputs(root, bundle, jobs[jid], compilation) and retry != "replan":
+            if prior and prior.get("input_hash") != generation_inputs(root, bundle, jobs[jid], compilation) and not (retry == "replan" and jid in requested):
                 raise ConfigError(jid + ": generation inputs changed; explicitly replan only this job")
             if retry in {"content", "replan"} and jid in requested and prior.get("status") not in {"completed", "rejected", "failed"}:
                 raise ConfigError(jid + ": cannot content-retry a pending or ambiguous task")
     maximum = min(50, max(1, int(config.get("execution", {}).get("max_concurrent_video_tasks", 1))))
     if maximum == 1 or len(ordered) < 2:
         return _generate_serial(root, config, store_root=store_root, job_ids=requested, poll_timeout=poll_timeout,
-            retry=retry, reason=reason, progress=progress, binding_override=binding_override)
+            retry=retry, reason=reason, progress=progress, binding_override=binding_override, allow_create=allow_create)
 
     remaining, completed, levels = set(ordered), set(local_ids), []
     while remaining:
@@ -500,7 +511,7 @@ def generate(root: Path, config: dict, *, store_root: Path, job_ids: list[str] |
             futures = {pool.submit(_generate_serial, root, config, store_root=store_root, job_ids=[jid],
                 poll_timeout=poll_timeout, retry=retry, reason=reason, progress=progress,
                 binding_override=binding_override, wait_for_slot=True, include_dependencies=False,
-                explicit_job_ids=set(requested)): jid for jid in runnable}
+                explicit_job_ids=set(requested), allow_create=allow_create): jid for jid in runnable}
             for future in as_completed(futures):
                 jid = futures[future]
                 try:

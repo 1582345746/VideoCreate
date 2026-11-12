@@ -99,11 +99,12 @@
         "C07"
       ],
       "status": "partial",
-      "limitations": "Native forms include multiline notes, reference combination/boolean controls, conditional pricing tiers, media/family filters, selected side-by-side comparison and per-operation evidence. Project panels can now render the current video timeline and export a hash-bound delivery manifest through local background workers; these actions do not create provider tasks. Portable EXE verified locally; clean-machine and human visual review remain pending. No manager temporal-slice form yet.",
+      "limitations": "Native catalog, authoring and local render/delivery forms share core services. The explicit task panel adds token-bound route/budget previews, numbered once/project choices, generation/recovery/retry and existing reconciliation/settlement receipt import. Portable EXE verified locally; clean-machine, human visual review, temporal-slice form and broader task controls remain pending.",
       "test_evidence": [
         "test_catalog_presentation.py",
         "test_manager_catalog_ui.py",
         "test_manager_project_actions.py",
+        "test_manager_task_execution.py",
         "test_provider_management.py"
       ],
       "online_acceptance": "No generation or provider connection is performed by filtering/comparison. Current live bindings and reference failures remain recorded independently; UI readiness does not certify model quality."
@@ -169,6 +170,9 @@
       "entry_points": [
         "jobs status",
         "jobs run",
+        "jobs prepare",
+        "jobs execute",
+        "jobs resume",
         "jobs resolve",
         "jobs settle",
         "providers quotas"
@@ -185,6 +189,8 @@
       "limitations": "Host-local v3 remote-inflight and separate create-admission/poll/download RPM windows persist across restarts; shared account/group aliases use strictest limits. External clients, other machines, unregistered/legacy projects, native cancel and idempotency remain outside this implementation.",
       "test_evidence": [
         "test_v3_pipeline.py",
+        "test_generation_actions.py",
+        "test_manager_task_execution.py",
         "test_submission_unknown.py",
         "test_provider_management.py",
         "test_runtime_quotas.py"
@@ -212,7 +218,8 @@
         "production gif-frames",
         "production gif-rebuild",
         "manager project panel · render",
-        "manager project panel · delivery"
+        "manager project panel · delivery",
+        "manager project panel · explicit generation tasks"
       ],
       "work_packages": [
         "F01",
@@ -226,7 +233,7 @@
         "F09"
       ],
       "status": "partial",
-      "limitations": "Native authoring/timeline forms share token-bound saves. Continue-local resolves live steps and offers version-bound plan checkpoints, imports/task explanations or one local render/review-page/delivery action. It never dispatches generation, resolves unknown submissions or approves media. Static-image timelines, drag editing, full task execution UI and broader online acceptance remain incomplete.",
+      "limitations": "Continue-local resolves authoring/import/local output steps; explicit task execution separately preflights dependencies/routes/budget and dispatches generation or original-task recovery. Neither path approves media. Static-image timelines, drag editing, full workflow policy UI and broader online acceptance remain incomplete.",
       "test_evidence": [
         "test_production_progress.py",
         "test_production_continue.py",
