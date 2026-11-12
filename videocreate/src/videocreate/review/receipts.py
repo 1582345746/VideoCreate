@@ -19,7 +19,7 @@ def file_hash(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def contracts(root: Path, bundle: dict, *, output_name: str = "preview.mp4") -> dict:
+def contracts(root: Path, bundle: dict, *, output_name: str = "preview.mp4", include_final: bool = True) -> dict:
     root = root.resolve()
     if bundle['generation-plan'].get('local_sources'):
         from ..planning.project import validate_plan
@@ -71,6 +71,8 @@ def contracts(root: Path, bundle: dict, *, output_name: str = "preview.mp4") -> 
         selected_shots = [shots[sid] for sid in source['shot_ids']]
         result[identity] = make(path, source['media']['duration'], selected_shots,
             {'local_source':source,'shots':selected_shots}, retained[identity])
+    if not include_final:
+        return result
     final_path = root / "deliverables" / output_name
     if final_path.is_file():
         manifest = load_json(final_path.with_suffix(".manifest.json"))
@@ -147,13 +149,14 @@ def _mapped_view(root, expected, item, layer):
     return False
 
 
-def validate_receipt(root: Path, bundle: dict, receipt: dict) -> list[str]:
+def validate_receipt(root: Path, bundle: dict, receipt: dict, *, actual=None) -> list[str]:
     if receipt.get("schema_version") != 3 or not isinstance(receipt.get("reviewer_id"), str) or not receipt["reviewer_id"].strip():
         return ["Review requires schema_version=3 and reviewer_id"]
     output_name = receipt.get("output_name", "preview.mp4")
     if Path(output_name).name != output_name:
         return ["Review output must be a plain filename"]
-    actual = contracts(root, bundle, output_name=output_name)
+    if actual is None:
+        actual = contracts(root, bundle, output_name=output_name)
     errors = []
     if not isinstance(receipt.get("assets"), dict) or not receipt["assets"]:
         return ["Review assets must be a nonempty object"]
@@ -338,7 +341,12 @@ def review_image(root: Path, *, job_id: str, status: str, reviewer_id: str, obse
 
 
 def summary(root: Path, bundle: dict, *, output_name="preview.mp4") -> dict:
-    actual = contracts(root, bundle, output_name=output_name)
+    actual = contracts(root, bundle, output_name=output_name, include_final=False)
+    final_error=''
+    try:
+        actual=contracts(root,bundle,output_name=output_name)
+    except (ConfigError,OSError,ValueError) as exc:
+        final_error=str(exc)
     records = []
     for path in sorted((root / "reviews").glob("*.json")):
         if path.name.endswith(".template.json"):
@@ -346,11 +354,17 @@ def summary(root: Path, bundle: dict, *, output_name="preview.mp4") -> dict:
         receipt = load_json(path)
         if receipt.get("output_name", "preview.mp4") != output_name:
             continue
-        try:
-            if not validate_receipt(root, bundle, receipt):
-                records.append(receipt)
-        except ConfigError:
-            continue
+        # A stale edit or another source must not erase valid observations of
+        # unchanged source bytes. Keep strict full-receipt checks on import.
+        valid_assets={}
+        if not isinstance(receipt.get('assets'),dict):continue
+        for aid,asset in receipt['assets'].items():
+            if aid not in actual:continue
+            partial={**receipt,'assets':{aid:asset}}
+            try:
+                if not validate_receipt(root,bundle,partial,actual=actual):valid_assets[aid]=asset
+            except ConfigError:continue
+        if valid_assets:records.append({**receipt,'assets':valid_assets})
     layers = {}
     for aid, asset in actual.items():
         result = {}
@@ -369,4 +383,5 @@ def summary(root: Path, bundle: dict, *, output_name="preview.mp4") -> dict:
         rejected = rejected or animation_status == "fail"
         accepted = accepted and animation_status == "pass"
     return {"status": "rejected" if rejected else "accepted_delivery" if accepted else "review_pending" if actual else "draft_preview",
-        "structural_is_content_approval": False, "assets": layers, "valid_receipts": len(records), "animation_story": animation_status}
+        "structural_is_content_approval": False, "assets": layers, "valid_receipts": len(records),
+        "final_error":final_error,"animation_story": animation_status}

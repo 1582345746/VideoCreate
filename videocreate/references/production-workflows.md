@@ -21,7 +21,34 @@ Import requires local FFmpeg/FFprobe and full decoding; no tool is downloaded. O
 
 The three changed plan layers are backed up under `production/backups`. An ordinary write error attempts to restore their exact original bytes; a rollback error identifies the backup. This is not a claim of atomic recovery from power loss across multiple files. Changing a registered copy's bytes, duration or metadata blocks render/review; restore the original or import a new source ID. Edit retained windows in `timeline.json` instead of reimporting the same ID. Later trimming, audio, subtitles and overlays use the existing timeline pipeline.
 
-Status lists imported sources separately from remote tasks, skips unused outline/script/generation stages, and keeps actual review pending. `production script-export` renders the current source-to-timeline mapping as a read-only edit list; its structured JSON still projects only the director layer. Deliveries include local provenance separately from provider jobs. Metrics include retained footage in playback/source seconds and exclude it from generated attempts and model quality rates. Real playback/listening is still required; a successful import or local render approves no content. This branch currently accepts local videos only; mixed local/generated plans remain separate development work. Pure generated images/GIFs use the following independent profiles.
+Status lists imported sources separately from remote tasks, skips unused outline/script/generation stages, and keeps actual review pending. `production script-export` renders the current source-to-timeline mapping as a read-only edit list; its structured JSON still projects only the director layer. Deliveries include local provenance separately from provider jobs. Metrics include retained footage in playback/source seconds and exclude it from generated attempts and model quality rates. Real playback/listening is still required; a successful import or local render approves no content. This branch accepts local videos only. Use mixed-video below for local footage and generated video jobs; pure images/GIFs use independent profiles.
+
+## Local footage with generated video shots
+
+`mixed-video` creates an empty v3 montage plan with zero provider jobs and no invented source duration. Start with `production import-clip`, authored generated shots, or both. Use `--seconds` only for an explicit final target: import does not silently extend that target, and inconsistent retained duration must be repaired. Canvas initialization supports 16:9 and 9:16. Existing scene/action/narrative/reference checks still apply to authored generated shots; the local footage's action load is observed rather than treated as a generation request.
+
+```powershell
+python scripts/videocreate.py plan init projects/mixed --profile mixed-video --title "Existing footage with a generated insert"
+python scripts/videocreate.py production import-clip projects/mixed --source "D:/media/source.mp4" --source-id archive-001 --start 2 --end 5
+# Author additional director shots, generation-plan jobs and timeline clips/segments.
+python scripts/videocreate.py plan validate projects/mixed
+python scripts/videocreate.py plan compile projects/mixed --config <config-file>
+python scripts/videocreate.py plan route projects/mixed --config <config-file>
+python scripts/videocreate.py jobs run projects/mixed --job generated-001 --config <config-file>
+python scripts/videocreate.py timeline render projects/mixed
+python scripts/videocreate.py review page projects/mixed
+python scripts/videocreate.py production deliver projects/mixed
+```
+
+Local imports use the same full-decode, hash-bound project snapshot and rollback service as edit-only. Source IDs cannot shadow planned/saved model tasks; a locally supplied shot cannot also be covered by a generation job. The source remains separate from `state.jobs` and the ledger. Adding local footage does not change another shot's compiled prompt, overwrite a completed candidate or require model selection by itself. A local-only phase compiles/routes/runs with no provider configuration; once generation jobs exist, existing per-kind selection and batch preflight apply only to those jobs.
+
+For an already authored shot, add `--shot-id EXACT_SHOT_ID` to `production import-clip` in a mixed-video project. The shot must have no generation job, local source or timeline segment. Import preserves its entire director record, including beat/evidence, actions, scene and audio intent, and adds a new source, clip and retained segment. No existing task or edit is replaced. The new segment is appended; position it explicitly in the shared timeline. Omit `--description` for this mode and edit the director layer to revise the shot's purpose. Without `--shot-id`, import creates a new local shot as before. A narrative plan must author its causal beats and cover each shot; mapping footage is not evidence that the planned action or dialogue actually occurred.
+
+Generated jobs may list a local source ID in `depends_on`. Serial/parallel scheduling verifies these prerequisites as available snapshots without manufacturing completed provider tasks. Missing or stale bytes prevent dispatch before create/budget reservation, and local dependencies are checked again during request preparation. This is a readiness dependency: it neither uploads footage nor certifies its content, and does not automatically condition or regenerate the model output when a different valid snapshot is deliberately substituted. Use explicit typed reference records for actual media guidance. Late file edits after the last hash check remain possible without an OS-level immutable file handle; such later changes invalidate project validation/render/review on the next inspection.
+
+Status and delivery list local sources and model jobs separately. The readable script includes a read-only source-to-timeline map; structured script import still modifies only the director layer. Metrics count both kinds in retained playback/source seconds, with generated-attempt rates and ledger costs restricted to actual model work. Source observations remain valid only for their own current bytes, scope and retained windows. A subtitle edit or another source's changed contract cannot erase unaffected source observations from the same receipt; the final edit is separately stale/unverified until rerendered and reviewed. Full receipts remain strictly checked at import. A successful render does not approve either source or final content.
+
+This branch covers local video plus generated video. Static-image timeline clips, mixed image-generation plans, graphical shot/timeline authoring and broader online model acceptance remain separate work. No live provider request is implied by initializing, importing or inspecting a mixed plan.
 
 ## Pure generated images and native GIFs
 

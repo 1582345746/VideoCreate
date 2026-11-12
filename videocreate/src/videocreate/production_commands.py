@@ -22,6 +22,7 @@ def production_command(argv):
     parser.add_argument('--output-name', default='preview.mp4')
     parser.add_argument('--source', type=Path)
     parser.add_argument('--source-id')
+    parser.add_argument('--shot-id')
     parser.add_argument('--gif')
     parser.add_argument('--frame', type=Path, action='append')
     parser.add_argument('--duration', type=float)
@@ -37,6 +38,8 @@ def production_command(argv):
     args = parser.parse_args(argv)
     if args.action != 'projects' and not args.project:
         raise ConfigError('This action requires a project directory')
+    if args.shot_id is not None and args.action!='import-clip':
+        raise ConfigError('--shot-id is only consumed by import-clip')
     if args.action in {'gif-video','gif-frames','gif-rebuild'}:
         from .local_gifs import build
         if not args.gif:
@@ -70,7 +73,7 @@ def production_command(argv):
             raise ConfigError('Import requires --source and --source-id')
         from .local_sources import import_clip
         result = import_clip(args.project,args.source,source_id=args.source_id,start=args.start if args.start is not None else 0,end=args.end,
-                             description=args.description,preserve_audio=not args.mute)
+                             description=args.description,preserve_audio=not args.mute,shot_id=args.shot_id)
     elif args.action in {'status', 'next'}:
         result = production.status(args.project, output_name=args.output_name)
         if args.action == 'next':

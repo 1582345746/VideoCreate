@@ -58,6 +58,16 @@ def script_export(root):
             '情绪与表演：' + '；'.join(shot.get('performance', {}).values())])
         lines.extend(f"{line['speaker']}：{line['text']}" for line in shot.get('audio', {}).get('lines', []))
         lines.extend(['转场：' + shot.get('cut_motivation', ''), ''])
+    if bundle['brief'].get('workflow_profile')=='mixed-video':
+        from .timeline.model import mapping
+        clips={c['id']:c for c in bundle['timeline']['clips']}
+        imported={s['id']:s for s in bundle['generation-plan'].get('local_sources',[])}
+        lines.extend(['## 剪辑来源映射','','只读投射自 timeline；原素材审核不代表成片通过。',''])
+        for segment in mapping(bundle['timeline'])['segments']:
+            clip=clips[segment['clip_id']];identity=clip['job_id'];source=imported.get(identity)
+            lines.extend([segment['id']+' · '+('本地素材' if source else '生成任务')+' '+identity,
+                '路径：'+(source['path'] if source else clip.get('path','按已选候选解析')),
+                f"原片 {segment['source_in']}–{segment['source_out']} 秒 → 成片 {segment['timeline_start']}–{segment['timeline_end']} 秒",''])
     text = target.with_suffix('.md')
     text.write_text('\n'.join(lines), encoding='utf-8')
     return {'ok': True, 'script': str(target), 'reading_copy': str(text), 'source_hash': value['source_hash'], 'paid_creates': 0}
@@ -108,13 +118,21 @@ def impact(root, candidate=None):
             same = False
         (unchanged if same else changed).append(job['id'])
     dependents = set()
+    changed_local,available_local=[],[]
+    for source in bundle['generation-plan'].get('local_sources',[]):
+        try:
+            from .local_sources import verify_source
+            verify_source(root,source)
+            available_local.append(source['id'])
+        except (ConfigError,OSError,ValueError):changed_local.append(source['id'])
     while True:
         found = {j['id'] for j in bundle['generation-plan']['jobs']
-                 if set(j.get('depends_on', [])) & (set(changed) | dependents)}
+                 if set(j.get('depends_on', [])) & (set(changed) | set(changed_local) | dependents)}
         if found <= dependents:
             break
         dependents |= found
     return {'ok': True, 'changed_job_inputs': changed, 'dependent_jobs_to_check': sorted(dependents - set(changed)),
+        'changed_local_sources':changed_local,'reusable_local_sources':available_local,
         'reusable_inputs': unchanged, 'not_submitted': pending,
         'note': 'No task was changed. Changed jobs require explicit replan; unchanged inputs do not recreate video.', 'paid_creates': 0}
 
@@ -161,7 +179,7 @@ def status(root, *, output_name='preview.mp4'):
         edit_only = bundle['brief'].get('workflow_profile') == 'edit-only'
         from . import image_production
         image_only = image_production.is_image(bundle)
-        if stage == 'outline' and (bundle['brief']['intent'] == 'single-shot' or edit_only or image_only) and not bundle['story']['beats']:
+        if stage == 'outline' and (bundle['brief']['intent'] == 'single-shot' or edit_only or image_only or bundle['brief'].get('workflow_profile')=='mixed-video') and not bundle['story']['beats']:
             unused = True
         if stage == 'script' and (edit_only or image_only):
             unused = True
@@ -201,7 +219,7 @@ def status(root, *, output_name='preview.mp4'):
     try:
         from .review.receipts import summary
         review = summary(root, bundle, output_name=output_name)
-        review_error = ''
+        review_error = review.get('final_error','')
     except (ConfigError, OSError, ValueError) as exc:
         review, review_error = {'status': 'review_pending', 'assets': {}}, str(exc)
     for source in local_rows:
@@ -218,6 +236,8 @@ def status(root, *, output_name='preview.mp4'):
         next_step = {'id': 'reconcile', 'name': '核对原提交；不重复创建', 'jobs': ambiguous}
     elif bundle['brief'].get('workflow_profile') == 'edit-only' and not bundle['generation-plan'].get('local_sources'):
         next_step = {'id':'import-local-sources','name':'导入本地视频并选择保留区间','errors':check['errors']}
+    elif bundle['brief'].get('workflow_profile')=='mixed-video' and not planned and not bundle['generation-plan'].get('local_sources'):
+        next_step={'id':'author-mixed-sources','name':'导入本地视频或编写需要生成的镜头','errors':check['errors']}
     elif not check['ok']:
         next_step = {'id': 'repair-plan', 'name': '修复计划结构', 'errors': check['errors']}
     elif record.get('policy') == 'auto-within-authorization':

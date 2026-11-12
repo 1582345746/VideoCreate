@@ -89,7 +89,8 @@ def plan_command(argv: list[str]) -> int:
         save_bundle(root, bundle)
         print_result({"ok": True, "project": str(root / "project.json"), "status": "draft_plan",
             "next": "Use production import-clip to register existing footage, then plan validate and timeline render"
-                if args.profile=='edit-only' else 'Author generation-plan.image_jobs, then plan validate/compile and production images-run'
+                if args.profile=='edit-only' else 'Import local clips and author generated shots/jobs in the same timeline; generation selection applies only to provider jobs'
+                if args.profile=='mixed-video' else 'Author generation-plan.image_jobs, then plan validate/compile and production images-run'
                 if args.profile in {'image-only','gif-only'} else 'Use production gif-video/gif-frames to create a local GIF without provider configuration'
                 if args.profile=='gif-local' else "Author brief/story/director/generation-plan/timeline, then plan validate and plan preview", "paid_creates": 0})
         return 0
@@ -113,7 +114,7 @@ def plan_command(argv: list[str]) -> int:
         print_result(result)
         return 0
     if args.action == "route":
-        if bundle['brief'].get('workflow_profile') == 'edit-only':
+        if bundle['brief'].get('workflow_profile') in {'edit-only','mixed-video'} and not bundle['generation-plan']['jobs']:
             check=validate_plan(bundle,root)
             print_result({**check,'jobs':[],'local_sources':bundle['generation-plan'].get('local_sources',[]),
                 'route':'local-editing','provider_configuration_required':False})
@@ -133,7 +134,7 @@ def plan_command(argv: list[str]) -> int:
         from .planning.preview import preview
         print_result(preview(root, bundle, video=args.video))
         return 0
-    if bundle['brief'].get('workflow_profile') == 'edit-only':
+    if bundle['brief'].get('workflow_profile') in {'edit-only','mixed-video'} and not bundle['generation-plan']['jobs']:
         print_result({'ok':True,'jobs':[],'local_sources':bundle['generation-plan'].get('local_sources',[]),
             'verification':'local-editing-no-generation','paid_creates':0})
         return 0
@@ -166,7 +167,8 @@ def plan_command(argv: list[str]) -> int:
             "remote_model": item["remote_model"], "compiled": str(destination), "utf8_bytes": compiled["utf8_bytes"]})
     if args.job and set(args.job) - {row["job_id"] for row in rows}:
         raise ConfigError("Unknown selected job")
-    print_result({"ok": True, "jobs": rows, "verification": "offline-compiled-only", "paid_creates": 0})
+    print_result({"ok": True, "jobs": rows, "local_sources":bundle['generation-plan'].get('local_sources',[]),
+        "verification": "offline-compiled-only", "paid_creates": 0})
     return 0
 
 
@@ -189,7 +191,7 @@ def jobs_command(argv: list[str]) -> int:
     parser.add_argument('--upstream', help='Upstream instance; ask for a model if ambiguous')
     args = parser.parse_args(argv)
     root = args.project.resolve()
-    load_project(root)
+    bundle=load_project(root)
     if args.action in {"candidates", "select"}:
         from .runtime.candidates import list_candidates, select
         if args.action == "select":
@@ -220,6 +222,13 @@ def jobs_command(argv: list[str]) -> int:
         return 0
     if args.poll_timeout <= 0:
         raise ConfigError("poll timeout must be positive")
+    if args.action=='run' and not bundle['generation-plan']['jobs']:
+        if args.job or args.binding or args.model or args.upstream or args.retry:
+            raise ConfigError('No planned provider video jobs; local sources are not model task IDs')
+        check=validate_plan(bundle,root)
+        print_result({**check,'jobs':[],'local_sources':bundle['generation-plan'].get('local_sources',[]),
+            'provider_configuration_required':False,'budget':summary(read_state(root))})
+        return int(not check['ok'])
     config_path = user_config_path(args.config)
     config = read_config(config_path)
     if args.action == "resolve":

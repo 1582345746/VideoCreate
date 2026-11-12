@@ -1,4 +1,4 @@
-"""Explicit local video sources for edit-only plans; never create provider tasks."""
+"""Explicit local video sources for edit-only and mixed plans; no provider tasks."""
 from __future__ import annotations
 
 import copy
@@ -61,7 +61,7 @@ def _restore_bytes(path, raw):
             os.unlink(temporary)
 
 
-def import_clip(root, source, *, source_id, start=0, end=None, description='', preserve_audio=True):
+def import_clip(root, source, *, source_id, start=0, end=None, description='', preserve_audio=True, shot_id=None):
     root, source = Path(root).resolve(), Path(source).resolve()
     if not isinstance(source_id, str) or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]{0,47}', source_id):
         raise ConfigError('Local source ID needs 1–48 ASCII letters, digits, dots, underscores or hyphens')
@@ -74,8 +74,14 @@ def import_clip(root, source, *, source_id, start=0, end=None, description='', p
     if not isinstance(description, str):
         raise ConfigError('Source description must be text')
     initial = load_project(root)
-    if initial['brief'].get('workflow_profile') != 'edit-only' or initial['generation-plan']['jobs']:
-        raise ConfigError('Local imports require an explicit edit-only plan with zero generation jobs')
+    if not import_allowed(initial):
+        raise ConfigError('Local imports require edit-only (zero generation jobs) or mixed-video')
+    if shot_id is not None and (not isinstance(shot_id,str) or not shot_id.strip()):
+        raise ConfigError('An existing shot ID must be nonempty text')
+    if shot_id is not None and initial['brief'].get('workflow_profile')!='mixed-video':
+        raise ConfigError('Existing-shot mapping requires mixed-video')
+    if shot_id is not None and description.strip():
+        raise ConfigError('description applies to new shots; edit an existing shot in the director layer')
     # Validate real media before the project edit. Keep the original file intact.
     ffmpeg = shutil.which('ffmpeg')
     if not ffmpeg:
@@ -98,18 +104,31 @@ def import_clip(root, source, *, source_id, start=0, end=None, description='', p
         if decoded.returncode:
             raise ConfigError('Local source did not fully decode; no plan was changed')
         destination = folder / (sha + source.suffix.lower())
-        sid, cid, segment_id = 'shot-' + source_id, 'clip-' + source_id, 'seg-' + source_id
+        sid, cid, segment_id = shot_id or 'shot-' + source_id, 'clip-' + source_id, 'seg-' + source_id
         item = {'id':source_id,'kind':'video','path':destination.relative_to(root).as_posix(),
                 'sha256':sha,'shot_ids':[sid],'media':media}
         with state_lock(root):
             bundle = load_project(root)
-            if bundle['brief'].get('workflow_profile') != 'edit-only' or bundle['generation-plan']['jobs']:
-                raise ConfigError('Local imports require an explicit edit-only plan with zero generation jobs')
+            if not import_allowed(bundle):
+                raise ConfigError('Local imports require edit-only (zero generation jobs) or mixed-video')
             if source_id in read_state(root)['jobs']:
                 raise ConfigError('Local source ID conflicts with a saved task; use a different source ID')
             if any(s['id']==source_id for s in bundle['generation-plan'].get('local_sources', [])):
                 raise ConfigError('Local source ID already exists; edit its retained timeline window instead of reimporting')
-            if any(s['id']==sid for s in bundle['director']['shots']) or any(c['id']==cid for c in bundle['timeline']['clips']):
+            if shot_id is not None:
+                if bundle['brief'].get('workflow_profile')!='mixed-video':
+                    raise ConfigError('Existing-shot mapping requires mixed-video')
+                if sum(s['id']==sid for s in bundle['director']['shots'])!=1:
+                    raise ConfigError('Existing-shot mapping needs one authored shot with that exact ID')
+                if any(sid in j['shot_ids'] for j in bundle['generation-plan']['jobs']):
+                    raise ConfigError('Existing shot is already covered by a generation job; no task was replaced')
+                if any(sid in s['shot_ids'] for s in bundle['generation-plan'].get('local_sources',[])):
+                    raise ConfigError('Existing shot already has a local source; no source was replaced')
+                if any(s['shot_id']==sid for s in bundle['timeline']['segments']):
+                    raise ConfigError('Existing shot already has a timeline segment; no edit was replaced')
+            elif any(s['id']==sid for s in bundle['director']['shots']):
+                raise ConfigError('Imported shot ID already exists; use --shot-id for an uncovered authored shot')
+            if any(c['id']==cid for c in bundle['timeline']['clips']) or any(s['id']==segment_id for s in bundle['timeline']['segments']):
                 raise ConfigError('Imported shot/clip ID already exists')
             if destination.exists():
                 if digest(destination) != sha:
@@ -118,16 +137,17 @@ def import_clip(root, source, *, source_id, start=0, end=None, description='', p
                 staged.replace(destination)
             candidate = copy.deepcopy(bundle)
             candidate['generation-plan'].setdefault('local_sources', []).append(item)
-            if not any(s['id']=='local-edit' for s in candidate['director']['scenes']):
+            if shot_id is None and not any(s['id']=='local-edit' for s in candidate['director']['scenes']):
                 candidate['director']['scenes'].append({'id':'local-edit',
                     'map':'Existing footage; inspect actual geography before continuity approval',
                     'axis':'Existing camera axes; continuity must be checked in playback'})
-            candidate['director']['shots'].append({'id':sid,'scene_id':'local-edit','role':'source',
-                'information_goal':description.strip() or 'Retain the selected interval from local source ' + source_id,
-                'framing':'Existing source framing; inspect actual footage',
-                'actions':[{'kind':'hold','description':'Use existing footage within the chosen source interval; no new generation'}],
-                'planned_seconds':media['duration'],'cut_motivation':'Cut at the selected source boundary',
-                'asset_ids':[],'audio':{'mode':'ambience' if preserve_audio and media['has_audio'] else 'mute'}})
+            if shot_id is None:
+                candidate['director']['shots'].append({'id':sid,'scene_id':'local-edit','role':'source',
+                    'information_goal':description.strip() or 'Retain the selected interval from local source ' + source_id,
+                    'framing':'Existing source framing; inspect actual footage',
+                    'actions':[{'kind':'hold','description':'Use existing footage within the chosen source interval; no new generation'}],
+                    'planned_seconds':media['duration'],'cut_motivation':'Cut at the selected source boundary',
+                    'asset_ids':[],'audio':{'mode':'ambience' if preserve_audio and media['has_audio'] else 'mute'}})
             candidate['timeline']['clips'].append({'id':cid,'job_id':source_id,'path':item['path']})
             candidate['timeline']['segments'].append({'id':segment_id,'shot_id':sid,'clip_id':cid,
                 'source_in':start,'source_out':selected_end,'rate':1,
@@ -158,3 +178,8 @@ def import_clip(root, source, *, source_id, start=0, end=None, description='', p
     return {'ok':True,'source':item,'segment_id':segment_id,'retained_seconds':selected_end-start,
         'source_unchanged':True,'full_decode_verified':True,'backup':str(backup),'paid_creates':0,
         'note':'Imported footage remains unreviewed. This creates no task, budget entry or model request.'}
+
+
+def import_allowed(bundle):
+    profile=bundle['brief'].get('workflow_profile')
+    return profile=='mixed-video' or profile=='edit-only' and not bundle['generation-plan']['jobs']

@@ -5,6 +5,7 @@ from .project import LAYERS
 from ..config.storage import ConfigError
 
 PROFILES = {
+    "mixed-video": {"title":"本地素材与生成镜头混合制作","seconds":0,"intent":"montage","pace":"slow-cinema","audio":"ambience","focus":"分别管理已有来源与生成任务，共用剪辑与审核"},
     "gif-local": {"title":"本地素材制作动图","seconds":0,"intent":"montage","pace":"slow-cinema","audio":"silent","focus":"视频或有序静帧转换、完整播放审核"},
     "image-only": {"title":"独立图片","seconds":0,"intent":"montage","pace":"slow-cinema","audio":"silent","focus":"图片创作与实际审核"},
     "gif-only": {"title":"独立动图","seconds":0,"intent":"montage","pace":"slow-cinema","audio":"silent","focus":"动图创作与完整播放审核"},
@@ -46,18 +47,26 @@ def create(profile: str, *, title: str = "", seconds: float | None = None, topic
         if profile == 'gif-local':
             bundle['generation-plan'].update(image_jobs=[], local_gifs=[])
         return bundle
-    if profile == 'edit-only':
-        if seconds is not None:
+    if profile in {'edit-only','mixed-video'}:
+        if aspect_ratio not in {'16:9','9:16'}:
+            raise ConfigError('Local/mixed video canvas must be 16:9 or 9:16')
+        if seconds is not None and profile=='edit-only':
             raise ConfigError('Edit-only duration comes from retained source windows; omit --seconds')
-        return {'project':{'schema_version':3,'product':'VideoCreate','title':title or '已有视频剪辑'},
-            'brief':{'intent':'montage','pace_profile':'slow-cinema','workflow_profile':'edit-only',
+        if seconds is not None:
+            import math
+            if isinstance(seconds,bool) or not isinstance(seconds,(float,int)) or not math.isfinite(seconds) or seconds<=0:
+                raise ConfigError('Mixed-video target duration must be positive and finite')
+        bundle={'project':{'schema_version':3,'product':'VideoCreate','title':title or PROFILES[profile]['title']},
+            'brief':{'intent':'montage','pace_profile':'slow-cinema','workflow_profile':profile,
                 'aspect_ratio':aspect_ratio,'resolution':'720p','audience':topic,
-                'visual_style':'Retain existing source imagery; edit locally without model generation'},
+                'visual_style':'Retain existing source imagery; edit locally without model generation' if profile=='edit-only' else 'Author generated shots to fit the existing source imagery; review actual continuity'},
             'story':{'initial_state':{},'beats':[]}, 'director':{'assets':[],'scenes':[],'shots':[]},
             'generation-plan':{'jobs':[],'local_sources':[]},
             'timeline':{'fps':'24','width':1280 if aspect_ratio=='16:9' else 720,
                 'height':720 if aspect_ratio=='16:9' else 1280,'clips':[],'segments':[],
                 'audio_tracks':[],'subtitles':[]}}
+        if seconds is not None:bundle['brief']['target_seconds']=seconds
+        return bundle
     p = PROFILES[profile]
     seconds = p["seconds"] if seconds is None else seconds
     if isinstance(seconds, bool) or not isinstance(seconds, (int, float)) or not 5 <= seconds <= 120:

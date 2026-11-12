@@ -690,7 +690,7 @@ def main():
                 panel.withdraw()
                 root.update_idletasks()
                 panel.destroy()
-                for profile in ('image-only','gif-only','gif-local'):
+                for profile in ('image-only','gif-only','gif-local','mixed-video'):
                     pure = Path(temporary) / profile
                     save_bundle(pure,create(profile,title='Offline pure media panel',topic='Synthetic offline prompt'))
                     panel = project_panel(manager,pure)
@@ -714,6 +714,7 @@ def main():
                 'image_and_gif_panels_created': True,
                 'local_gif_panel_created': True,
                 'local_gif_conversion_forms_created': True,
+                'mixed_video_panel_created': True,
                 'network_requests': 0, 'saved': False, 'visual_review': 'not-performed'})
         finally:
             root.destroy()

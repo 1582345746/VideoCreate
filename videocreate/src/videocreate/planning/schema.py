@@ -56,7 +56,7 @@ def plan_schema():
         "brief": obj({"intent": enum("narrative", "demonstration", "montage", "single-shot"), "genre": STR, "pace_profile": STR,
             "audience": STR, "aspect_ratio": STR, "resolution": STR, "visual_style": STR,
             "allowed_elements": STRING_LIST, "forbidden_elements": STRING_LIST,
-            "workflow_profile": enum("portrait", "action-insert", "action-montage", "animal-comedy", "scenic", "explainer", "series-episode", "animation-story", "edit-only", "image-only", "gif-only", "gif-local"),
+            "workflow_profile": enum("portrait", "action-insert", "action-montage", "animal-comedy", "scenic", "explainer", "series-episode", "animation-story", "edit-only", "mixed-video", "image-only", "gif-only", "gif-local"),
             "audio_policy": enum("silent", "ambience", "voiceover", "dialogue", "native-experimental"),
             "target_seconds": {"type": "number", "exclusiveMinimum": 0},
             "reference_profiles": array(obj({"path": STR, "sha256": STR}, ("path", "sha256"))),

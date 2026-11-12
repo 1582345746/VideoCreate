@@ -102,17 +102,22 @@ def validate_plan(bundle: dict[str, Any], root: Path | None = None) -> dict[str,
     shots = _index(director.get("shots", []), "director.shots", errors)
     jobs = _index(generation.get("jobs", []), "generation-plan.jobs", errors)
     local_sources = _index(generation.get('local_sources', []), 'generation-plan.local_sources', errors)
+    local_shot_ids={sid for source in local_sources.values() for sid in source['shot_ids']}
     edit_only = brief.get('workflow_profile') == 'edit-only'
+    mixed = brief.get('workflow_profile') == 'mixed-video'
     clips = _index(timeline.get("clips", []), "timeline.clips", errors)
     if edit_only:
         if jobs:
             errors.append('Edit-only plans must not contain generation jobs')
         if not shots or not local_sources:
             errors.append('Edit-only plan needs registered local sources; use production import-clip')
+    elif mixed:
+        if not shots or not jobs and not local_sources:
+            errors.append('Mixed-video plan needs authored shots with generated jobs or registered local sources')
     elif not shots or not jobs:
         errors.append("At least one shot and one generation job are required")
-    if local_sources and not edit_only:
-        errors.append('Local sources currently require the explicit edit-only workflow')
+    if local_sources and not (edit_only or mixed):
+        errors.append('Local sources require the explicit edit-only or mixed-video workflow')
     if set(local_sources) & set(jobs):
         errors.append('Local source IDs must not shadow generation job IDs')
     if intent == "narrative":
@@ -193,7 +198,7 @@ def validate_plan(bundle: dict[str, Any], root: Path | None = None) -> dict[str,
         seconds = shot.get("planned_seconds")
         if not _positive(seconds):
             errors.append(sid + ": invalid planned_seconds")
-        elif not edit_only and (len(actions) > pace["max_actions"] or len(actions) * pace["seconds_per_action"] > seconds):
+        elif not edit_only and sid not in local_shot_ids and (len(actions) > pace["max_actions"] or len(actions) * pace["seconds_per_action"] > seconds):
             errors.append(sid + ": action load exceeds declared pace; split action/arrival/reaction coverage")
         timing = shot.get("timing")
         if timing and _positive(seconds):
@@ -265,11 +270,13 @@ def validate_plan(bundle: dict[str, Any], root: Path | None = None) -> dict[str,
         if len(selected) > 1:
             warnings.append(jid + ": multi-shot generation requires actual cut-point identification and separate coverage review")
         for dep in job.get("depends_on", []):
-            if dep not in jobs or dep == jid:
+            if (dep not in jobs and dep not in local_sources) or dep == jid:
                 errors.append(jid + ": invalid dependency")
     for identity, source in local_sources.items():
         if identity == 'final':
             errors.append('Local source ID final is reserved for the final edit review')
+        if set(source['shot_ids']) & assigned or len(set(source['shot_ids'])) != len(source['shot_ids']):
+            errors.append(identity + ': local shots must have exactly one source and cannot shadow generation coverage')
         assigned.update(source['shot_ids'])
         if any(sid not in shots for sid in source['shot_ids']):
             errors.append(identity + ': local source needs known shot IDs')
@@ -280,7 +287,7 @@ def validate_plan(bundle: dict[str, Any], root: Path | None = None) -> dict[str,
             except (ConfigError, OSError, ValueError) as error:
                 errors.append(identity + ': ' + str(error))
     if set(shots) - assigned:
-        errors.append("Some planned shots have no source" if edit_only else "Some planned shots have no generation job")
+        errors.append("Some planned shots have no source" if edit_only or mixed else "Some planned shots have no generation job")
     visiting, visited = set(), set()
     def visit(jid):
         if jid in visiting:

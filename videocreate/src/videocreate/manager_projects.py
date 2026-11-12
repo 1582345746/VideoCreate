@@ -104,11 +104,12 @@ def open_panel(manager, root):
         from .manager_forms import Fields
         path=filedialog.askopenfilename(parent=win,title='选择已有本地视频',filetypes=[('视频','*.mp4 *.mov *.mkv *.webm')])
         if not path:return
-        dialog,form_book,basic=manager.dialog('导入本地视频（仅剪辑项目）')
+        dialog,form_book,basic=manager.dialog('导入本地视频（仅剪辑 / 混合项目）')
         ttk.Label(basic,text=path,wraplength=700).pack(anchor='w',pady=12)
         form=Fields(form_book,'保留区间',{'source_id':'source-001','start':0},
             [('source_id','来源标识（唯一 ASCII）','text'),('start','开始秒','number'),
-             ('end','结束秒（留空至片尾）','number'),('description','实际画面用途','multiline')],
+             ('end','结束秒（留空至片尾）','number'),('shot_id','已有镜头 ID（混合项目可选，留空新建）','text'),
+             ('description','实际画面用途（新建镜头）','multiline')],
              '保留原视频和音轨，只登记本地副本；不发送模型请求。源片和剪辑仍需实际审片。')
         channel=queue_module.Queue()
         busy=[False]
@@ -142,7 +143,8 @@ def open_panel(manager, root):
                 try:
                     from .local_sources import import_clip
                     result=import_clip(root,Path(path),source_id=values.get('source_id',''),
-                        start=values.get('start',0),end=values.get('end'),description=values.get('description',''))
+                        start=values.get('start',0),end=values.get('end'),description=values.get('description',''),
+                        shot_id=values.get('shot_id') or None)
                     channel.put((True,result))
                 except Exception as exc:channel.put((False,exc))
             # Finish a started local transaction even if the application window closes.
@@ -153,7 +155,7 @@ def open_panel(manager, root):
         dialog.protocol('WM_DELETE_WINDOW',lambda:note.set('正在导入，请等待完成。') if busy[0] else dialog.destroy())
     for text,fn in [('刷新状态',refresh),('导出剧本阅读稿',reading),('打开实际审片页',review)]:
         ttk.Button(actions,text=text,command=fn).pack(side='left',padx=6)
-    if production.load_project(root)['brief'].get('workflow_profile')=='edit-only':
+    if production.load_project(root)['brief'].get('workflow_profile') in {'edit-only','mixed-video'}:
         ttk.Button(actions,text='导入本地视频',command=import_local).pack(side='left',padx=6)
     if production.load_project(root)['brief'].get('workflow_profile') in {'gif-only','gif-local'}:
         from .manager_gifs import open_form

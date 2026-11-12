@@ -215,12 +215,13 @@
         "F09"
       ],
       "status": "partial",
-      "limitations": "v3 stages support explicit local-video editing, pure generated image/native-GIF plans and independent local video/ordered-static-frame GIF derivations. Local conversions preserve snapshots, recipes and temporal review without provider jobs. Mixed video/image/local timelines, richer guided authoring and broader workflow acceptance remain incomplete.",
+      "limitations": "v3 stages support local-video editing, mixed local/generated video, pure images/native GIFs and local GIF derivations. Local snapshots/readiness dependencies stay outside provider jobs and budgets; per-source observations survive unrelated edit changes. Static-image timeline clips, graphical authoring and broader online acceptance remain incomplete.",
       "test_evidence": [
         "test_production_progress.py",
         "test_edit_only_production.py",
         "test_image_production.py",
-        "test_local_gif_production.py"
+        "test_local_gif_production.py",
+        "test_mixed_video_production.py"
       ],
       "online_acceptance": "Not claimed by source implementation; consult binding receipts and the dated acceptance report."
     },
@@ -309,11 +310,12 @@
         "H08"
       ],
       "status": "partial",
-      "limitations": "Current receipt-derived source quality, durations, retry rates and separate-currency cost components implemented. Playback UI visual acceptance, understanding feedback and comparable benchmarks remain open.",
+      "limitations": "Current receipt-derived source quality, durations, retry rates and separate-currency cost components implemented. Playback UI visual acceptance, understanding feedback and comparable benchmarks remain open. Current source observations are validated per asset so stale final edits do not erase unchanged source review; full receipt import stays strict.",
       "test_evidence": [
         "test_v3_media_review.py",
         "test_content_reviews.py",
-        "test_production_metrics.py"
+        "test_production_metrics.py",
+        "test_mixed_video_production.py"
       ],
       "online_acceptance": "Not claimed by source implementation; consult binding receipts and the dated acceptance report."
     },

@@ -41,6 +41,14 @@ def require_quality(store_root, binding, job):
 
 
 def recommend(bundle, config, *, store_root, root=None):
+    local_sources=bundle['generation-plan'].get('local_sources',[])
+    if local_sources:
+        if root is None:
+            raise ConfigError('Mixed-video routing requires the project root to verify local source snapshots')
+        from .planning.project import validate_plan
+        check=validate_plan(bundle,root)
+        if not check['ok']:
+            raise ConfigError('; '.join(check['errors']))
     rows = []
     for job in bundle["generation-plan"]["jobs"]:
         model = job.get("model", config["defaults"]["video_model"])
@@ -61,4 +69,5 @@ def recommend(bundle, config, *, store_root, root=None):
                 "capability_status": "configured, not proof of output quality"})
         rows.append({"job": job["id"], "model": model, "candidates": candidates,
                      "recommended": next((r["binding"] for r in candidates if r["eligible"]), None)})
-    return {"ok": True, "jobs": rows, "cross_model_selection": False, "paid_creates": 0}
+    return {"ok": True, "jobs": rows, "local_sources":local_sources,
+        "provider_configuration_required":bool(bundle['generation-plan']['jobs']),"cross_model_selection": False, "paid_creates": 0}

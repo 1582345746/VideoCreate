@@ -116,6 +116,11 @@ def _owner_alive(record: dict) -> bool:
 def _prepare_job(root, bundle, job, config, store_root, prior, *, retry, explicit_jobs, binding_override):
     """Compile and validate an outbound request locally, without reserving or submitting."""
     jid = job["id"]
+    local_sources={s['id']:s for s in bundle['generation-plan'].get('local_sources',[])}
+    for dependency in job.get('depends_on',[]):
+        if dependency in local_sources:
+            from ..local_sources import verify_source
+            verify_source(root,local_sources[dependency])
     snapshot = prior.get("binding_snapshot")
     new_attempt = retry in {"content", "replan"} and jid in explicit_jobs and prior.get('status') in {'completed', 'failed', 'rejected'}
     confirmed_new = (retry == 'network' and jid in explicit_jobs and prior.get('status') == 'rejected'
@@ -221,8 +226,9 @@ def _generate_serial(root: Path, config: dict, *, store_root: Path, job_ids: lis
         raise ConfigError("Retry needs explicit jobs, kind network/content/replan and a reason")
     quotas.watch(store_root, root)
     ordered, seen = [], set()
+    local_ids={s['id'] for s in bundle['generation-plan'].get('local_sources',[])}
     def add(jid):
-        if jid in seen:
+        if jid in seen or jid in local_ids:
             return
         seen.add(jid)
         for dep in jobs[jid].get("depends_on", []):
@@ -431,8 +437,9 @@ def generate(root: Path, config: dict, *, store_root: Path, job_ids: list[str] |
     if any(jid not in jobs for jid in requested):
         raise ConfigError("Unknown job ID")
     ordered, seen = [], set()
+    local_ids={s['id'] for s in bundle['generation-plan'].get('local_sources',[])}
     def add(jid):
-        if jid in seen:
+        if jid in seen or jid in local_ids:
             return
         seen.add(jid)
         for dep in jobs[jid].get("depends_on", []):
@@ -468,7 +475,7 @@ def generate(root: Path, config: dict, *, store_root: Path, job_ids: list[str] |
         return _generate_serial(root, config, store_root=store_root, job_ids=requested, poll_timeout=poll_timeout,
             retry=retry, reason=reason, progress=progress, binding_override=binding_override)
 
-    remaining, completed, levels = set(ordered), set(), []
+    remaining, completed, levels = set(ordered), set(local_ids), []
     while remaining:
         ready = [jid for jid in ordered if jid in remaining and set(jobs[jid].get("depends_on", [])).issubset(completed)]
         if not ready:
@@ -484,7 +491,7 @@ def generate(root: Path, config: dict, *, store_root: Path, job_ids: list[str] |
         runnable = []
         for jid in level:
             dependencies = jobs[jid].get("depends_on", [])
-            if any(current_state["jobs"].get(dep, {}).get("status") != "completed" for dep in dependencies):
+            if any(dep not in local_ids and current_state["jobs"].get(dep, {}).get("status") != "completed" for dep in dependencies):
                 level_results[jid] = {"job_id": jid, "status": "blocked", "blocked_by": dependencies}
                 failures.append(jid)
             else:

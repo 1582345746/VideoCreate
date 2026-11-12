@@ -110,6 +110,7 @@
             "series-episode",
             "animation-story",
             "edit-only",
+            "mixed-video",
             "image-only",
             "gif-only",
             "gif-local"
@@ -1826,6 +1827,7 @@
                     "series-episode",
                     "animation-story",
                     "edit-only",
+                    "mixed-video",
                     "image-only",
                     "gif-only",
                     "gif-local"
