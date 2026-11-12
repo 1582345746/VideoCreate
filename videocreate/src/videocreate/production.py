@@ -137,9 +137,15 @@ def _authoring_inputs(bundle, root):
         from .local_sources import digest
         path = within(root, source['path'], exists=False)
         observed.append({**source, 'actual_hash': digest(path) if path.is_file() else None})
+    for item in bundle['generation-plan'].get('local_gifs', []):
+        for source in item['recipe']['sources']:
+            from .local_sources import digest
+            path=within(root,source['path'],exists=False)
+            observed.append({**source,'actual_hash':digest(path) if path.is_file() else None})
     return {'theme': {'brief': bundle['brief'], 'title': bundle['project']['title']},
         'outline': bundle['story'], 'script': script_projection(bundle),
-        'characters': bundle['director']['assets'], 'storyboard': bundle['generation-plan'].get('image_jobs') or bundle['director']['shots'], 'references': observed}
+        'characters': bundle['director']['assets'],
+        'storyboard': [*bundle['generation-plan'].get('image_jobs',[]),*bundle['generation-plan'].get('local_gifs',[])] or bundle['director']['shots'], 'references': observed}
 
 
 def status(root, *, output_name='preview.mp4'):

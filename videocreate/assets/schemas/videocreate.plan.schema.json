@@ -111,7 +111,8 @@
             "animation-story",
             "edit-only",
             "image-only",
-            "gif-only"
+            "gif-only",
+            "gif-local"
           ]
         },
         "audio_policy": {
@@ -771,6 +772,111 @@
               "shot_ids",
               "operation",
               "seconds"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "local_gifs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "recipe": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "video-to-gif",
+                      "frames-to-gif"
+                    ]
+                  },
+                  "sources": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "video",
+                            "image"
+                          ]
+                        },
+                        "path": {
+                          "type": "string"
+                        },
+                        "sha256": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "path",
+                        "sha256"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "start": {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  "duration": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  },
+                  "fps": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 60
+                  },
+                  "width": {
+                    "type": "integer",
+                    "minimum": 64,
+                    "maximum": 2048
+                  },
+                  "loop": {
+                    "type": "integer",
+                    "minimum": -1,
+                    "maximum": 65535
+                  }
+                },
+                "required": [
+                  "kind",
+                  "sources",
+                  "start",
+                  "duration",
+                  "fps",
+                  "width",
+                  "loop"
+                ],
+                "additionalProperties": false
+              },
+              "derivation": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  },
+                  "sha256": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "path",
+                  "sha256"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "id",
+              "recipe",
+              "derivation"
             ],
             "additionalProperties": false
           }
@@ -1721,7 +1827,8 @@
                     "animation-story",
                     "edit-only",
                     "image-only",
-                    "gif-only"
+                    "gif-only",
+                    "gif-local"
                   ]
                 },
                 "audio_policy": {

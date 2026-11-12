@@ -198,7 +198,10 @@
         "production script-import",
         "production impact",
         "production import-clip",
-        "production images-run"
+        "production images-run",
+        "production gif-video",
+        "production gif-frames",
+        "production gif-rebuild"
       ],
       "work_packages": [
         "F01",
@@ -212,11 +215,12 @@
         "F09"
       ],
       "status": "partial",
-      "limitations": "v3 stages support explicit local-video editing and pure generated image/native-GIF plans. Existing image attempts, budgets and actual receipts are reused. Mixed video/image/local projects, local GIF-export stage integration and richer guided forms remain open.",
+      "limitations": "v3 stages support explicit local-video editing, pure generated image/native-GIF plans and independent local video/ordered-static-frame GIF derivations. Local conversions preserve snapshots, recipes and temporal review without provider jobs. Mixed video/image/local timelines, richer guided authoring and broader workflow acceptance remain incomplete.",
       "test_evidence": [
         "test_production_progress.py",
         "test_edit_only_production.py",
-        "test_image_production.py"
+        "test_image_production.py",
+        "test_local_gif_production.py"
       ],
       "online_acceptance": "Not claimed by source implementation; consult binding receipts and the dated acceptance report."
     },
@@ -370,16 +374,23 @@
       "entry_points": [
         "assets image",
         "assets batch",
-        "media gif"
+        "media gif",
+        "production images-run",
+        "production gif-video",
+        "production gif-frames",
+        "production gif-rebuild",
+        "review gif"
       ],
       "work_packages": [
         "I04"
       ],
       "status": "partial",
-      "limitations": "Existing image and GIF contracts retained; per-binding online acceptance remains separate.",
+      "limitations": "Native image/GIF plans and independent local video/ordered-static-frame GIF derivations have stages, hash-bound review and collection delivery. Local conversion needs FFmpeg/FFprobe and no provider configuration; per-binding online acceptance and mixed video timelines remain separate.",
       "test_evidence": [
         "test_gif_media.py",
-        "test_image_model_routing.py"
+        "test_image_model_routing.py",
+        "test_image_production.py",
+        "test_local_gif_production.py"
       ],
       "online_acceptance": "Not claimed by source implementation; consult binding receipts and the dated acceptance report."
     },

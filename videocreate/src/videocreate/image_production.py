@@ -8,7 +8,7 @@ import re
 from .config.storage import ConfigError, atomic_json, load_json
 from .planning.project import content_hash, within
 
-PROFILES = {'image-only', 'gif-only'}
+PROFILES = {'image-only', 'gif-only', 'gif-local'}
 
 
 def is_image(bundle):
@@ -35,8 +35,10 @@ def validate(bundle, root=None):
         errors.append('Pure image/GIF plans must not contain video jobs, local videos, shots or story beats')
     if any(bundle['timeline'].get(k) for k in ('clips','segments','audio_tracks','subtitles','overlays')):
         errors.append('Pure image/GIF plans do not use a video timeline')
-    if not jobs:
-        errors.append('At least one planned image job is required')
+    if not jobs and not generation.get('local_gifs'):
+        errors.append('At least one planned image or local GIF is required; use production gif-video/gif-frames for local sources')
+    from . import local_gifs
+    errors.extend(local_gifs.validate(bundle, root))
     ids=set()
     for job in jobs:
         identity=job['id']
@@ -47,7 +49,7 @@ def validate(bundle, root=None):
         if len(job['prompt'].encode('utf-8'))>4096:errors.append(identity+': image adapter prompt exceeds 4096 UTF-8 bytes')
         if bool(job.get('references')) != (job['operation']=='image-edit'):
             errors.append(identity+': image-edit requires references; text-to-image must omit them')
-        animated=bundle['brief']['workflow_profile']=='gif-only'
+        animated=bundle['brief']['workflow_profile'] in {'gif-only','gif-local'}
         if (job['output_format']=='gif') != animated:
             errors.append(identity+': output format must match the static-image/GIF workflow')
         if not job['size'].strip() or not job['quality'].strip():errors.append(identity+': size and quality must not be empty')
@@ -106,7 +108,9 @@ def compile_plan(root,bundle,config,store_root,job_ids=None,binding_override=Non
         rows.append({'job_id':item['job_id'],'model':model,'binding':binding.id,'prepared':prepared,
             'estimate':estimate(binding,0,config.get('budget',{}).get('currency','CNY'),parameters={
                 'operation':'image-edit' if item['references'] else 'text-to-image'}),'selection':selection})
-    return {'ok':True,'kind':bundle['brief']['workflow_profile'],'jobs':rows,'paid_creates':0,
+    from . import local_gifs
+    return {'ok':True,'kind':bundle['brief']['workflow_profile'],'jobs':rows,'local_gifs':local_gifs.rows(root,bundle),'paid_creates':0,
+        'provider_configuration_required':bool(bundle['generation-plan'].get('image_jobs')),
         'verification':'offline-preflight; no generation or content acceptance'}
 
 
@@ -115,6 +119,8 @@ def run(root,bundle,config,store_root,*,job_ids=None,retry=None,reason=''):
     from .planning.project import validate_plan
     checked=validate_plan(bundle,root)
     if not is_image(bundle) or not checked['ok']:raise ConfigError('; '.join(checked['errors']) or 'Use a pure image/GIF plan')
+    if not bundle['generation-plan'].get('image_jobs'):
+        raise ConfigError('This project uses local GIF derivations; use gif-video/gif-frames/gif-rebuild, without provider configuration')
     batch=items(root,bundle,job_ids)
     if retry:
         if retry not in {'content','replan'} or not job_ids or len(batch)!=1 or not reason.strip():
@@ -168,7 +174,7 @@ def review_summary(task_rows):
     complete=bool(task_rows) and all(r['status']=='completed' for r in task_rows)
     accepted=complete and all(r['content_status']=='reviewed' for r in task_rows)
     return {'status':'rejected' if rejected else 'accepted_delivery' if accepted else 'review_pending' if complete else 'draft_preview',
-        'assets':{r['job_id']:{'image_content':r['content_status']} for r in task_rows if r['status']=='completed'},
+        'assets':{r.get('job_id') or r['gif_id']:{'image_content':r['content_status']} for r in task_rows if r['status']=='completed'},
         'valid_receipts':sum(r['content_status'] in {'reviewed','rejected'} for r in task_rows),
         'structural_is_content_approval':False}
 
@@ -188,7 +194,11 @@ def impact(root,bundle,state):
                 not job.get('binding_id') or job['binding_id']==snapshot['binding_id'])
         except (ConfigError,KeyError,OSError,ValueError):same=False
         (unchanged if same else changed).append(job['id'])
+    from . import local_gifs
+    local_rows=local_gifs.rows(root,bundle)
     return {'ok':True,'changed_job_inputs':changed,'dependent_jobs_to_check':[],
+        'changed_local_gifs':[r['gif_id'] for r in local_rows if r['status']=='stale'],
+        'reusable_local_gifs':[r['gif_id'] for r in local_rows if r['status']=='completed'],
         'reusable_inputs':unchanged,'not_submitted':pending,'paid_creates':0,
         'note':'No request was created. Changed image inputs require an explicit replan.'}
 
@@ -197,22 +207,27 @@ def status(root,bundle,state,record,check,stages):
     from .production import AUTHORING,NAMES
     from .runtime.budget import summary
     task_rows=rows(root,bundle,state)
+    from . import local_gifs
+    local_rows=local_gifs.rows(root,bundle)
     affected=impact(root,bundle,state)
     ambiguous=[r['job_id'] for r in task_rows if r['status'] in {'submitting','submission_unknown'}]
     complete=bool(task_rows) and all(r['status']=='completed' for r in task_rows)
-    review=review_summary(task_rows)
+    review=review_summary([*task_rows,*local_rows])
     stages.extend([
-        {'id':'generation','name':NAMES['generation'],'status':'blocked' if ambiguous else 'stale' if affected['changed_job_inputs'] else 'complete' if complete else 'pending','blocked_by':ambiguous},
-        {'id':'editing','name':NAMES['editing'],'status':'skipped','reason':'Pure image/GIF deliverables have no video timeline'},
+        {'id':'generation','name':NAMES['generation'],'status':'skipped' if not task_rows else 'blocked' if ambiguous else 'stale' if affected['changed_job_inputs'] else 'complete' if complete else 'pending','blocked_by':ambiguous},
+        {'id':'editing','name':NAMES['editing'],'status':'stale' if affected['changed_local_gifs'] else 'complete' if local_rows else 'ready' if bundle['brief']['workflow_profile']=='gif-local' else 'skipped',
+            'reason':'Local GIF conversion uses source snapshots and explicit recipes; no video timeline' if local_rows or bundle['brief']['workflow_profile']=='gif-local' else 'Pure image/GIF deliverables have no video timeline'},
         {'id':'review','name':NAMES['review'],'status':'complete' if review['status']=='accepted_delivery' else 'blocked' if review['status']=='rejected' else 'pending','reason':review['status']},
         {'id':'delivery','name':NAMES['delivery'],'status':'ready' if review['status']=='accepted_delivery' else 'pending'}])
     remaining=[s for s in stages if s['status'] not in {'complete','skipped'}]
     if record.get('policy')=='auto-within-authorization':remaining=[s for s in remaining if s['id'] not in AUTHORING]
     next_step=remaining[0] if remaining else None
     if ambiguous:next_step={'id':'reconcile','name':'核对原图片提交；不重复创建','jobs':ambiguous}
+    elif bundle['brief']['workflow_profile']=='gif-local' and not local_rows:
+        next_step={'id':'import-gif-source','name':'导入视频或有序静帧，制作本地 GIF'}
     elif not check['ok']:next_step={'id':'repair-plan','name':'完善图片提示词与计划','errors':check['errors']}
     return {'ok':check['ok'],'project':str(root),'title':bundle['project']['title'],'branch':bundle['brief']['workflow_profile'],
-        'policy':record.get('policy','assisted'),'stages':stages,'next':next_step,'jobs':task_rows,'local_sources':[],
+        'policy':record.get('policy','assisted'),'stages':stages,'next':next_step,'jobs':task_rows,'local_sources':[], 'local_gifs':local_rows,
         'impact':affected,'budget':summary(state),'review':review,'errors':check['errors'],'warnings':check['warnings'],'paid_creates':0}
 
 
@@ -223,13 +238,16 @@ def deliver(root,bundle):
     check=validate_plan(bundle,root)
     if not check['ok']:raise ConfigError('; '.join(check['errors']))
     state=read_state(root);task_rows=rows(root,bundle,state)
-    if not task_rows or any(r['status']!='completed' for r in task_rows):
+    from . import local_gifs
+    local_rows=local_gifs.rows(root,bundle)
+    all_rows=[*task_rows,*local_rows]
+    if not all_rows or any(r['status']!='completed' for r in all_rows):
         raise ConfigError('Every planned image must have a current, hash-valid completed output before delivery')
-    review=review_summary(task_rows)
+    review=review_summary(all_rows)
     value={'schema_version':1,'kind':bundle['brief']['workflow_profile'],'status':review['status'],
-        'plan_hash':content_hash(bundle),'jobs':task_rows,'review':review,'budget':summary(state),
-        'artifacts':[{'job_id':r['job_id'],**r['artifact'],'media':r['media']} for r in task_rows],
-        'source_references':{j['id']:j.get('references',[]) for j in bundle['generation-plan']['image_jobs']},
+        'plan_hash':content_hash(bundle),'jobs':task_rows,'local_gifs':local_rows,'review':review,'budget':summary(state),
+        'artifacts':[{**({'job_id':r['job_id']} if 'job_id' in r else {'gif_id':r['gif_id']}),**r['artifact'],'media':r['media']} for r in all_rows],
+        'source_references':{j['id']:j.get('references',[]) for j in bundle['generation-plan'].get('image_jobs',[])},
         'unverified':[] if review['status']=='accepted_delivery' else ['Actual image/GIF review is incomplete or rejected'],
         'paid_creates':0}
     path=root/'deliverables/images.delivery.json';atomic_json(path,value)
@@ -238,14 +256,18 @@ def deliver(root,bundle):
 
 def brief_export(root,bundle):
     value={'schema_version':1,'kind':bundle['brief']['workflow_profile'],'title':bundle['project']['title'],
-        'source':'generation-plan.image_jobs','source_hash':content_hash(bundle['generation-plan'].get('image_jobs',[])),
-        'image_jobs':bundle['generation-plan'].get('image_jobs',[]),'read_only':True}
+        'source':'generation-plan.image_jobs/local_gifs','source_hash':content_hash(bundle['generation-plan'].get('image_jobs',[])),
+        'image_jobs':bundle['generation-plan'].get('image_jobs',[]), 'local_gifs':bundle['generation-plan'].get('local_gifs',[]),'read_only':True}
+    value['source_hash']=content_hash({'image_jobs':value['image_jobs'],'local_gifs':value['local_gifs']})
     target=root/'production/image-brief.json';atomic_json(target,value)
-    lines=['# '+value['title'],'','图片创作单：只读导出；在 generation-plan.json 编辑 image_jobs。','']
+    lines=['# '+value['title'],'','图片 / GIF 创作单：只读导出；在 generation-plan.json 编辑 image_jobs 或 local_gifs 配方。','']
     for job in value['image_jobs']:
         lines.extend(['## '+job['id'],'',job['prompt'],'',
             '规格：'+job['size']+' / '+job['quality']+' / '+job['output_format'],
             '参考：'+', '.join(r['path'] for r in job.get('references',[])),''])
+    for item in value['local_gifs']:
+        lines.extend(['## '+item['id'],'','本地 GIF 配方：'+json.dumps(item['recipe'],ensure_ascii=False),
+            '派生记录：'+item['derivation']['path'],''])
     reading=target.with_suffix('.md');reading.write_text('\n'.join(lines),encoding='utf-8')
     return {'ok':True,'image_brief':str(target),'reading_copy':str(reading),
         'source_hash':value['source_hash'],'read_only':True,'paid_creates':0}
@@ -254,15 +276,17 @@ def brief_export(root,bundle):
 def page(root,bundle):
     from .runtime.state import read_state
     current=rows(root,bundle,read_state(root))
+    from . import local_gifs
+    current.extend(local_gifs.rows(root,bundle))
     output=root/'deliverables/image-review.html';output.parent.mkdir(parents=True,exist_ok=True)
     cards=[]
     for row in current:
         if row['status']!='completed':continue
         uri=within(root,row['artifact']['path']).as_uri()
-        cards.append('<article><h2>'+html.escape(row['job_id'])+'</h2><img src="'+html.escape(uri,quote=True)+'"><p>'
+        cards.append('<article><h2>'+html.escape(row.get('job_id') or row['gif_id'])+'</h2><img src="'+html.escape(uri,quote=True)+'"><p>'
             +html.escape(row['content_status'])+'</p><code>'+html.escape(row['artifact']['sha256'])+'</code></article>')
     output.write_text('<!doctype html><meta charset="utf-8"><title>Image/GIF review</title>'
         '<style>body{font:18px system-ui;max-width:1000px;margin:40px auto}img{max-width:100%;max-height:70vh}article{margin:40px 0}code{overflow-wrap:anywhere}</style>'
         '<h1>'+html.escape(bundle['project']['title'])+'</h1><p>Opening this page approves nothing. Inspect actual imagery; play the entire GIF. '
-        'Record observations with review image; animated GIFs require --temporal-observation.</p>'+''.join(cards),encoding='utf-8')
+        'Record observations with review image (generated) or review gif (local); animated GIFs require --temporal-observation.</p>'+''.join(cards),encoding='utf-8')
     return {'ok':True,'page':str(output),'items':len(cards),'status':'review_pending','paid_creates':0}

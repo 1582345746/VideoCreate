@@ -56,6 +56,9 @@ def open_panel(manager, root):
             for item in result.get('local_sources',[]):
                 queue.insert('','end',values=(item['source_id'],STATUS.get(item['status'],item['status']),
                     '本地：'+item['path'],item['content_status']))
+            for item in result.get('local_gifs',[]):
+                queue.insert('','end',values=(item['gif_id'],STATUS.get(item['status'],item['status']),
+                    '本地 GIF：'+item.get('artifact',{}).get('path',item.get('error','待转换')),item['content_status']))
             next_step.set('下一步：'+(result['next'] or {}).get('name','查看交付清单'))
             b=result['budget']
             budget.set(f"已记录 {b['requests']} 次创建；报价未知 {b['unknown_price_requests']} 次；实际账单待核实 {b['actual_unverified_requests']} 次。")
@@ -94,7 +97,7 @@ def open_panel(manager, root):
                 from .review.page import export
                 result=export(root)
             webbrowser.open(Path(result['page']).as_uri())
-            message.set('已打开图片 / GIF 审核页；实际观察后用 review image 记录，动图需完整播放。' if image_production.is_image(bundle) else '已打开本地审片页。完成观察后导出记录，用 review apply 导入校验。')
+            message.set('已打开图片 / GIF 审核页；用 review image 记录生成图、review gif 记录本地动图，动图需完整播放。' if image_production.is_image(bundle) else '已打开本地审片页。完成观察后导出记录，用 review apply 导入校验。')
         except (ConfigError,OSError,ValueError) as exc:manager.error(exc)
     def import_local():
         from tkinter import filedialog
@@ -152,5 +155,11 @@ def open_panel(manager, root):
         ttk.Button(actions,text=text,command=fn).pack(side='left',padx=6)
     if production.load_project(root)['brief'].get('workflow_profile')=='edit-only':
         ttk.Button(actions,text='导入本地视频',command=import_local).pack(side='left',padx=6)
+    if production.load_project(root)['brief'].get('workflow_profile') in {'gif-only','gif-local'}:
+        from .manager_gifs import open_form
+        def gif_complete(result):
+            if win.winfo_exists():refresh()
+        ttk.Button(actions,text='视频转 GIF',command=lambda:open_form(manager,root,parent=win,completed=gif_complete)).pack(side='left',padx=6)
+        ttk.Button(actions,text='静帧转 GIF',command=lambda:open_form(manager,root,frames=True,parent=win,completed=gif_complete)).pack(side='left',padx=6)
     refresh()
     return win

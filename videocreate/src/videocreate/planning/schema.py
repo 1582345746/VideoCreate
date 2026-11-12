@@ -56,7 +56,7 @@ def plan_schema():
         "brief": obj({"intent": enum("narrative", "demonstration", "montage", "single-shot"), "genre": STR, "pace_profile": STR,
             "audience": STR, "aspect_ratio": STR, "resolution": STR, "visual_style": STR,
             "allowed_elements": STRING_LIST, "forbidden_elements": STRING_LIST,
-            "workflow_profile": enum("portrait", "action-insert", "action-montage", "animal-comedy", "scenic", "explainer", "series-episode", "animation-story", "edit-only", "image-only", "gif-only"),
+            "workflow_profile": enum("portrait", "action-insert", "action-montage", "animal-comedy", "scenic", "explainer", "series-episode", "animation-story", "edit-only", "image-only", "gif-only", "gif-local"),
             "audio_policy": enum("silent", "ambience", "voiceover", "dialogue", "native-experimental"),
             "target_seconds": {"type": "number", "exclusiveMinimum": 0},
             "reference_profiles": array(obj({"path": STR, "sha256": STR}, ("path", "sha256"))),
@@ -68,7 +68,15 @@ def plan_schema():
                 "audience_learns": STR, "visible_evidence_needed": STRING_LIST},
                 ("id", "requires", "effects", "causes", "audience_learns", "visible_evidence_needed")))}, ("beats", "initial_state")),
         "director": obj({"assets": array(asset), "scenes": array(scene), "shots": array(shot)}, ("assets", "scenes", "shots")),
-        "generation-plan": obj({"jobs": array(job), "image_jobs": array(obj({
+        "generation-plan": obj({"jobs": array(job), "local_gifs": array(obj({
+            "id": STR, "recipe": obj({"kind": enum('video-to-gif','frames-to-gif'),
+                "sources": array(obj({"kind": enum('video','image'), "path": STR, "sha256": STR}, ('kind','path','sha256'))),
+                "start": number, "duration": {"type":"number","exclusiveMinimum":0},
+                "fps": {"type":"integer","minimum":1,"maximum":60},
+                "width": {"type":"integer","minimum":64,"maximum":2048},
+                "loop": {"type":"integer","minimum":-1,"maximum":65535}},
+                ('kind','sources','start','duration','fps','width','loop')),
+            "derivation": obj({"path":STR,"sha256":STR}, ('path','sha256'))}, ('id','recipe','derivation'))), "image_jobs": array(obj({
             "id": STR, "prompt": STR, "operation": enum('text-to-image','image-edit'),
             "size": STR, "quality": STR, "output_format": enum('png','jpeg','webp','gif'),
             "model": STR, "binding_id": STR,

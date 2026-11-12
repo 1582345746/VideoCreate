@@ -10,7 +10,8 @@ def production_command(argv):
     from .config.storage import user_config_path
     parser = argparse.ArgumentParser(prog='videocreate production')
     parser.add_argument('action', choices=['status', 'next', 'impact', 'script-export', 'script-import',
-        'checkpoint', 'policy', 'track', 'projects', 'deliver', 'metrics', 'import-clip', 'images-run'])
+        'checkpoint', 'policy', 'track', 'projects', 'deliver', 'metrics', 'import-clip', 'images-run',
+        'gif-video', 'gif-frames', 'gif-rebuild'])
     parser.add_argument('project', type=Path, nargs='?')
     parser.add_argument('--file', type=Path)
     parser.add_argument('--stage', choices=production.AUTHORING)
@@ -21,7 +22,13 @@ def production_command(argv):
     parser.add_argument('--output-name', default='preview.mp4')
     parser.add_argument('--source', type=Path)
     parser.add_argument('--source-id')
-    parser.add_argument('--start', type=float, default=0)
+    parser.add_argument('--gif')
+    parser.add_argument('--frame', type=Path, action='append')
+    parser.add_argument('--duration', type=float)
+    parser.add_argument('--fps', type=int)
+    parser.add_argument('--width', type=int)
+    parser.add_argument('--loop', type=int)
+    parser.add_argument('--start', type=float)
     parser.add_argument('--end', type=float)
     parser.add_argument('--description', default='')
     parser.add_argument('--mute', action='store_true')
@@ -30,17 +37,39 @@ def production_command(argv):
     args = parser.parse_args(argv)
     if args.action != 'projects' and not args.project:
         raise ConfigError('This action requires a project directory')
-    if args.action == 'images-run':
+    if args.action in {'gif-video','gif-frames','gif-rebuild'}:
+        from .local_gifs import build
+        if not args.gif:
+            raise ConfigError('Local GIF conversion needs an explicit --gif ID')
+        if args.action == 'gif-video' and (args.source is None or args.frame):
+            raise ConfigError('gif-video requires --source and no --frame')
+        if args.action == 'gif-frames' and (not args.frame or args.source is not None):
+            raise ConfigError('gif-frames requires ordered --frame values and no --source')
+        if args.end is not None:
+            raise ConfigError('GIF conversion uses --start/--duration; --end is not consumed')
+        if args.action=='gif-frames' and (args.start is not None or args.duration is not None):
+            raise ConfigError('Frame GIF duration is determined by frame count/fps; omit --start/--duration')
+        if args.action=='gif-rebuild' and any(v is not None for v in (args.start,args.duration,args.fps,args.width,args.loop)):
+            raise ConfigError('gif-rebuild consumes the saved recipe; edit local_gifs in generation-plan.json first')
+        result=build(args.project, gif_id=args.gif, source=args.source, frames=args.frame,
+            start=args.start if args.start is not None else 0, duration=args.duration if args.duration is not None else 3,
+            fps=args.fps if args.fps is not None else 15, width=args.width if args.width is not None else 480,
+            loop=args.loop if args.loop is not None else 0,
+            rebuild=args.action=='gif-rebuild')
+    elif args.action == 'images-run':
         from . import image_production
         from .cli import read_config
+        bundle=production.load_project(args.project)
+        if not bundle['generation-plan'].get('image_jobs'):
+            raise ConfigError('No provider image jobs; use gif-video/gif-frames/gif-rebuild for local GIFs')
         path=user_config_path(args.config)
-        result=image_production.run(args.project.resolve(),production.load_project(args.project),read_config(path),path.parent,
+        result=image_production.run(args.project.resolve(),bundle,read_config(path),path.parent,
             job_ids=args.job,retry=args.retry,reason=args.reason)
     elif args.action == 'import-clip':
         if not args.source or not args.source_id:
             raise ConfigError('Import requires --source and --source-id')
         from .local_sources import import_clip
-        result = import_clip(args.project,args.source,source_id=args.source_id,start=args.start,end=args.end,
+        result = import_clip(args.project,args.source,source_id=args.source_id,start=args.start if args.start is not None else 0,end=args.end,
                              description=args.description,preserve_audio=not args.mute)
     elif args.action in {'status', 'next'}:
         result = production.status(args.project, output_name=args.output_name)

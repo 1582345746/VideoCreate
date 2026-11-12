@@ -25,7 +25,7 @@ Status lists imported sources separately from remote tasks, skips unused outline
 
 ## Pure generated images and native GIFs
 
-`image-only` and `gif-only` create independent v3 image plans. They have `generation-plan.image_jobs`, with no video jobs, shots, retained windows or fictional video duration. Each job declares ID, operation, prompt, size, quality, output format, optional model/binding and ordered reference-image paths with hashes. Blank prompts remain drafts; `--seconds` is rejected. `gif-only` requires a binding whose actual image contract supports native multi-frame GIF output; it does not automatically substitute another model or invoke video generation. Local `media export-gif/frames-gif` conversions remain separate from these native generation plans.
+`image-only` and `gif-only` create independent v3 image plans. They have `generation-plan.image_jobs`, with no video jobs, shots, retained windows or fictional video duration. Each job declares ID, operation, prompt, size, quality, output format, optional model/binding and ordered reference-image paths with hashes. Blank prompts remain drafts; `--seconds` is rejected. A native GIF image job requires a binding whose actual image contract supports native multi-frame GIF output; it does not automatically substitute another model or invoke video generation. GIF collections may also register local conversions in `local_gifs`; `gif-local` starts without any provider image jobs.
 
 ```powershell
 python scripts/videocreate.py plan init projects/poster --profile image-only --topic "A boat at sunset"
@@ -42,6 +42,27 @@ Use `image-edit` only with registered in-project references whose actual bytes s
 The production panel skips unused outline/script/video editing stages and uses image output/review state. `production script-export` emits a read-only image creative brief, edited at its source `generation-plan.image_jobs`. `review page` uses actual local output files; it approves nothing. Static images need observed image review; GIFs require full temporal observation as well as a structurally valid multi-frame result. Video-layer template/apply/packet receipts are inapplicable here. Missing or mismatched image receipts never grant acceptance. Title changes preserve source review; prompt/reference/size/quality/output format/model/binding changes invalidate the corresponding image plan. Changed result bytes block delivery.
 
 `production deliver` writes `deliverables/images.delivery.json` with artifact hashes, actual available metadata, source reference mappings, original route identifiers, budget and pending/rejected observations. It is a collection manifest referencing project outputs, not a separate media archive. All current planned outputs must exist; final acceptance additionally requires their own valid receipts. Static-image width/height may remain unknown in the retained header inspector; requested size is not proof of actual dimensions or provider internals. Metrics count images/GIFs separately and report no generated video seconds for them. GUI checks remain distinct from real content observation.
+
+## Local video or frames to GIF
+
+Use `gif-local` when all inputs already exist. It starts as an empty draft; `production next` asks for a video or ordered static frames. Neither initialization, conversion, plan compile/route, review nor delivery needs provider configuration. No task is inserted into `state.jobs`, no ledger entry is created, and local GIF counts stay outside model quality/paid-attempt rates.
+
+```powershell
+python scripts/videocreate.py plan init projects/local-gif --profile gif-local
+python scripts/videocreate.py production gif-video projects/local-gif --source "D:/media/source.mp4" --gif loop-001 --start 1 --duration 3 --fps 15 --width 480 --loop 0
+# Alternative: --frame order is retained, including duplicate frames.
+python scripts/videocreate.py production gif-frames projects/local-gif --frame "D:/media/a.png" --frame "D:/media/b.png" --gif loop-002 --fps 10 --width 480
+python scripts/videocreate.py plan compile projects/local-gif
+python scripts/videocreate.py review page projects/local-gif
+python scripts/videocreate.py review gif projects/local-gif --gif loop-001 --status pass --reviewer <reviewer> --observation "Actual full playback observation" --temporal-observation
+python scripts/videocreate.py production deliver projects/local-gif
+```
+
+Sources are copied content-addressed into `assets/local-gif-sources`; originals remain intact. Video input accepts MP4/MOV/MKV/WebM, with a finite in-source interval of 0.1–30 seconds. Ordered static PNG/JPEG/WebP frames must decode to one frame each and share actual dimensions and image format; 1–1800 frames and 0.1–30 seconds are allowed. Frame duration is count/fps. FPS is 1–60, width 64–2048, loop 0 means infinite, -1 omits repeat, and positive values set repeat count. Output duration is measured from GIF delays and can differ slightly due to frame/delay quantization. Source audio is absent from GIF output.
+
+Conversion fully decodes inputs/output, requires multiple output frames and preserves exact source hashes, recipe, actual output metadata and derivation hash. `generation-plan.local_gifs` references the current derivation; previous files remain intact. Editing its recipe makes that GIF stale. Explicitly run `production gif-rebuild PROJECT --gif ID` to convert its saved snapshots again. Each rebuild requires review of the new derivation; any defect receipt on identical output bytes continues to dominate passes. Changed/missing snapshots, output or manifests block review and delivery. Titles alone do not invalidate the output.
+
+Only the generation-plan layer is atomically replaced after conversion, under an optimistic byte check and project lock; the prior layer is backed up. Concurrent edits are preserved and reported as conflicts. Interrupted/failed conversion can leave unregistered source copies or outputs for inspection; it creates no remote ambiguity. This is not a multi-file power-loss transaction. The manager project panel provides asynchronous video/frame conversion forms and a separate local GIF list. Review remains explicit full playback; GUI construction tests do not certify visual usability. `production deliver` uses the same project-relative collection manifest as generated images. Mixed local/generated video timelines and a graphical recipe editor remain separate work.
 
 ## Photorealistic shorts
 

@@ -90,7 +90,8 @@ def plan_command(argv: list[str]) -> int:
         print_result({"ok": True, "project": str(root / "project.json"), "status": "draft_plan",
             "next": "Use production import-clip to register existing footage, then plan validate and timeline render"
                 if args.profile=='edit-only' else 'Author generation-plan.image_jobs, then plan validate/compile and production images-run'
-                if args.profile in {'image-only','gif-only'} else "Author brief/story/director/generation-plan/timeline, then plan validate and plan preview", "paid_creates": 0})
+                if args.profile in {'image-only','gif-only'} else 'Use production gif-video/gif-frames to create a local GIF without provider configuration'
+                if args.profile=='gif-local' else "Author brief/story/director/generation-plan/timeline, then plan validate and plan preview", "paid_creates": 0})
         return 0
     bundle = load_project(root)
     from . import image_production
@@ -102,7 +103,7 @@ def plan_command(argv: list[str]) -> int:
             result=image_production.page(root,bundle)
         else:
             path=user_config_path(args.config)
-            result=image_production.compile_plan(root,bundle,read_config(path),path.parent,job_ids=args.job,binding_override=args.binding)
+            result=image_production.compile_plan(root,bundle,read_config(path) if bundle['generation-plan'].get('image_jobs') else {},path.parent,job_ids=args.job,binding_override=args.binding)
         print_result(result);return 0
     if args.action == "audit":
         from .planning.creative_audit import audit
@@ -338,28 +339,40 @@ def review_command(argv: list[str]) -> int:
     from .runtime.state import read_state
     from .review.receipts import apply, inbox, review_image, summary, template
     parser = argparse.ArgumentParser(prog="videocreate review")
-    parser.add_argument("action", choices=["template", "apply", "status", "packet", "inbox", "image", "page"])
+    parser.add_argument("action", choices=["template", "apply", "status", "packet", "inbox", "image", "gif", "page"])
     parser.add_argument("project", type=Path)
     parser.add_argument("--receipt", type=Path)
     parser.add_argument("--output-name", default="preview.mp4")
     parser.add_argument("--pending-only", action="store_true")
     parser.add_argument("--job")
+    parser.add_argument("--gif")
     parser.add_argument("--status", choices=["pass", "fail"])
     parser.add_argument("--reviewer")
     parser.add_argument("--observation")
     parser.add_argument("--temporal-observation", action="store_true", help="Reviewer observed full animation playback")
     args = parser.parse_args(argv)
     root = args.project.resolve()
-    if args.action == "inbox":
-        print_result(inbox(root, pending_only=args.pending_only))
+    from . import image_production
+    if args.action == 'inbox':
+        result=inbox(root, pending_only=args.pending_only)
+        bundle=load_project(root) if (root/'project.json').is_file() else None
+        if bundle and image_production.is_image(bundle):
+            from . import local_gifs
+            result['local_gifs']=[r for r in local_gifs.rows(root,bundle) if not args.pending_only or r['content_status']!='reviewed']
+        print_result(result)
         return 0
     bundle = load_project(root)
-    from . import image_production
     if image_production.is_image(bundle) and args.action in {'template','apply','packet'}:
         raise ConfigError('Pure image/GIF review uses review page/inbox/image/status; video-layer receipts do not apply')
     if args.action == "packet":
         from .review.packet import packet
         print_result(packet(root, bundle, output_name=args.output_name))
+    elif args.action == 'gif':
+        from . import local_gifs
+        if not args.gif or not args.status or not args.reviewer or not args.observation:
+            raise ConfigError('Local GIF review needs --gif, --status, --reviewer and --observation')
+        print_result(local_gifs.review(root,gif_id=args.gif,status=args.status,reviewer_id=args.reviewer,
+            observation=args.observation,temporal_observation=args.temporal_observation))
     elif args.action == "image":
         if not args.job or not args.status or not args.reviewer or not args.observation:
             raise ConfigError("Image review needs --job, --status, --reviewer and --observation")
@@ -383,7 +396,8 @@ def review_command(argv: list[str]) -> int:
     else:
         from . import image_production
         if image_production.is_image(bundle):
-            print_result({'ok':True,**image_production.review_summary(image_production.rows(root,bundle,read_state(root)))})
+            from . import local_gifs
+            print_result({'ok':True,**image_production.review_summary([*image_production.rows(root,bundle,read_state(root)),*local_gifs.rows(root,bundle)])})
         else:
             print_result({"ok": True, **summary(root, bundle, output_name=args.output_name)})
     return 0

@@ -73,12 +73,12 @@ def validate_plan(bundle: dict[str, Any], root: Path | None = None) -> dict[str,
             "errors": errors, "warnings": [], "coverage": [], "paid_creates": 0}
     brief, story, director = (bundle[name] for name in ("brief", "story", "director"))
     generation, timeline = (bundle[name] for name in ("generation-plan", "timeline"))
-    if brief.get('workflow_profile') in {'image-only','gif-only'}:
+    if brief.get('workflow_profile') in {'image-only','gif-only','gif-local'}:
         from ..image_production import validate
         return validate(bundle, root)
-    if generation.get('image_jobs'):
+    if generation.get('image_jobs') or generation.get('local_gifs'):
         return {'ok':False,'structural':'fail','content':'unverified','errors':[
-            'Planned image_jobs currently require an explicit image-only or gif-only workflow'],
+            'Planned images/local GIFs require an explicit image-only, gif-only or gif-local workflow'],
             'warnings':[],'coverage':[],'paid_creates':0}
     intent = brief.get("intent")
     allowed = brief.get("allowed_elements", [])
