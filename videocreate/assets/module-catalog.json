@@ -85,7 +85,9 @@
       "name": "Windows 管理器",
       "entry_points": [
         "manager",
-        "providers compare"
+        "providers compare",
+        "项目与任务 · 渲染当前时间线",
+        "项目与任务 · 导出交付清单"
       ],
       "work_packages": [
         "C01",
@@ -97,10 +99,11 @@
         "C07"
       ],
       "status": "partial",
-      "limitations": "Native forms include multiline notes, reference combination/boolean controls, conditional pricing tiers, media/family filters, selected side-by-side comparison and per-operation evidence. Portable EXE verified locally; clean-machine and human visual review remain pending. No manager temporal-slice form yet.",
+      "limitations": "Native forms include multiline notes, reference combination/boolean controls, conditional pricing tiers, media/family filters, selected side-by-side comparison and per-operation evidence. Project panels can now render the current video timeline and export a hash-bound delivery manifest through local background workers; these actions do not create provider tasks. Portable EXE verified locally; clean-machine and human visual review remain pending. No manager temporal-slice form yet.",
       "test_evidence": [
         "test_catalog_presentation.py",
         "test_manager_catalog_ui.py",
+        "test_manager_project_actions.py",
         "test_provider_management.py"
       ],
       "online_acceptance": "No generation or provider connection is performed by filtering/comparison. Current live bindings and reference failures remain recorded independently; UI readiness does not certify model quality."
@@ -206,7 +209,9 @@
         "production images-run",
         "production gif-video",
         "production gif-frames",
-        "production gif-rebuild"
+        "production gif-rebuild",
+        "manager project panel · render",
+        "manager project panel · delivery"
       ],
       "work_packages": [
         "F01",
@@ -220,7 +225,7 @@
         "F09"
       ],
       "status": "partial",
-      "limitations": "Native theme/outline/screenplay/assets/jobs and timeline forms share token-bound single-layer saves. Timeline mappings, ordered trims/rates, source sound, independent audio, subtitles and overlays have a proportional schematic. No automatic remapping, rendering, task dispatch or content approval. Static-image timelines, drag editing and broader online acceptance remain incomplete.",
+      "limitations": "Native theme/outline/screenplay/assets/jobs and timeline forms share token-bound single-layer saves. Timeline mappings, ordered trims/rates, source sound, independent audio, subtitles and overlays have a proportional schematic. The manager now exposes local render and delivery actions with status/hash re-read and no provider task dispatch; content approval remains separate. Static-image timelines, drag editing and broader online acceptance remain incomplete.",
       "test_evidence": [
         "test_production_progress.py",
         "test_authoring.py",
@@ -231,7 +236,8 @@
         "test_mixed_video_production.py",
         "test_project_asset_authoring.py",
         "test_generation_authoring.py",
-        "test_timeline_authoring.py"
+        "test_timeline_authoring.py",
+        "test_manager_project_actions.py"
       ],
       "online_acceptance": "Not claimed by source implementation; consult binding receipts and the dated acceptance report."
     },
@@ -294,7 +300,8 @@
       "entry_points": [
         "authoring show/preview/save --layer timeline",
         "timeline map",
-        "timeline render"
+        "timeline render",
+        "manager project panel · render current timeline"
       ],
       "work_packages": [
         "H04",
@@ -302,11 +309,12 @@
         "H07"
       ],
       "status": "partial",
-      "limitations": "Native timeline forms and a clickable proportional schematic edit existing video source mappings/segments/audio/captions/overlays. Shared canvas limits match rendering. Saving does not render or regenerate; static-image clips, waveform/playback/drag trimming, dynamic masking/tracking and speed curves remain pending.",
+      "limitations": "Native timeline forms and a clickable proportional schematic edit existing video source mappings/segments/audio/captions/overlays. Shared canvas limits match rendering. Saving does not render or regenerate; the manager's explicit render button runs the same local renderer in a background worker. Static-image clips, waveform/playback/drag trimming, dynamic masking/tracking and speed curves remain pending.",
       "test_evidence": [
         "test_editing_workflow.py",
         "test_v3_pipeline.py",
-        "test_timeline_authoring.py"
+        "test_timeline_authoring.py",
+        "test_manager_project_actions.py"
       ],
       "online_acceptance": "Not claimed by source implementation; consult binding receipts and the dated acceptance report."
     },

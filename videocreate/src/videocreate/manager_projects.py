@@ -17,10 +17,37 @@ STATUS = {'ready':'可继续', 'complete':'已完成', 'pending':'待执行', 'b
     'submission_unknown':'提交结果未知', 'completed':'生成完成', 'failed':'失败'}
 
 
+def local_action(root, operation):
+    """Explicit local actions always read current files, never a UI/config snapshot."""
+    root = Path(root).resolve()
+    if operation == 'render':
+        from .image_production import is_image
+        from .planning.project import validate_plan
+        from .runtime.state import read_state
+        from .timeline.render import render
+        bundle = production.load_project(root)
+        if is_image(bundle):
+            raise ConfigError('Image/GIF collections have no video timeline')
+        check = validate_plan(bundle, root)
+        if not check['ok']:
+            raise ConfigError('; '.join(check['errors']))
+        result = render(root, bundle, read_state(root), output_name='preview.mp4')
+        current = production.status(root)
+        return {**result, 'review_status': current['review']['status']}
+    if operation == 'delivery':
+        return production.delivery(root, output_name='preview.mp4')
+    raise ConfigError('Unknown local project action: ' + operation)
+
+
 def open_panel(manager, root):
     root = Path(root).resolve()
     win, book, steps = manager.dialog('项目与制作步骤')
     win.geometry('1040x760')
+    # Reserve the controls before the expandable notebook consumes its cavity.
+    # Packing more root-level rows after the notebook can hide them entirely.
+    book.pack_forget()
+    footer = ttk.Frame(win);footer.pack(side='bottom', fill='x')
+    book.pack(fill='both', expand=True, padx=18, pady=14)
     book.tab(0, text='制作步骤')
     title = tk.StringVar()
     ttk.Label(steps, textvariable=title, font=('Microsoft YaHei UI',15,'bold')).pack(anchor='w')
@@ -40,8 +67,15 @@ def open_panel(manager, root):
     evidence = manager.json_tab(book,'版本与影响',{})
     metrics = manager.json_tab(book,'制作统计',{})
     message = tk.StringVar()
-    ttk.Label(win,textvariable=message,wraplength=980).pack(anchor='w',padx=18,pady=5)
-    actions = ttk.Frame(win,padding=12);actions.pack(fill='x')
+    ttk.Label(footer,textvariable=message,wraplength=980).pack(anchor='w',padx=18,pady=5)
+    actions = ttk.Frame(footer,padding=12);actions.pack(fill='x')
+    local_busy = [False]
+    local_buttons = []
+    scheduled = [None]
+    def destroyed(event):
+        if event.widget == win and scheduled[0] is not None:
+            win.after_cancel(scheduled[0]);scheduled[0] = None
+    win.bind('<Destroy>', destroyed, add='+')
     def refresh():
         try:
             result=production.status(root)
@@ -163,19 +197,75 @@ def open_panel(manager, root):
             from .authoring import outline as export
             result=export(root);message.set('已导出主题与大纲阅读稿：'+result['reading_copy'])
         except (ConfigError,OSError,ValueError) as exc:manager.error(exc)
+
+    def start_local_action(label, operation):
+        """Run a local render/delivery operation without touching provider state."""
+        if local_busy[0]:
+            return
+        local_busy[0] = True
+        for button in local_buttons:
+            button.configure(state='disabled')
+        message.set(label + '进行中；只读取当前项目并使用本机媒体工具。')
+        channel = queue_module.Queue()
+
+        def worker():
+            try:
+                channel.put((True, local_action(root, operation)))
+            except Exception as exc:
+                channel.put((False, exc))
+
+        def finish():
+            scheduled[0] = None
+            try:
+                if not win.winfo_exists():
+                    return
+            except tk.TclError:
+                return
+            try:
+                ok, result = channel.get_nowait()
+            except queue_module.Empty:
+                scheduled[0] = win.after(100, finish)
+                return
+            local_busy[0] = False
+            for button in local_buttons:
+                button.configure(state='normal')
+            if not ok:
+                message.set(label + '未完成：' + str(result))
+                manager.error(result)
+                return
+            target = result.get('manifest') if isinstance(result, dict) else None
+            if operation == 'render' and isinstance(result, dict):
+                target = result.get('path') or result.get('manifest')
+            refresh()
+            # refresh() reports its own read-only status; restore the action
+            # result afterwards so the user can see where the local artifact is.
+            detail = ('；完整解码：' + result.get('technical_decode', 'unverified')) if operation == 'render' else ''
+            detail += '；审核：' + result.get('review_status', result.get('status', 'unverified'))
+            message.set(label + '完成：' + str(target or '已完成') + detail)
+
+        # A started local transaction must finish even if this dialog is closed.
+        threading.Thread(target=worker, daemon=False).start()
+        scheduled[0] = win.after(100, finish)
+
     for text,fn in [('刷新状态',refresh),('编辑主题与规格',lambda:edit_layer('brief')),
                     ('导出剧本阅读稿',reading),('打开实际审片页',review)]:
         ttk.Button(actions,text=text,command=fn).pack(side='left',padx=6)
     bundle=production.load_project(root)
+    local_actions = ttk.Frame(footer, padding=(12, 0, 12, 8));local_actions.pack(fill='x')
     if bundle['brief'].get('workflow_profile') not in {'image-only','gif-only','gif-local'}:
-        ttk.Button(actions,text='剪辑时间线与声音',command=lambda:edit_layer('timeline')).pack(side='left',padx=6)
+        local_buttons.append(ttk.Button(local_actions,text='渲染当前时间线',command=lambda:start_local_action('时间线渲染','render')))
+        local_buttons[-1].pack(side='left',padx=6)
+    delivery_button = ttk.Button(local_actions,text='导出交付清单',command=lambda:start_local_action('交付清单导出','delivery'))
+    local_buttons.append(delivery_button);delivery_button.pack(side='left',padx=6)
+    if bundle['brief'].get('workflow_profile') not in {'image-only','gif-only','gif-local'}:
+        ttk.Button(local_actions,text='剪辑时间线与声音',command=lambda:edit_layer('timeline')).pack(side='left',padx=6)
     if 'animation' not in bundle:
-        asset_actions=ttk.Frame(win,padding=(12,0,12,8));asset_actions.pack(fill='x')
+        asset_actions=ttk.Frame(footer,padding=(12,0,12,8));asset_actions.pack(fill='x')
         ttk.Button(asset_actions,text='角色与项目素材',command=lambda:edit_layer('director',assets_only=True)).pack(side='left',padx=6)
         if bundle['brief'].get('workflow_profile')!='edit-only':
             ttk.Button(asset_actions,text='生成任务与参考',command=lambda:edit_layer('generation-plan')).pack(side='left',padx=6)
     if bundle['brief'].get('workflow_profile') not in {'edit-only','image-only','gif-only','gif-local'} and 'animation' not in bundle:
-        outline_actions=ttk.Frame(win,padding=(12,0,12,12));outline_actions.pack(fill='x')
+        outline_actions=ttk.Frame(footer,padding=(12,0,12,12));outline_actions.pack(fill='x')
         ttk.Button(outline_actions,text='编辑故事大纲',command=lambda:edit_layer('story')).pack(side='left',padx=6)
         ttk.Button(outline_actions,text='编辑剧本与分镜',command=lambda:edit_layer('director')).pack(side='left',padx=6)
         ttk.Button(outline_actions,text='导出主题与大纲',command=outline).pack(side='left',padx=6)

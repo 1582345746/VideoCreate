@@ -691,10 +691,23 @@ def main():
             from .manager_projects import open_panel as project_panel
             from .local_sources import import_clip
             from .manager_authoring import open_new,open_editor
+            local_controls = {}
+            def inspect_controls(panel, profile):
+                def widgets(parent):
+                    for child in parent.winfo_children():
+                        yield child
+                        yield from widgets(child)
+                labels = {w.cget('text') for w in widgets(panel) if isinstance(w, ttk.Button)}
+                expected_render = profile not in {'image-only', 'gif-only', 'gif-local'}
+                verified = ('导出交付清单' in labels and ('渲染当前时间线' in labels) == expected_render)
+                if not verified:
+                    raise ConfigError('Packaged local project controls are incomplete: ' + profile)
+                local_controls[profile] = {'render': expected_render, 'delivery': True}
             with tempfile.TemporaryDirectory(prefix='videocreate-manager-smoke-') as temporary:
                 project = Path(temporary) / 'edit-only'
                 save_bundle(project, create('edit-only', title='Offline import panel smoke'))
                 panel = project_panel(manager, project)
+                inspect_controls(panel, 'edit-only')
                 panel.withdraw()
                 root.update_idletasks()
                 panel.destroy()
@@ -704,6 +717,7 @@ def main():
                     pure = Path(temporary) / profile
                     save_bundle(pure,create(profile,title='Offline pure media panel',topic='Synthetic offline prompt'))
                     panel = project_panel(manager,pure)
+                    inspect_controls(panel, profile)
                     panel.withdraw()
                     root.update_idletasks()
                     panel.destroy()
@@ -720,6 +734,9 @@ def main():
                 from .planning.examples import smart_car
                 authored=Path(temporary)/'authoring'
                 save_bundle(authored,smart_car())
+                panel = project_panel(manager, authored)
+                inspect_controls(panel, 'video')
+                panel.withdraw();root.update_idletasks();panel.destroy()
                 for layer in ('brief','story','director','generation-plan','timeline'):
                     dialog=open_editor(manager,authored,layer)
                     dialog.withdraw();root.update_idletasks();dialog.destroy()
@@ -741,6 +758,7 @@ def main():
                 'project_asset_forms_created': True,
                 'generation_job_forms_created': True,
                 'timeline_forms_created': True,
+                'local_project_action_controls': local_controls,
                 'network_requests': 0, 'saved': False, 'visual_review': 'not-performed'})
         finally:
             root.destroy()
