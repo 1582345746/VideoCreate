@@ -1,6 +1,6 @@
 ---
 name: videocreate
-description: Plan, generate, edit and review resumable AI videos with independent model/upstream routing. Use for text/image-to-video, original or reference-inspired animation with reusable character themes, animal comedy, action, short drama, storyboards, dialogue, subtitles and series. Supports Sub2API/NewAPI, independent image generation and assisted Muse browser workflows. Does not publish videos.
+description: Plan, generate, edit and review resumable AI videos, manage upstream/model catalogs and numbered selections, and track production stages. Use for text/image-to-video, original or reference-inspired animation, reusable characters, animal comedy, action, short drama, storyboards, dialogue, subtitles and series. Supports Sub2API/NewAPI, independent image generation and assisted Muse browser workflows. Does not publish videos.
 ---
 
 # VideoCreate
@@ -10,6 +10,10 @@ Turn a brief into a story viewers can follow, motivated performances, purposeful
 Use `python scripts/videocreate.py` from this skill directory (or installed `videocreate`). The current version comes from `version`. Commands ending in legacy project names are retained for existing projects; new work uses `plan`, `assets`, `jobs`, `timeline` and `review`.
 
 For new video/media creation requests, load the local JSON with `config init/show`, choose the requested API or browser workflow, create and validate an appropriate v3 plan, compile and preview it offline, generate only within the active authorization, then locally edit and truthfully review the resulting media. Do not use the legacy v2 create path for new projects just because it is more complete. Existing v2 project recovery remains in scope.
+
+For catalog configuration, model switching or continuation, read [provider-management.md](references/provider-management.md). The manager, skill and CLI share `videocreate.config.json`; descriptions and vendor claims do not enable protocols. A specific upstream/model resolves to a binding. If selection is missing or ambiguous, present the returned numbered `selection` menu and wait for the choice before creating media. Preserve `selection_id` and number; do not reconstruct numbering after configuration changes. Reuse project choices, and recover existing tasks from their original snapshots. Never turn a one-time selection into a global default without that user instruction.
+
+Use `production status/next` to resume from current plans, tasks and reviews; `production script-export` makes a readable screenplay from the director layer. Its JSON import is version-checked. Authoring checkpoints approve plans only, and `auto-within-authorization` guides continuation without granting new spending authorization. `modules list/roadmap` exposes current implementation and remaining work; consult actual binding receipts for online evidence.
 
 ## Muse and mixed workflows
 
@@ -27,7 +31,7 @@ Dialogue examples default to generated video audio (`native-dialogue`), preservi
 
 ## Setup
 
-Run `config init` when a user configuration is missing. Tell the user its exact returned path and ask them to edit URL/auth/remote_model/enabled bindings in that single JSON; use `config open` when requested. Never ask them to paste a key into chat. Existing Windows credentials can be migrated with `config migrate --apply`, which preserves encrypted bytes and old settings.
+Run `config init` when a user configuration is missing. Tell the user its exact returned path and use the local `manager` form or `config open` for configuration. `providers migrate` previews v3→v4; `--apply` keeps a backup. The manager stores credentials encrypted on Windows and writes only references to JSON. Never ask for a key in chat. Existing older Windows settings can be migrated with `config migrate --apply`.
 
 `config validate --ready` is an offline API readiness check, not a browser readiness check. `doctor` checks local configuration; `doctor --read-only` additionally queries catalogs without creating media. Catalog visibility does not verify video, audio, likeness or reference semantics. Installation and inspection do not authorize paid probes or optional model downloads.
 
@@ -51,7 +55,7 @@ For practical workflows and topic-specific command sequences, read [production-w
 8. Under the user's existing generation authorization and request/cost limits, run `jobs run <project> --job ...` for two adjacent critical shots first. A fixed route stays fixed. Unknown submission stays held; known tasks resume on their saved URL/model/adapter even if defaults change. Requests without a confirmed task ID must not automatically create again.
    Independent jobs use `execution.max_concurrent_video_tasks`; image batches use `execution.max_concurrent_image_tasks`. Both are separate from each upstream's `max_concurrent_submissions`, and dependency waves must finish before dependent shots start. Completed outputs enter the per-item review inbox; concurrency never implies approval.
 9. Inspect actual source videos and select retained windows. Render with `timeline render`. Local retiming affects only selected segments; natural-speed dialogue can bridge onto a reaction or detail shot through independent audio tracks. Actual 24 fps source at 0.5 speed contains about 12 source frame samples per playback second. Container fps conversion is not high-frame-rate capture. Originals stay separate from edited outputs.
-10. Use `review template`, actually view/listen to the retained media, then `review apply`. Temporal layers require video evidence over the reviewed interval; audio requires listening. Answer final understanding questions from the video before consulting the script. Missing tools leave layers unverified. A real defect on the same bytes overrides pass receipts. Deliver previews as draft_preview/review_pending until all applicable content layers pass.
+10. Use `review template` or `review page`, actually view/listen to the retained media, then `review apply`. The local page plays source/final clips, compares adjacent clips and exports observations; opening it approves nothing. Temporal layers require video evidence over the reviewed interval; audio requires listening. Answer final understanding questions from the video before consulting the script. Missing tools leave layers unverified. A real defect on the same bytes overrides pass receipts. Deliver previews as draft_preview/review_pending until all applicable content layers pass.
 
 Do not promise a particular actor's exact likeness, reliable speech or cinematic quality from a prompt alone. Use the user's authorized identity references, test actual results and report remaining drift. Authorization for a face does not by itself specify a voice asset.
 

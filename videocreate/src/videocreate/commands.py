@@ -161,6 +161,9 @@ def jobs_command(argv: list[str]) -> int:
     parser.add_argument("--reason", default="")
     parser.add_argument("--attempt")
     parser.add_argument("--receipt", type=Path)
+    parser.add_argument('--binding', help='Explicit one-time binding for selected new attempts')
+    parser.add_argument('--model', help='Canonical model; ask for an upstream if ambiguous')
+    parser.add_argument('--upstream', help='Upstream instance; ask for a model if ambiguous')
     args = parser.parse_args(argv)
     root = args.project.resolve()
     load_project(root)
@@ -195,7 +198,7 @@ def jobs_command(argv: list[str]) -> int:
     if args.poll_timeout <= 0:
         raise ConfigError("poll timeout must be positive")
     config_path = user_config_path(args.config)
-    config = read_config(config_path, ready=True)
+    config = read_config(config_path)
     if args.action == "resolve":
         if not args.receipt:
             raise ConfigError("Resolution needs a structured --receipt; absence from logs does not prove non-reception")
@@ -203,10 +206,15 @@ def jobs_command(argv: list[str]) -> int:
         print_result(reconcile(root, config, load_json(args.receipt), store_root=config_path.parent))
         return 0
     from .runtime.jobs import generate
+    overrides = None
+    if args.binding or args.model or args.upstream:
+        from .selection import video_overrides
+        overrides = video_overrides(root, config, job_ids=args.job, model=args.model,
+            upstream=args.upstream, binding=args.binding, store_root=config_path.parent, retry=args.retry)
     def progress(value):
         print(json.dumps(value, ensure_ascii=False), file=sys.stderr, flush=True)
     result = generate(root, config, store_root=config_path.parent, job_ids=args.job,
-        poll_timeout=args.poll_timeout, retry=args.retry, reason=args.reason, progress=progress)
+        poll_timeout=args.poll_timeout, retry=args.retry, reason=args.reason, progress=progress, binding_override=overrides)
     print_result(result)
     return int(not result.get("ok", False))
 
@@ -307,7 +315,7 @@ def review_command(argv: list[str]) -> int:
     from .cli import print_result
     from .review.receipts import apply, inbox, review_image, summary, template
     parser = argparse.ArgumentParser(prog="videocreate review")
-    parser.add_argument("action", choices=["template", "apply", "status", "packet", "inbox", "image"])
+    parser.add_argument("action", choices=["template", "apply", "status", "packet", "inbox", "image", "page"])
     parser.add_argument("project", type=Path)
     parser.add_argument("--receipt", type=Path)
     parser.add_argument("--output-name", default="preview.mp4")
@@ -331,6 +339,9 @@ def review_command(argv: list[str]) -> int:
             raise ConfigError("Image review needs --job, --status, --reviewer and --observation")
         print_result(review_image(root, job_id=args.job, status=args.status,
             reviewer_id=args.reviewer, observation=args.observation, temporal_observation=args.temporal_observation))
+    elif args.action == 'page':
+        from .review.page import export
+        print_result(export(root, output_name=args.output_name))
     elif args.action == "template":
         path = root / "reviews" / "content-review.template.json"
         atomic_json(path, template(root, bundle, output_name=args.output_name))
@@ -403,14 +414,14 @@ def assets_command(argv: list[str]) -> int:
             references = [(root / Path(reference)).resolve() for reference in item.get("references", [])]
             prepared_items.append({**item, "references": references})
         path = user_config_path(args.config)
-        result = generate_images(root, read_config(path, ready=True, kind="image"), store_root=path.parent, items=prepared_items)
+        result = generate_images(root, read_config(path), store_root=path.parent, items=prepared_items)
         print_result(result)
         return int(not result.get("ok", False))
     else:
         if not args.job_id or not args.prompt_file:
             raise ConfigError("Image generation requires --job-id and --prompt-file")
         path = user_config_path(args.config)
-        print_result(generate_image(root, read_config(path, ready=True, kind="image"), store_root=path.parent,
+        print_result(generate_image(root, read_config(path), store_root=path.parent,
             job_id=args.job_id, prompt=args.prompt_file.read_text(encoding="utf-8-sig"),
             references=[(root / p).resolve() for p in args.reference], binding_id=args.binding, size=args.size,
             quality=args.quality, output_format=args.output_format, model=args.model,

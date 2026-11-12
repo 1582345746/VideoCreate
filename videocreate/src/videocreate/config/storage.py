@@ -43,7 +43,7 @@ def atomic_json(path: Path, value: Any) -> None:
             os.unlink(temporary)
 
 
-def load_json(path: Path) -> dict[str, Any]:
+def parse_json(raw: str) -> dict[str, Any]:
     def object_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
         result: dict[str, Any] = {}
         for name, value in pairs:
@@ -52,7 +52,6 @@ def load_json(path: Path) -> dict[str, Any]:
             result[name] = value
         return result
     try:
-        raw = path.read_text(encoding="utf-8-sig")
         value = json.loads(raw, object_pairs_hook=object_pairs,
                            parse_constant=lambda _: (_ for _ in ()).throw(ConfigError("Non-finite JSON number")))
     except json.JSONDecodeError as error:
@@ -60,6 +59,10 @@ def load_json(path: Path) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise ConfigError("Configuration root must be an object")
     return value
+
+
+def load_json(path: Path) -> dict[str, Any]:
+    return parse_json(path.read_text(encoding='utf-8-sig'))
 
 
 SECRET_FIELDS = {"api_key", "key", "token", "password", "authorization", "access_token", "refresh_token"}

@@ -2,6 +2,8 @@
 
 配置默认位于 `%LOCALAPPDATA%/VideoCreate/videocreate.config.json`。运行 `config init` 创建一次；直接编辑该文件即可。配置示例和 JSON Schema 与技能随附。URL、auth 密钥、精确 remote_model、启用绑定是接入必填项；安装、validate 和 show 不调用付费生成，show 总是脱敏。
 
+当前运行时支持配置 v3/v4，新配置默认 v4。新版管理器、编号选择、草稿备注、价格档位和迁移详见 [provider-management.md](provider-management.md)。v4 的 `selection.image/video.when_unspecified=ask` 优先要求明确选择；仅在用户允许 `use-default` 后，才沿用下面的默认/自动型号选择策略。v3 配置原策略保持兼容。
+
 新配置的默认生图模型为 `gpt-image-2.6`。目录同时列出 `gpt-image-2.6-flare`、`gpt-image-2.6-sunburst`、`gpt-image-2.5` 和 `grok-imagine-image-2.0`，但新增 binding 默认禁用且能力未验证。`model_selection.image.policy=first-compatible` 会按 `candidates` 顺序，在创建前根据已配置操作、参考数、输出格式和可用凭据选择第一个可用型号；它不代表画质排序。没有评测证据前，不根据 `flare` 或 `sunburst` 名称推测速度或质量。用 `assets image ... --model MODEL` 固定一次请求的型号；显式型号不跨型号兜底。已有配置和运行中任务保留原型号/快照。
 
 API 对象不能混为一谈：

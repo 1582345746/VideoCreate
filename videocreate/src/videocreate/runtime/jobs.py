@@ -31,12 +31,16 @@ def pinned_binding(config: dict, snapshot: dict, store_root: Path) -> Binding:
     upstream = config["upstreams"].get(snapshot["upstream_id"])
     if not upstream:
         raise ConfigError("Original task upstream is missing; restore its instance ID to resume")
+    identity = snapshot.get('identity', {})
+    if (upstream['base_url'].rstrip('/') != snapshot['base_url'].rstrip('/') or
+            identity and upstream.get('account_id', snapshot['upstream_id']) != identity['account_id']):
+        raise ConfigError('Original task address/account changed; restore that upstream instance to resume')
     # Rotating a key is valid; changing a route/URL must not move an existing task.
     key = resolve_key(upstream["auth"], store_root=store_root)
     if not key:
         raise ConfigError("Original task credential is unavailable")
     return Binding(snapshot["binding_id"], snapshot["model"], snapshot["remote_model"], snapshot["upstream_id"],
-        snapshot["base_url"], snapshot["adapter"], key, snapshot["capabilities"], snapshot.get("adapter_options", {}))
+        snapshot["base_url"], snapshot["adapter"], key, snapshot["capabilities"], snapshot.get("adapter_options", {}), identity)
 
 
 def job_inputs(bundle: dict, job: dict, compilation: dict) -> str:
@@ -97,13 +101,24 @@ def _prepare_job(root, bundle, job, config, store_root, prior, *, retry, explici
     """Compile and validate an outbound request locally, without reserving or submitting."""
     jid = job["id"]
     snapshot = prior.get("binding_snapshot")
-    if snapshot and not (retry in {"content", "replan"} and jid in explicit_jobs) and not (binding_override and jid in binding_override):
+    new_attempt = retry in {"content", "replan"} and jid in explicit_jobs and prior.get('status') in {'completed', 'failed', 'rejected'}
+    confirmed_new = (retry == 'network' and jid in explicit_jobs and prior.get('status') == 'rejected'
+                     and not prior.get('task_id') and binding_override and jid in binding_override)
+    if snapshot and not (new_attempt or confirmed_new):
         binding = pinned_binding(config, snapshot, store_root)
         candidates = [binding]
+        fallback_allowed = prior.get('selection', {}).get('allow_same_model_fallback', False)
     else:
-        model = job.get("model") or config["defaults"]["video_model"]
         preferred = (binding_override or {}).get(jid, job.get("binding_id"))
+        from ..selection import resolve
+        override_model = config['bindings'][preferred]['model'] if preferred and binding_override and jid in binding_override else job.get('model')
+        selected = resolve(root, config, kind='video', store_root=store_root, model=override_model,
+            binding=preferred, operation=job['operation'], request={'seconds': job['seconds'],
+                'resolution': bundle['brief']['resolution'], 'aspect_ratio': bundle['brief']['aspect_ratio']})
+        model, preferred = selected or (job.get('model') or config['defaults']['video_model'], preferred)
         candidates = route_bindings(config, model, operation=job["operation"], preferred=preferred, store_root=store_root)
+        fallback_allowed = (not preferred and config['routes'][model]['policy'] == 'automatic-same-model') or (
+            bool(confirmed_new) and prior.get('selection', {}).get('allow_same_model_fallback', False))
     if bundle["brief"].get("workflow_profile") == "explainer":
         from ..education import validate_research
         research = validate_research(bundle, root=root, ready=True, shot_ids=job["shot_ids"])
@@ -138,7 +153,8 @@ def _prepare_job(root, bundle, job, config, store_root, prior, *, retry, explici
             decisions.append({"binding": candidate.id, "eligible": False, "reason": str(error)})
             continue
         decisions.append({"binding": candidate.id, "eligible": True})
-        selection = {"selected_model": candidate.model, "selected_binding": candidate.id, "decisions": decisions}
+        selection = {"selected_model": candidate.model, "selected_binding": candidate.id, "decisions": decisions,
+                     'allow_same_model_fallback': fallback_allowed}
         return candidate, video_client, kwargs, compilation, prepared, selection
     raise ConfigError(jid + ": no compatible video binding: " + "; ".join(d["reason"] for d in decisions))
 
@@ -195,8 +211,9 @@ def _generate_serial(root: Path, config: dict, *, store_root: Path, job_ids: lis
             explicit_jobs=explicitly_requested, binding_override=binding_override)
         input_hash = generation_inputs(root, bundle, job, compilation)
         needs_slot = not prior.get("task_id") or (retry in {"content", "replan"} and jid in explicitly_requested)
-        maximum = config["upstreams"][binding.upstream_id].get("max_concurrent_submissions", 1)
-        gate = submission_slot(store_root, binding.upstream_id, maximum, wait=wait_for_slot,
+        from .limits import capacity
+        capacity_id, maximum = capacity(config, binding.upstream_id)
+        gate = submission_slot(store_root, capacity_id, maximum, wait=wait_for_slot,
             timeout_seconds=config["upstreams"][binding.upstream_id].get("request_timeout_seconds", 120)) if needs_slot else nullcontext()
         create_error = None
         with gate:
@@ -234,7 +251,8 @@ def _generate_serial(root: Path, config: dict, *, store_root: Path, job_ids: lis
                         raise ConfigError(jid + ": maximum create attempts reached")
                     attempt_id = uuid.uuid4().hex
                     reserve(state, config.get("budget", {}), attempt_id=attempt_id, job_id=jid, kind="video",
-                        estimated=estimate(binding, job["seconds"], config.get("budget", {}).get("currency", "CNY")))
+                        estimated=estimate(binding, job["seconds"], config.get("budget", {}).get("currency", "CNY"),
+                            parameters={'operation': job['operation'], 'resolution': kwargs['resolution'], 'aspect_ratio': kwargs['aspect_ratio']}))
                     current = {"status": "submitting", "attempt_id": attempt_id, "task_id": "", "input_hash": input_hash,
                         "binding_snapshot": binding.snapshot(), "prepared_request": prepared, "compilation": compilation,
                         "history": history, "retry_kind": retry or "initial", "retry_reason": reason,
@@ -279,7 +297,7 @@ def _generate_serial(root: Path, config: dict, *, store_root: Path, job_ids: lis
         if create_error is not None:
             from vc_common import APIError
             from .failures import confirmed_rejection
-            if confirmed_rejection(create_error, binding):
+            if confirmed_rejection(create_error, binding) and selection.get('allow_same_model_fallback'):
                 route = config.get("routes", {}).get(binding.model, {})
                 candidates = route_bindings(config, binding.model, operation=job["operation"],
                     preferred=job.get("binding_id"), store_root=store_root, include_cooling=True)

@@ -6,13 +6,41 @@ from decimal import Decimal
 from ..config.storage import ConfigError
 
 
-def estimate(binding, seconds: float, currency: str) -> float | None:
+def estimate(binding, seconds: float, currency: str, *, parameters=None) -> float | None:
     pricing = binding.options.get("pricing")
-    if not pricing or pricing.get("currency") != currency:
+    if (not pricing or pricing.get("currency") != currency or pricing.get('status') == 'unverified'
+            or not any(k in pricing for k in ('per_request', 'per_second', 'tiers'))):
         return None
+    for time_key in ('effective_at', 'valid_until'):
+        if not pricing.get(time_key):
+            continue
+        from datetime import datetime, timezone
+        try:
+            instant = datetime.fromisoformat(pricing[time_key].replace('Z', '+00:00'))
+            now = datetime.now(timezone.utc)
+            if instant.tzinfo is None or (time_key == 'valid_until' and instant <= now) or (time_key == 'effective_at' and instant > now):
+                return None
+        except ValueError:
+            return None
+    if pricing.get('tiers'):
+        matches = []
+        for tier in pricing['tiers']:
+            when = tier['when']
+            if (when.get('minimum_seconds', 0) <= seconds <= when.get('maximum_seconds', float('inf')) and
+                    all((parameters or {}).get(k) == v for k, v in when.items() if k not in {'minimum_seconds', 'maximum_seconds'})):
+                matches.append(tier)
+        # Overlapping tiers and missing parameter context must never produce an arbitrary estimate.
+        if len(matches) != 1:
+            return None
+        pricing = {**{k:v for k,v in pricing.items() if k not in {'per_request', 'per_second'}}, **matches[0]}
     rate = pricing.get("per_request", 0)
     per_second = pricing.get("per_second", 0)
-    return float(Decimal(str(rate)) + Decimal(str(per_second))*Decimal(str(seconds)))
+    billed_seconds = max(Decimal(str(seconds)), Decimal(str(pricing.get('minimum_seconds', 0))))
+    if pricing.get('round_seconds'):
+        from decimal import ROUND_CEILING
+        step = Decimal(str(pricing['round_seconds']))
+        billed_seconds = (billed_seconds / step).to_integral_value(rounding=ROUND_CEILING) * step
+    return float(Decimal(str(rate)) + Decimal(str(per_second))*billed_seconds)
 
 
 def reserve(state: dict, budget: dict, *, attempt_id: str, job_id: str, kind: str, estimated: float | None) -> dict:
@@ -27,6 +55,8 @@ def reserve(state: dict, budget: dict, *, attempt_id: str, job_id: str, kind: st
         if budget.get("unknown_price_policy") == "block" or maximum is not None:
             raise ConfigError("Price is unknown; a hard monetary limit requires configured binding pricing")
     if maximum is not None:
+        if any(item.get('currency') != budget.get('currency', 'CNY') for item in ledger):
+            raise ConfigError('Existing attempts use a different currency; no implicit conversion for a hard monetary budget')
         if any(item.get("estimated") is None and item.get("actual") is None for item in ledger):
             raise ConfigError("Existing unpriced attempts prevent proving the monetary limit")
         total = sum(Decimal(str(item.get("actual") if item.get("actual") is not None else item.get("estimated", 0))) for item in ledger)
@@ -40,8 +70,12 @@ def reserve(state: dict, budget: dict, *, attempt_id: str, job_id: str, kind: st
 
 def summary(state: dict) -> dict:
     ledger = state.get("ledger", [])
-    return {"requests": len(ledger), "estimated_known_total": sum(i["estimated"] for i in ledger if i.get("estimated") is not None),
+    currencies = sorted({i.get('currency', 'unknown') for i in ledger})
+    by_currency = {currency: {'estimated_known_total': sum(i['estimated'] for i in ledger if i.get('currency', 'unknown') == currency and i.get('estimated') is not None),
+        'actual_known_total': sum(i['actual'] for i in ledger if i.get('currency', 'unknown') == currency and i.get('actual') is not None)} for currency in currencies}
+    return {"requests": len(ledger), 'by_currency': by_currency,
+            "estimated_known_total": sum(i["estimated"] for i in ledger if i.get("estimated") is not None) if len(currencies) < 2 else None,
             "unknown_price_requests": sum(i.get("estimated") is None for i in ledger),
             "unknown_submission_requests": sum(i.get("status") in {"reserved", "submission_unknown"} for i in ledger),
-            "actual_known_total": sum(i["actual"] for i in ledger if i.get("actual") is not None),
+            "actual_known_total": sum(i["actual"] for i in ledger if i.get("actual") is not None) if len(currencies) < 2 else None,
             "actual_unverified_requests": sum(i.get("actual") is None for i in ledger)}

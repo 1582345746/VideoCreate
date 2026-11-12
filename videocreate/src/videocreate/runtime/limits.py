@@ -9,6 +9,16 @@ from ..config.storage import ConfigError
 from .state import state_lock
 
 
+def capacity(config, upstream_id):
+    """Aliases of a shared account use the same gate and most restrictive limit."""
+    upstream = config['upstreams'][upstream_id]
+    group = upstream.get('capacity_group')
+    if not group:
+        return upstream_id, upstream.get('max_concurrent_submissions', 1)
+    members = [u for u in config['upstreams'].values() if u.get('capacity_group') == group]
+    return 'capacity-group:' + group, min(u.get('max_concurrent_submissions', 1) for u in members)
+
+
 @contextlib.contextmanager
 def submission_slot(store_root: Path, upstream_id: str, maximum: int, *, wait: bool = False,
                     timeout_seconds: float = 120):

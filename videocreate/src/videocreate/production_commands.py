@@ -5,6 +5,48 @@ from .config.storage import ConfigError, load_json
 from .cli import print_result
 
 
+def production_command(argv):
+    from . import production
+    from .config.storage import user_config_path
+    parser = argparse.ArgumentParser(prog='videocreate production')
+    parser.add_argument('action', choices=['status', 'next', 'impact', 'script-export', 'script-import',
+        'checkpoint', 'policy', 'track', 'projects', 'deliver'])
+    parser.add_argument('project', type=Path, nargs='?')
+    parser.add_argument('--file', type=Path)
+    parser.add_argument('--stage', choices=production.AUTHORING)
+    parser.add_argument('--hash')
+    parser.add_argument('--reason', default='')
+    parser.add_argument('--mode', choices=['assisted', 'auto-within-authorization'])
+    parser.add_argument('--config', type=Path)
+    parser.add_argument('--output-name', default='preview.mp4')
+    args = parser.parse_args(argv)
+    if args.action != 'projects' and not args.project:
+        raise ConfigError('This action requires a project directory')
+    if args.action in {'status', 'next'}:
+        result = production.status(args.project, output_name=args.output_name)
+        if args.action == 'next':
+            result = {k: result[k] for k in ('ok', 'project', 'next', 'policy', 'paid_creates')}
+    elif args.action == 'impact':
+        result = production.impact(args.project)
+    elif args.action == 'script-export':
+        result = production.script_export(args.project)
+    elif args.action == 'script-import':
+        if not args.file:
+            raise ConfigError('Script import requires --file')
+        result = production.import_script(args.project, load_json(args.file))
+    elif args.action == 'checkpoint':
+        result = production.checkpoint(args.project, args.stage, reason=args.reason, expected_hash=args.hash)
+    elif args.action == 'policy':
+        result = production.policy(args.project, args.mode, args.reason)
+    elif args.action in {'track', 'projects'}:
+        result = production.project_index(user_config_path(args.config).parent,
+            args.project if args.action == 'track' else None)
+    else:
+        result = production.delivery(args.project, output_name=args.output_name)
+    print_result(result)
+    return int(not result['ok'])
+
+
 def reference_command(argv):
     from . import references
     parser = argparse.ArgumentParser(prog="videocreate reference")

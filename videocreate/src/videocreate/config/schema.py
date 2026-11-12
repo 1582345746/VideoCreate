@@ -54,7 +54,9 @@ def capability_schema() -> dict[str, Any]:
     })
 
 
-def configuration_schema() -> dict[str, Any]:
+def configuration_schema(version: int = 4) -> dict[str, Any]:
+    if version not in {3, 4}:
+        raise ConfigError('Unsupported configuration version; open read-only or upgrade VideoCreate')
     defaults = obj({
         "video_model": STR, "image_model": STR, "aspect_ratio": STR, "resolution": STR,
         "audio_mode": enum("native-dialogue", "preserve", "mute", "narration", "local-voice", "local-lipsync", "local-narration"),
@@ -83,7 +85,7 @@ def configuration_schema() -> dict[str, Any]:
     model_selector = obj({"policy": enum("fixed", "first-compatible"),
                           "candidates": {**STRING_LIST, "minItems": 1}}, ("policy", "candidates"))
     result = obj({
-        "$schema": STR, "schema_version": {"const": 3}, "product": {"const": "VideoCreate"},
+        "$schema": STR, "schema_version": {"const": version}, "product": {"const": "VideoCreate"},
         "defaults": defaults,
         "models": {"type": "object", "additionalProperties": model, "minProperties": 1},
         "upstreams": {"type": "object", "additionalProperties": upstream},
@@ -115,6 +117,9 @@ def configuration_schema() -> dict[str, Any]:
             "require_narrative_understanding_for_story": BOOL, "require_temporal_review_for_motion": BOOL,
             "require_audio_review_for_speech": BOOL, "unverified_output_label": {"const": "draft_preview"}}),
     }, ("schema_version", "defaults", "models", "upstreams", "bindings", "routes"))
+    if version == 4:
+        from .schema_v4 import extend
+        result = extend(result)
     return {"$schema": "https://json-schema.org/draft/2020-12/schema", "title": "VideoCreate user configuration", **result}
 
 
@@ -170,9 +175,15 @@ def _walk(value: Any, schema: dict[str, Any], path: str, errors: list[str]) -> N
 
 def validate_config(config: dict[str, Any], *, ready: bool = False, store_root=None, kind: str | None = None) -> list[str]:
     errors: list[str] = []
-    _walk(config, configuration_schema(), "$", errors)
+    version = config.get('schema_version')
+    if type(version) is not int or version not in {3, 4}:
+        return ['$.schema_version: unsupported version; preserve file and upgrade VideoCreate']
+    _walk(config, configuration_schema(version), "$", errors)
     if errors:
         return errors
+    if version == 4:
+        from .schema_v4 import semantic_errors
+        errors.extend(semantic_errors(config))
     from ..workflows import validate_workflows
     errors.extend(validate_workflows(config))
     models, upstreams, bindings = config["models"], config["upstreams"], config["bindings"]
@@ -210,9 +221,9 @@ def validate_config(config: dict[str, Any], *, ready: bool = False, store_root=N
             errors.append(path + ".operations: operation does not match model kind")
         if binding["adapter"] == "openai-images-v1" and binding_kind != "image":
             errors.append(path + ".adapter: image adapter requires an image model")
-        if binding["adapter"] != "openai-images-v1" and binding_kind == "image":
+        if binding["adapter"] not in {"openai-images-v1", "unconfigured"} and binding_kind == "image":
             errors.append(path + ".adapter: video adapter cannot generate images")
-        if set(binding["operations"]) & {"video-edit", "video-extend"}:
+        if binding["adapter"] != 'unconfigured' and set(binding["operations"]) & {"video-edit", "video-extend"}:
             errors.append(path + ".operations: no implemented adapter for video edit/extend yet")
         overrides = binding.get("capability_overrides", {})
         duration = overrides.get("duration", {})

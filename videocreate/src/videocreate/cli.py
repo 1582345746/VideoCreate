@@ -77,6 +77,8 @@ def configuration_command(argv: list[str]) -> int:
             print_result({"ok": True, "created": False, "config": str(path), "preserved": True})
             return 0
         template = load_json(skill_root() / "assets/config/videocreate.config.example.json")
+        from .config.management import migrate
+        template = migrate(template)
         schema_path = path.parent / "videocreate.config.schema.json"
         template["$schema"] = str(schema_path)
         atomic_json(schema_path, configuration_schema())
@@ -179,13 +181,25 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if not argv or argv in (["--help"], ["-h"]):
             print("VideoCreate " + __version__ + "\n\n"
-                  "Commands: config, doctor, models, capabilities, workflow, plan, assets, media, jobs, timeline, review, reference, education, series, animation, version\n"
+                  "Commands: config, providers, selection, manager, production, modules, doctor, models, capabilities, workflow, plan, assets, media, jobs, timeline, review, reference, education, series, animation, version\n"
                   "Start: config init; config open; config validate --ready\n"
                   "Offline preview: plan init PROJECT --example smart-car; plan preview PROJECT --video\n"
                   "Each command accepts --help. Existing project commands remain available; use legacy COMMAND to select the retained engine explicitly.")
             return 0
         if argv[0] == "legacy":
             return legacy_engine().main(argv[1:])
+        if argv[0] in {'providers', 'selection'}:
+            from . import management_commands
+            return getattr(management_commands, argv[0] + '_command')(argv[1:])
+        if argv[0] == 'manager':
+            parser = argparse.ArgumentParser(prog='videocreate manager')
+            parser.add_argument('--config', type=Path)
+            args = parser.parse_args(argv[1:])
+            from .manager import launch
+            return launch(args.config)
+        if argv[0] == 'modules':
+            from .modules import command
+            return command(argv[1:])
         if argv and argv[0] == "version":
             print_result({"ok": True, "product": "VideoCreate", "version": __version__})
             return 0
@@ -194,7 +208,7 @@ def main(argv: list[str] | None = None) -> int:
         if argv and argv[0] == "animation":
             from .animation.commands import animation_command
             return animation_command(argv[1:])
-        if argv and argv[0] in {"reference", "education", "series"}:
+        if argv and argv[0] in {"reference", "education", "series", "production"}:
             from . import production_commands
             return getattr(production_commands, argv[0] + "_command")(argv[1:])
         if argv and argv[0] in {"plan", "jobs", "timeline", "review", "assets", "media", "models", "capabilities", "workflow"}:
@@ -209,6 +223,10 @@ def main(argv: list[str] | None = None) -> int:
         engine = legacy_engine()
         return engine.main(argv)
     except (ConfigError, OSError, ValueError) as error:
+        from .selection import SelectionRequired
+        if isinstance(error, SelectionRequired):
+            print_result(error.payload)
+            return 2
         from .config.storage import safe_error
         print_result({"ok": False, "error": safe_error(error)})
         return 1

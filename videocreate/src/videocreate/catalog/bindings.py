@@ -30,13 +30,22 @@ class Binding:
     key: str = field(repr=False, compare=False)
     capabilities: dict[str, Any] = field(default_factory=dict)
     options: dict[str, Any] = field(default_factory=dict)
+    identity: dict[str, Any] = field(default_factory=dict)
 
     def snapshot(self) -> dict[str, Any]:
         public = {"binding_id": self.id, "model": self.model, "remote_model": self.remote_model,
                   "upstream_id": self.upstream_id, "base_url": self.base_url.rstrip("/"),
                   "adapter": self.adapter, "adapter_version": 1, "capabilities": self.capabilities,
                   "adapter_options": self.options}
-        public["fingerprint"] = hashlib.sha256(json.dumps(public, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
+        hashed = public
+        if self.identity:
+            public['identity'] = self.identity
+            public['fingerprint_version'] = 2
+            hashed = copy.deepcopy(public)
+            hashed['identity'].pop('credential_version', None)
+            for key in ('pricing', 'request_timeout_seconds'):
+                hashed['adapter_options'].pop(key, None)
+        public["fingerprint"] = hashlib.sha256(json.dumps(hashed, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
         return public
 
 
@@ -62,10 +71,15 @@ def capabilities(config: dict[str, Any], binding: dict[str, Any]) -> dict[str, A
                       max_animation_frames=3000, max_animation_duration_seconds=30,
                       animated_input="unknown", animated_output="unknown")
     overrides = binding.get("capability_overrides", {})
+    if config.get('schema_version') == 4:
+        result['prompt_limit'] = None
     allowed = set(result) - {"verification_level"}
     if set(overrides) - allowed:
         raise ConfigError("capability_overrides: unknown capability field or read-only verification level")
     result.update(copy.deepcopy(overrides))
+    if result.get('prompt_limit') and 'max_prompt_bytes' not in overrides:
+        limit = result['prompt_limit']
+        result['max_prompt_bytes'] = limit['maximum'] * (1 if limit['counting_rule'] == 'utf8-bytes' else 4)
     if "image/gif" in result.get("reference_mime_types", []) and result.get("animated_input") != "supported":
         raise ConfigError("GIF references require animated_input=supported")
     if "gif" in result.get("output_formats", []) and result.get("animated_output") != "supported":
@@ -88,7 +102,10 @@ def configured_binding(config: dict, bid: str, *, key: str = "") -> Binding:
     return Binding(bid, item["model"], item["remote_model"], item["upstream"], upstream["base_url"],
         item["adapter"], key, capabilities(config, item), {
             "request_timeout_seconds": upstream.get("request_timeout_seconds", 120),
-            **item.get("adapter_options", {}), **({"pricing": item["pricing"]} if item.get("pricing") else {})})
+            **item.get("adapter_options", {}), **({"pricing": item["pricing"]} if item.get("pricing") else {})},
+        {'account_id': upstream.get('account_id', item['upstream']),
+         'credential_version': upstream.get('credential_version', '1')}
+        if config.get('schema_version') == 4 else {})
 
 
 def route_bindings(config: dict[str, Any], model: str, *, operation: str,
@@ -109,9 +126,16 @@ def route_bindings(config: dict[str, Any], model: str, *, operation: str,
     result: list[Binding] = []
     for bid in ordered:
         item = config["bindings"][bid]
-        if not item["enabled"] or operation not in item["operations"]:
+        if (not item["enabled"] or item.get('archived') or item.get('setup_status') == 'draft'
+                or item['adapter'] == 'unconfigured' or operation not in item["operations"]):
             continue
         upstream = config["upstreams"][item["upstream"]]
+        if upstream.get('archived') or config['models'][model].get('archived'):
+            continue
+        if require_key:
+            from urllib.parse import urlsplit
+            if (urlsplit(upstream['base_url']).hostname or '').endswith('.example'):
+                continue
         key = resolve_key(upstream["auth"], store_root=store_root)
         if require_key and not key:
             continue
@@ -137,6 +161,13 @@ def validate_request(binding: Binding, request: dict[str, Any]) -> dict[str, Any
         errors.append("Prompt byte limit is unknown or invalid")
     elif len(request.get("prompt", "").encode("utf-8")) > maximum:
         errors.append("Prompt exceeds this binding's byte limit")
+    limit = caps.get('prompt_limit')
+    if limit:
+        prompt = request.get('prompt', '')
+        count = (len(prompt.encode('utf-8')) if limit['counting_rule'] == 'utf8-bytes' else
+                 len(prompt.encode('utf-16-le')) // 2 if limit['counting_rule'] == 'utf16-code-units' else len(prompt))
+        if count > limit['maximum']:
+            errors.append('Prompt exceeds this binding\'s ' + limit['counting_rule'] + ' limit')
     duration = caps.get("duration", {})
     seconds = request.get("seconds")
     if seconds is not None:

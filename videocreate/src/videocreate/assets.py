@@ -151,6 +151,10 @@ def generate_image(root: Path, config: dict, *, store_root: Path, job_id: str, p
     for path in refs:
         if not path.is_relative_to(root) or not path.is_file():
             raise ConfigError("Register image references inside the project first")
+    with state_lock(root):
+        existing = read_state(root)['jobs'].get(job_id, {})
+    if existing.get('status') in {'submitting', 'submission_unknown'}:
+        raise ConfigError('Image submission is active or unknown; reconcile the original attempt before selecting another route')
     if not retry:
         with state_lock(root):
             prior = read_state(root)["jobs"].get(job_id, {})
@@ -175,6 +179,11 @@ def generate_image(root: Path, config: dict, *, store_root: Path, job_id: str, p
         selected_model, candidates = model, _route_candidates
         selection = _selection or {"policy": "same-model-fallback", "requested_model": model, "selected_model": model}
     else:
+        from .selection import resolve
+        selected = resolve(root, config, kind='image', store_root=store_root, model=model,
+                           binding=binding_id, operation='image-edit' if refs else 'text-to-image')
+        if selected:
+            model, binding_id = selected
         selected_model, candidates, selection = _select_image_route(config, requested_model=model,
             binding_id=binding_id, prompt=prompt, references=refs, size=size, quality=quality,
             output_format=output_format, store_root=store_root)
@@ -197,10 +206,11 @@ def generate_image(root: Path, config: dict, *, store_root: Path, job_id: str, p
     image_client = BindingImageClient(binding)
     prepared = image_client.prepare(prompt, refs, size=size, quality=quality, output_format=output_format)
     attempt = uuid.uuid4().hex
-    maximum = config["upstreams"][binding.upstream_id].get("max_concurrent_submissions", 1)
+    from .runtime.limits import capacity
+    capacity_id, maximum = capacity(config, binding.upstream_id)
     attempt_error = None
     fallback_index = None
-    with submission_slot(store_root, binding.upstream_id, maximum, wait=wait_for_slot,
+    with submission_slot(store_root, capacity_id, maximum, wait=wait_for_slot,
             timeout_seconds=config["upstreams"][binding.upstream_id].get("request_timeout_seconds", 120)):
         with state_lock(root):
             state = read_state(root)
@@ -222,7 +232,8 @@ def generate_image(root: Path, config: dict, *, store_root: Path, job_id: str, p
             if len(history) >= config.get("execution", {}).get("max_create_attempts_per_task", 2):
                 raise ConfigError("Maximum image create attempts reached")
             reserve(state, config.get("budget", {}), attempt_id=attempt, job_id=job_id, kind="image",
-                estimated=estimate(binding, 0, config.get("budget", {}).get("currency", "CNY")))
+                estimated=estimate(binding, 0, config.get("budget", {}).get("currency", "CNY"),
+                    parameters={'operation': 'image-edit' if refs else 'text-to-image'}))
             state["jobs"][job_id] = {"kind": "image", "attempt_id": attempt, "status": "submitting",
                 "input_hash": input_hash, "binding_snapshot": binding.snapshot(), "request": inputs,
                 "prepared_request": prepared, "pid": os.getpid(), "host": socket.gethostname(),
@@ -312,6 +323,18 @@ def generate_images(root: Path, config: dict, *, store_root: Path, items: list[d
             raise ConfigError("Image references must be registered files inside the project")
         if item.get("binding_id") is not None and not isinstance(item["binding_id"], str):
             raise ConfigError("Image binding ID must be a string")
+        item = dict(item)
+        prior = read_state(root)['jobs'].get(job_id, {})
+        if prior and prior.get('status') != 'completed':
+            raise ConfigError('Image job was already attempted; inspect or recover the original attempt')
+        if prior.get('status') == 'completed' and prior.get('binding_snapshot'):
+            item.setdefault('model', prior['binding_snapshot']['model'])
+            item.setdefault('binding_id', prior['binding_snapshot']['binding_id'])
+        from .selection import resolve
+        selected = resolve(root, config, kind='image', store_root=store_root, model=item.get('model'),
+                           binding=item.get('binding_id'), operation='image-edit' if references else 'text-to-image')
+        if selected:
+            item['model'], item['binding_id'] = selected
         model, candidates, selection = _select_image_route(config, requested_model=item.get("model"),
             binding_id=item.get("binding_id"), prompt=prompt, references=references,
             size=item.get("size", "1024x1024"), quality=item.get("quality", "auto"),

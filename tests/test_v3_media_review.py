@@ -59,6 +59,17 @@ class ReviewTests(unittest.TestCase):
         self.assertEqual(result["status"], "review_pending")
         self.assertEqual(result["assets"]["final"]["narrative"], "unverified")
 
+    def test_playable_page_uses_real_media_and_does_not_approve_it(self):
+        import json, re
+        from videocreate.review.page import export
+        atomic_json(self.root / 'timeline.json', self.bundle['timeline'])
+        result = export(self.root)
+        html = Path(result['page']).read_text(encoding='utf-8')
+        data = json.loads(re.search(r'<script id="data" type="application/json">(.*?)</script>', html, re.S).group(1))
+        self.assertEqual(data['receipt']['assets']['final']['sha256'], self.receipt['assets']['final']['sha256'])
+        self.assertEqual(data['media']['final'], '../deliverables/preview.mp4')
+        self.assertEqual(receipts.summary(self.root,self.bundle)['status'],'review_pending')
+
     def test_review_contract_resolves_project_root_before_recording_relative_paths(self):
         (self.root / "alias-parent").mkdir()
         alias_root = self.root / "alias-parent" / ".."

@@ -556,6 +556,12 @@ class RuntimeTests(unittest.TestCase):
         self.config["upstreams"]["primary-sub2api"]["base_url"] = "https://new.invalid"
         self.config["defaults"]["video_model"] = "seedance-2.0-mini-720p"
         self.poll_failure = False
+        # A changed address must not send a potentially replaced account key
+        # to the snapshot URL. Restore the instance; the new default is harmless.
+        with self.assertRaisesRegex(ConfigError, 'address/account changed'):
+            self.run_job(retry="network", reason="retry the read")
+        self.assertEqual(self.calls, 1)
+        self.config["upstreams"]["primary-sub2api"]["base_url"] = "https://provider.example.test/v1"
         with mock.patch("videocreate.runtime.jobs.pinned_binding", wraps=jobs.pinned_binding) as pin:
             self.run_job(retry="network", reason="retry the read")
         self.assertEqual(self.calls, 1)
@@ -739,6 +745,20 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual(state["jobs"]["job-001"]["binding_snapshot"]["binding_id"], "grok-on-newapi")
         self.assertEqual(state["jobs"]["job-001"]["selection"]["decisions"][0]["eligible"], False)
         self.assertEqual(len(state["ledger"]), 1)
+
+    def test_explicit_one_time_binding_does_not_inherit_automatic_fallback(self):
+        from vc_common import APIError
+        self.config['routes']['grok-imagine-video-1.5']['policy'] = 'automatic-same-model'
+        self.config['bindings']['grok-on-sub2api']['adapter_options'] = {'confirmed_rejection_http_statuses':[401]}
+        with mock.patch('videocreate.runtime.jobs.client') as factory:
+            fake=factory.return_value
+            fake.prepare.return_value={}
+            fake.last_submission={}
+            fake.create.side_effect=APIError(401, 'Rejected')
+            with self.assertRaises(ConfigError):
+                self.run_job(binding_override={'job-001':'grok-on-sub2api'})
+            fake.create.assert_called_once()
+        self.assertEqual(len(read_state(self.root)['ledger']),1)
 
     def test_resolution_change_requires_local_replan(self):
         self.run_job()

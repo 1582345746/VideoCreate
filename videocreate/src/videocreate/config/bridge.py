@@ -16,6 +16,8 @@ def engine_settings(config: dict[str, Any], *, require_secrets: bool = True, sto
     registry: dict[str, Any] = {}
     image: dict[str, Any] = {}
     for bid, item in config["bindings"].items():
+        if item['adapter'] == 'unconfigured':
+            continue
         upstream = config["upstreams"][item["upstream"]]
         key = resolve_key(upstream["auth"], store_root=store_root)
         if config["models"][item["model"]]["kind"] == "image":
