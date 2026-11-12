@@ -698,6 +698,8 @@ def main():
                 panel.withdraw()
                 root.update_idletasks()
                 panel.destroy()
+                dialog=open_editor(manager,project,'timeline')
+                dialog.withdraw();root.update_idletasks();dialog.destroy()
                 for profile in ('image-only','gif-only','gif-local','mixed-video'):
                     pure = Path(temporary) / profile
                     save_bundle(pure,create(profile,title='Offline pure media panel',topic='Synthetic offline prompt'))
@@ -718,7 +720,7 @@ def main():
                 from .planning.examples import smart_car
                 authored=Path(temporary)/'authoring'
                 save_bundle(authored,smart_car())
-                for layer in ('brief','story','director','generation-plan'):
+                for layer in ('brief','story','director','generation-plan','timeline'):
                     dialog=open_editor(manager,authored,layer)
                     dialog.withdraw();root.update_idletasks();dialog.destroy()
                 dialog=open_editor(manager,authored,'director',assets_only=True)
@@ -738,6 +740,7 @@ def main():
                 'screenplay_forms_created': True,
                 'project_asset_forms_created': True,
                 'generation_job_forms_created': True,
+                'timeline_forms_created': True,
                 'network_requests': 0, 'saved': False, 'visual_review': 'not-performed'})
         finally:
             root.destroy()

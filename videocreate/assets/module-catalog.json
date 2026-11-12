@@ -220,7 +220,7 @@
         "F09"
       ],
       "status": "partial",
-      "limitations": "Native project/theme/outline, scene/shot/dialogue, asset and generation-job forms share token-bound layer saves. Generation jobs expose saved model/binding catalogs and ordered local references; active jobs are held, saved task IDs and local-source/GIF ownership preserved. Timeline/static-image graphical editing and broader online acceptance remain incomplete. Saving does not select defaults, publish links, create tasks or approve film content.",
+      "limitations": "Native theme/outline/screenplay/assets/jobs and timeline forms share token-bound single-layer saves. Timeline mappings, ordered trims/rates, source sound, independent audio, subtitles and overlays have a proportional schematic. No automatic remapping, rendering, task dispatch or content approval. Static-image timelines, drag editing and broader online acceptance remain incomplete.",
       "test_evidence": [
         "test_production_progress.py",
         "test_authoring.py",
@@ -230,7 +230,8 @@
         "test_local_gif_production.py",
         "test_mixed_video_production.py",
         "test_project_asset_authoring.py",
-        "test_generation_authoring.py"
+        "test_generation_authoring.py",
+        "test_timeline_authoring.py"
       ],
       "online_acceptance": "Not claimed by source implementation; consult binding receipts and the dated acceptance report."
     },
@@ -291,6 +292,8 @@
       "id": "editing",
       "name": "剪辑与派生画面",
       "entry_points": [
+        "authoring show/preview/save --layer timeline",
+        "timeline map",
         "timeline render"
       ],
       "work_packages": [
@@ -299,10 +302,11 @@
         "H07"
       ],
       "status": "partial",
-      "limitations": "Existing FFmpeg segments/audio/overlays retained; dynamic masking/tracking and speed curves pending.",
+      "limitations": "Native timeline forms and a clickable proportional schematic edit existing video source mappings/segments/audio/captions/overlays. Shared canvas limits match rendering. Saving does not render or regenerate; static-image clips, waveform/playback/drag trimming, dynamic masking/tracking and speed curves remain pending.",
       "test_evidence": [
         "test_editing_workflow.py",
-        "test_v3_pipeline.py"
+        "test_v3_pipeline.py",
+        "test_timeline_authoring.py"
       ],
       "online_acceptance": "Not claimed by source implementation; consult binding receipts and the dated acceptance report."
     },

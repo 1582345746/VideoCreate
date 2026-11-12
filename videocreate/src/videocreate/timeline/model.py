@@ -20,6 +20,10 @@ def rational(value: Any) -> Fraction:
 
 def validate_timeline(timeline: dict[str, Any]) -> list[str]:
     errors = []
+    for key,default in [('width',720),('height',1280)]:
+        value=timeline.get(key,default)
+        if not isinstance(value,int) or isinstance(value,bool) or value%2 or not 64<=value<=4096:
+            errors.append('timeline.'+key+': canvas must use even integer dimensions from 64 to 4096')
     try:
         rational(timeline.get("fps"))
     except (ValueError, TypeError, ZeroDivisionError):

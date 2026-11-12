@@ -167,6 +167,8 @@ def open_panel(manager, root):
                     ('导出剧本阅读稿',reading),('打开实际审片页',review)]:
         ttk.Button(actions,text=text,command=fn).pack(side='left',padx=6)
     bundle=production.load_project(root)
+    if bundle['brief'].get('workflow_profile') not in {'image-only','gif-only','gif-local'}:
+        ttk.Button(actions,text='剪辑时间线与声音',command=lambda:edit_layer('timeline')).pack(side='left',padx=6)
     if 'animation' not in bundle:
         asset_actions=ttk.Frame(win,padding=(12,0,12,8));asset_actions.pack(fill='x')
         ttk.Button(asset_actions,text='角色与项目素材',command=lambda:edit_layer('director',assets_only=True)).pack(side='left',padx=6)

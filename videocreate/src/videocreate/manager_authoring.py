@@ -160,7 +160,7 @@ class BeatList:
 def open_editor(manager,root,layer,completed=None,assets_only=False):
     root=Path(root).resolve();snapshot=authoring.describe(root,layer);value=snapshot['value']
     if assets_only and layer!='director':raise ConfigError('Asset cards belong to the director layer')
-    win,book,basic=manager.dialog('角色与项目素材' if assets_only else {'brief':'主题与规格','story':'故事大纲','director':'剧本与分镜','generation-plan':'生成任务与参考'}[layer])
+    win,book,basic=manager.dialog('角色与项目素材' if assets_only else {'brief':'主题与规格','story':'故事大纲','director':'剧本与分镜','generation-plan':'生成任务与参考','timeline':'剪辑时间线与声音'}[layer])
     win.geometry('1100x820')
     ttk.Label(basic,text=snapshot['title'],font=('Microsoft YaHei UI',15,'bold')).pack(anchor='w')
     ttk.Label(basic,text=str(root),wraplength=900).pack(anchor='w',pady=8)
@@ -180,6 +180,11 @@ def open_editor(manager,root,layer,completed=None,assets_only=False):
         from .manager_generation import GenerationEditor
         from .planning.project import load_project
         form=GenerationEditor(manager,book,value,root,load_project(root))
+        def read():return form.read()
+    elif layer=='timeline':
+        from .manager_timeline import TimelineEditor
+        from .planning.project import load_project
+        form=TimelineEditor(manager,book,value,root,load_project(root))
         def read():return form.read()
     else:
         from .manager_screenplay import DirectorEditor
@@ -262,6 +267,7 @@ def open_editor(manager,root,layer,completed=None,assets_only=False):
     if layer=='story':win.authoring_events=weakref.proxy(events);win.authoring_states=weakref.proxy(states)
     if layer=='director':win.authoring_director=weakref.proxy(form)
     if layer=='generation-plan':win.authoring_generation=weakref.proxy(form)
+    if layer=='timeline':win.authoring_timeline=weakref.proxy(form)
     return win
 
 

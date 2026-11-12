@@ -12,7 +12,7 @@ from .planning.project import content_hash, load_project, save_bundle, validate_
 from .planning.schema import schema_errors
 from .runtime.state import read_state, state_lock
 
-LAYERS = ('brief', 'story', 'director', 'generation-plan')
+LAYERS = ('brief', 'story', 'director', 'generation-plan', 'timeline')
 
 
 def create(root, *, profile, title, topic='', audience='', viewer_goal='', seconds=None, aspect_ratio='16:9'):
@@ -44,6 +44,8 @@ def describe(root, layer):
         raise ConfigError('Unsupported authoring layer')
     root = Path(root).resolve()
     bundle = load_project(root)
+    if layer=='timeline' and bundle['brief'].get('workflow_profile') in {'image-only','gif-only','gif-local'}:
+        raise ConfigError('Image/GIF collection projects have no video timeline; edit their jobs or conversion recipes instead')
     if layer in {'story','director','generation-plan'} and 'animation' in bundle:
         raise ConfigError('Animation story/director/generation-plan is projected from its animation sidecar; edit that authoring source instead')
     return {'ok':True,'layer':layer,'title':bundle['project']['title'],
@@ -81,6 +83,10 @@ def _preview(root, layer, value, source_token):
         'paid_creates':0,'approval_scope':'authoring edit only; no stage or media approval',
         'note':'Semantic errors may be saved as a draft. Execution remains blocked until plan validation passes. Existing tasks and candidates are preserved.'}
     if generation_changes is not None:result['generation_changes']=generation_changes
+    if layer=='timeline':
+        from .timeline_authoring import inspect
+        result['timeline_edit']={'before':inspect(bundle[layer]),'after':inspect(value),
+            'note':'Only the edit plan changes. Source-time captions follow their segment; absolute cues and audio events keep their authored timeline times. Render and review the changed edit separately.'}
     result['preview_token'] = content_hash({'project':str(root),'layer':layer,'source_token':source_token,
         'value':value,'state':state,'report':result})
     return result,bundle,candidate,state
