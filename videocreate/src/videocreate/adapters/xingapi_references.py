@@ -46,7 +46,7 @@ class XingAPIReferenceVideoClient(XingAPIVideoClient):
         if report['errors']:
             raise ConfigError('; '.join(report['errors']))
         clean = [{k: ref[k] for k in ('kind', 'role', 'sha256', 'bytes', 'mime_type', 'duration_seconds',
-                  'width', 'height', 'sample_rate', 'channels') if k in ref} for ref in references]
+                  'width', 'height', 'sample_rate', 'channels', 'derivation') if k in ref} for ref in references]
         consumption = {k: 'transmitted' for k in ('model', 'prompt', 'seconds', 'resolution', 'aspect_ratio')}
         for kind, field in [('image', 'images'), ('video', 'videos'), ('audio', 'audios')]:
             consumption[field] = 'transmitted-as-HTTPS-array' if any(r['kind'] == kind for r in clean) else 'omitted-empty'

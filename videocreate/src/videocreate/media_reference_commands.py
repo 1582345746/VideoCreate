@@ -11,7 +11,7 @@ from .media_references import ROLES, bind_url, list_links, register, resolve_tra
 
 def command(argv):
     parser = argparse.ArgumentParser(prog='videocreate media-ref')
-    parser.add_argument('action', choices=['register', 'link', 'check', 'list', 'host', 'attach'])
+    parser.add_argument('action', choices=['register', 'link', 'check', 'list', 'host', 'attach', 'slice'])
     parser.add_argument('project', type=Path)
     parser.add_argument('--source', type=Path)
     parser.add_argument('--kind', choices=sorted(ROLES))
@@ -20,6 +20,8 @@ def command(argv):
     parser.add_argument('--config', type=Path)
     parser.add_argument('--upstream')
     parser.add_argument('--job', help='Job ID for an explicit local plan attachment')
+    parser.add_argument('--start', type=float, help='Reference slice start in source seconds, inclusive')
+    parser.add_argument('--end', type=float, help='Reference slice end in source seconds, exclusive')
     inputs = parser.add_mutually_exclusive_group()
     inputs.add_argument('--url-file', type=Path, help='Read URL locally; never print it or put it in command arguments')
     inputs.add_argument('--url-env', help='Name of an environment variable containing the URL')
@@ -35,6 +37,12 @@ def command(argv):
     if args.action == 'list':
         print_result({'ok': True, **list_links(root)})
         return 0
+    if args.action == 'slice':
+        if not args.reference or args.start is None or args.end is None:
+            raise ConfigError('Slice requires --reference, --start and --end')
+        from .reference_slices import slice_reference
+        print_result(slice_reference(root, load_json(args.reference), start=args.start, end=args.end))
+        return 0
     if args.action == 'attach':
         if not args.reference or not args.job:
             raise ConfigError('Attach requires --reference and --job')
@@ -46,7 +54,8 @@ def command(argv):
         reference = load_json(args.reference)
         if 'kind' not in reference:
             raise ConfigError('Attach needs an explicitly typed registered reference')
-        reference = {k: reference[k] for k in ('kind', 'path', 'sha256', 'role')}
+        from .reference_slices import REFERENCE_FIELDS
+        reference = {k: reference[k] for k in REFERENCE_FIELDS if k in reference}
         prepare_references(root, [reference])
         with state_lock(root):
             bundle = load_project(root)
@@ -58,7 +67,7 @@ def command(argv):
             if any('kind' not in ref for ref in refs):
                 raise ConfigError('Type the existing legacy references explicitly before attaching new media')
             if reference not in refs:
-                refs.append({k: reference[k] for k in ('kind', 'path', 'sha256', 'role')})
+                refs.append(copy.deepcopy(reference))
             job['operation'] = 'reference-to-video'
             report = validate_plan(bundle, root)
             if not report['ok']:
@@ -71,7 +80,9 @@ def command(argv):
             'plan_modified': before != bundle['generation-plan'], 'paid_creates': 0,
             'note': 'Only the plan changed. Existing tasks stay pinned; an input change requires explicit replan.'})
         return 0
-    if args.action in {'register', 'host'}:
+    if args.action == 'host' and args.reference and args.source:
+        raise ConfigError('Host accepts either an existing reference or a new source, not both')
+    if args.action == 'register' or args.action == 'host' and not args.reference:
         if not args.source or not args.kind or not args.role:
             raise ConfigError('Register requires --source, --kind and --role')
         ref = register(root, args.source, kind=args.kind, role=args.role)
@@ -94,6 +105,8 @@ def command(argv):
                'store_root': path.parent}
     if args.action == 'host':
         from . import media_server
+        from .media_references import prepare_references
+        prepare_references(root, [ref])
         if args.lifetime < args.minimum_validity:
             raise ConfigError('Hosted link lifetime must cover the required validity')
         if not media_server.status(path.parent)['running']:

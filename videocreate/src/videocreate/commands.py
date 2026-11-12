@@ -101,7 +101,7 @@ def plan_command(argv: list[str]) -> int:
     if args.action == "route":
         from .routing import recommend
         path = user_config_path(args.config)
-        print_result(recommend(bundle, read_config(path), store_root=path.parent))
+        print_result(recommend(bundle, read_config(path), store_root=path.parent, root=root))
         return 0
     report = validate_plan(bundle, root)
     if args.action == "validate":

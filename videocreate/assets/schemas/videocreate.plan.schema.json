@@ -711,6 +711,22 @@
                         "audio"
                       ]
                     },
+                    "derivation": {
+                      "type": "object",
+                      "properties": {
+                        "path": {
+                          "type": "string"
+                        },
+                        "sha256": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "path",
+                        "sha256"
+                      ],
+                      "additionalProperties": false
+                    },
                     "role": {
                       "type": "string",
                       "enum": [

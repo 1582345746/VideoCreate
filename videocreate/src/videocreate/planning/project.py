@@ -230,6 +230,8 @@ def validate_plan(bundle: dict[str, Any], root: Path | None = None) -> dict[str,
             errors.append(jid + ": image-to-video needs exactly one opening-frame primary image")
         for ref in refs:
             from ..catalog.media_constraints import ROLES
+            if 'derivation' in ref and ref.get('kind') not in {'video', 'audio'}:
+                errors.append(jid + ': derivation requires an explicitly typed temporal reference')
             if not isinstance(ref, dict) or ref.get("role") not in ROLES.get(ref.get('kind', 'image'), set()) or not ref.get("path"):
                 errors.append(jid + ": reference needs a supported role and path")
             elif root:
@@ -238,10 +240,10 @@ def validate_plan(bundle: dict[str, Any], root: Path | None = None) -> dict[str,
                     if ref.get("sha256") != hashlib.sha256(path.read_bytes()).hexdigest():
                         errors.append(jid + ": reference hash is missing or stale")
                     elif 'kind' in ref:
-                        from ..media_references import inspect
-                        inspect(path, ref['kind'])
-                except ConfigError:
-                    errors.append(jid + ": reference is missing or outside project")
+                        from ..media_references import prepare_references
+                        prepare_references(root, [ref])
+                except ConfigError as error:
+                    errors.append(jid + ": invalid reference: " + str(error))
         if len(selected) > 1:
             warnings.append(jid + ": multi-shot generation requires actual cut-point identification and separate coverage review")
         for dep in job.get("depends_on", []):

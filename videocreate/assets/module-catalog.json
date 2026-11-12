@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-11-12",
+  "updated_at": "2026-11-13",
   "status_definitions": {
     "implemented-offline": "Main implementation exists with offline verification; not a claim of complete online acceptance.",
     "partial": "Some implementation exists; full roadmap acceptance remains open.",
@@ -123,7 +123,7 @@
         "test_pricing_discovery.py",
         "test_typed_media_generation.py"
       ],
-      "online_acceptance": "2026-11-12: Seedance2.5-V text-only 5-second test and 30-second historical computing comedy downloaded and fully decoded. Reference types, exact speech/lip sync and actual billing remain unverified."
+      "online_acceptance": "2026-11-12: Seedance2.5-V text-only 5-second test and 30-second comedy downloaded and decoded. 2026-11-13: one separate v2 mixed-reference probe accepted then failed generically; no completed reference output or quality acceptance. Actual billing remains unknown."
     },
     {
       "id": "references",
@@ -136,7 +136,8 @@
         "media-ref link",
         "media-ref check",
         "media-server start",
-        "media-ref attach"
+        "media-ref attach",
+        "media-ref slice"
       ],
       "work_packages": [
         "D05",
@@ -144,13 +145,14 @@
         "D07"
       ],
       "status": "partial",
-      "limitations": "Typed image/video/audio plan references, role/order compilation and account-scoped HTTPS transport consumed by xingapi-video-v2. Full-file references only; temporal trims, last-frame locking and live model reference semantics remain incomplete.",
+      "limitations": "Typed references, role/order compilation, decoded temporal slicing with hash-bound original-source provenance and account-scoped HTTPS transports implemented. Last-frame protocol, manager slice form and broad live reference semantics remain incomplete.",
       "test_evidence": [
         "test_reference_analysis.py",
         "test_media_hosting.py",
-        "test_typed_media_generation.py"
+        "test_typed_media_generation.py",
+        "test_reference_slices.py"
       ],
-      "online_acceptance": "2026-11-12: public PNG/MP4/WAV hashes verified. A localhost protocol fixture consumed all three public arrays and recovered a failed download with expired inputs and original adapter: one fixture POST, zero paid provider creates. Real reference quality unverified."
+      "online_acceptance": "2026-11-13: public PNG/MP4/WAV hashes and decoded 2-second reference slices verified. One real seedance2.5-V mixed-reference 5-second request returned a task ID but later failed with a generic provider error; 1 POST, 20 GETs, zero downloads, no recreate. Model reference semantics remain unverified; test links revoked. Earlier localhost fixture recovery remains separately evidenced."
     },
     {
       "id": "runtime",

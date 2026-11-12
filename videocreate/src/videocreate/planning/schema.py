@@ -37,6 +37,7 @@ def plan_schema():
         "seconds": {"type": "number", "exclusiveMinimum": 0}, "model": STR, "binding_id": STR,
         "references": {"type": "array", "items": obj({"path": STR, "sha256": STR,
             "kind": enum('image', 'video', 'audio'),
+            "derivation": obj({"path": STR, "sha256": STR}, ("path", "sha256")),
             "role": enum("opening-frame", "identity", "prop", "scene", "style", "motion", "sound")}, ("path", "sha256", "role"))},
         "depends_on": STRING_LIST, "required_quality_checks": STRING_LIST}, ("id", "shot_ids", "operation", "seconds"))
     segment = obj({"id": STR, "shot_id": STR, "clip_id": STR, "source_in": number, "source_out": number,

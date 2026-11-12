@@ -118,6 +118,9 @@ def prepare_references(root, references):
         media = inspect(within(Path(root), ref['path']), kind)
         if media['sha256'] != ref.get('sha256'):
             raise ConfigError('Reference source hash changed')
+        if 'derivation' in ref:
+            from .reference_slices import validate_derivation
+            validate_derivation(root, ref, media)
         result.append({**ref, **media})
     return result
 
