@@ -678,7 +678,8 @@
                 "type": "string",
                 "enum": [
                   "text-to-video",
-                  "image-to-video"
+                  "image-to-video",
+                  "reference-to-video"
                 ]
               },
               "seconds": {
@@ -702,13 +703,24 @@
                     "sha256": {
                       "type": "string"
                     },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "image",
+                        "video",
+                        "audio"
+                      ]
+                    },
                     "role": {
                       "type": "string",
                       "enum": [
                         "opening-frame",
                         "identity",
                         "prop",
-                        "scene"
+                        "scene",
+                        "style",
+                        "motion",
+                        "sound"
                       ]
                     }
                   },

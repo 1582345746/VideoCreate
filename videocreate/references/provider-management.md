@@ -17,7 +17,7 @@ videocreate providers discover --upstream UPSTREAM_ID
 
 管理器提供上游/型号表单、备注、收藏、排序、能力与价格页、只读目录查询和草稿导入。添加型号时分别指定媒体类型、远端 ID、adapter 与操作。远端 ID 大小写原样保留。供应商声明放入 `declared_capabilities`，展示报价放入 `listed_pricing`；这些字段不会授予执行能力。可执行约束放入 `capability_overrides`。草稿的 adapter 为 `unconfigured`、enabled 为 false，不会进入生成候选。
 
-提示词上限支持 Unicode 码点、UTF-16 单元或 UTF-8 字节。`prompt_limit` 配置必须指定计数规则；不能把未知的“15000 字符”假设成 15000 字节。现有图片 adapter 仍有 4096 字节硬上限。图片/视频/音频可通过 [本机素材服务](media-hosting.md) 建立 HTTPS 传输绑定；生成适配器的混合参考接入仍待完成，不接受把视频/音频塞进图片字段。
+提示词上限支持 Unicode 码点、UTF-16 单元或 UTF-8 字节。`prompt_limit` 配置必须指定计数规则；不能把未知的“15000 字符”假设成 15000 字节。现有图片 adapter 仍有 4096 字节硬上限。图片/视频/音频可通过 [本机素材服务](media-hosting.md) 建立 HTTPS 传输绑定，`xingapi-video-v2` 在明确 media_reference_limits 后可传三类数组，不接受把视频/音频塞进图片字段。
 
 价格可记录按次、按秒、最小秒数、取整步长、有效期和条件档位。档位须唯一匹配；未知报价不能满足硬金额上限。`listed_pricing` 不用于预算。报价和实际账单分开；不同币种分别汇总，不自动折算。共享账户的多个入口可填相同 `capacity_group`，共用最严格的提交并发上限；远端在途和 RPM 配额仍待扩展。
 
@@ -63,6 +63,6 @@ videocreate production deliver PROJECT --output-name preview.mp4
 
 `modules list` 显示模块入口、限制、测试文件；`modules roadmap` 映射 73 项开发工作包。`implemented-offline` 表示有本地实现与测试，不等于供应商合同、真实生成或艺术质量已经通过。具体已测范围看日期验收报告和 `binding-evidence`。
 
-星光接口文档已由用户提供，专用 `xingapi-video-v1` 支持文生视频的创建、原任务查询和下载。参见 [接口合同与限制](xingapi-contract.md)；各 binding 只开放核对的参数组合，其余型号仍保留草稿。多媒体参考需要独立 HTTPS 素材地址，当前版本不能发送本地多媒体参考。Grok 的不同上游也可能返回不同型号，必须记录 `provider_reported_model` 并独立判断。
+星光接口文档已由用户提供，专用 `xingapi-video-v1` 支持文生视频，`xingapi-video-v2` 增加类型化多媒体 URL 数组；原任务保持创建时协议。参见 [接口合同与限制](xingapi-contract.md)；各 binding 只开放核对的参数组合，其余型号仍保留草稿。Grok 的不同上游也可能返回不同型号，必须记录 `provider_reported_model` 并独立判断。
 
 `library add/list/show/import/impact` 与管理器的“角色与素材库”共用本机配置目录下的素材库，项目保存独立快照。详见 [跨项目素材与统计](asset-library.md)。

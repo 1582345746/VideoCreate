@@ -155,9 +155,9 @@ def video_overrides(root, config, *, job_ids=None, model=None, upstream=None, bi
         previous = state['jobs'].get(job['id'], {})
         if previous and not (retry in {'content', 'replan'} and job_ids and previous.get('status') in {'completed', 'failed', 'rejected'}):
             continue
+        from .media_references import selection_request
         pair = resolve(root, config, kind='video', store_root=store_root, model=model, upstream=upstream,
-            binding=binding, operation=job['operation'], request={'seconds': job['seconds'],
-                'resolution': bundle['brief']['resolution'], 'aspect_ratio': bundle['brief']['aspect_ratio']})
+            binding=binding, operation=job['operation'], request=selection_request(root, bundle, job))
         if pair:
             result[job['id']] = pair[1]
     return result

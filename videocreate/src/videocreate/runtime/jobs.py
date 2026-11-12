@@ -17,9 +17,21 @@ from .state import read_state, save_state, state_lock
 from .limits import submission_slot
 
 
+def request_error(error, binding):
+    message = safe_error(error, [binding.key])
+    if binding.adapter == 'xingapi-video-v2':
+        import re
+        message = re.sub(r'https?://[^\s<>"\']+', '[REMOTE_URL_REDACTED]', message)
+        message = re.sub(r'(?<=/m/)[A-Za-z0-9_-]{43}', '[TOKEN_REDACTED]', message)
+    return message
+
+
 def client(binding: Binding):
     from ..cli import legacy_engine
     engine = legacy_engine()
+    if binding.adapter == 'xingapi-video-v2':
+        from ..adapters.xingapi_references import XingAPIReferenceVideoClient
+        return XingAPIReferenceVideoClient(binding)
     if binding.adapter == 'xingapi-video-v1':
         from ..adapters.xingapi import XingAPIVideoClient
         return XingAPIVideoClient(binding)
@@ -114,10 +126,10 @@ def _prepare_job(root, bundle, job, config, store_root, prior, *, retry, explici
     else:
         preferred = (binding_override or {}).get(jid, job.get("binding_id"))
         from ..selection import resolve
+        from ..media_references import selection_request
         override_model = config['bindings'][preferred]['model'] if preferred and binding_override and jid in binding_override else job.get('model')
         selected = resolve(root, config, kind='video', store_root=store_root, model=override_model,
-            binding=preferred, operation=job['operation'], request={'seconds': job['seconds'],
-                'resolution': bundle['brief']['resolution'], 'aspect_ratio': bundle['brief']['aspect_ratio']})
+            binding=preferred, operation=job['operation'], request=selection_request(root, bundle, job))
         model, preferred = selected or (job.get('model') or config['defaults']['video_model'], preferred)
         candidates = route_bindings(config, model, operation=job["operation"], preferred=preferred, store_root=store_root)
         fallback_allowed = (not preferred and config['routes'][model]['policy'] == 'automatic-same-model') or (
@@ -130,10 +142,20 @@ def _prepare_job(root, bundle, job, config, store_root, prior, *, retry, explici
     from ..routing import require_quality
     from ..series import check_episode_context
     check_episode_context(root, bundle)
+    # Accepted tasks need only their saved protocol/account and current source
+    # identity. In particular, recovery must not fetch or refresh media URLs.
+    if prior.get('task_id') and not new_attempt:
+        binding = candidates[0]
+        compilation = compile_job(bundle, job, max_bytes=binding.capabilities['max_prompt_bytes'], root=root)
+        return binding, client(binding), {}, compilation, prior.get('prepared_request', {}), prior.get('selection', {})
     reference_entries = job.get("references", [])
     primary_entry = next((ref for ref in reference_entries if ref["role"] == "opening-frame"), None)
     primary_reference = within(root, primary_entry["path"]) if primary_entry else None
-    reference_images = [within(root, ref["path"]) for ref in reference_entries if ref["role"] != "opening-frame"]
+    reference_images = [within(root, ref["path"]) for ref in reference_entries if ref["role"] != "opening-frame" and ref.get('kind', 'image') == 'image']
+    from ..media_references import prepare_references
+    typed = prepare_references(root, reference_entries) if any('kind' in ref for ref in reference_entries) else []
+    if typed and any('kind' not in ref for ref in reference_entries):
+        raise ConfigError(jid + ': explicitly type all references before using the media URL contract')
     actor_shots = [s for s in bundle["director"]["shots"] if s["id"] in job["shot_ids"]]
     kwargs = {"seconds": job["seconds"], "size": "auto", "resolution": bundle["brief"]["resolution"],
         "aspect_ratio": bundle["brief"]["aspect_ratio"],
@@ -144,21 +166,37 @@ def _prepare_job(root, bundle, job, config, store_root, prior, *, retry, explici
         try:
             require_quality(store_root, candidate, job)
             compilation = compile_job(bundle, job, max_bytes=candidate.capabilities["max_prompt_bytes"], root=root)
+            candidate_kwargs = dict(kwargs)
+            if candidate.adapter == 'xingapi-video-v2':
+                if reference_entries and not typed:
+                    raise ConfigError('Version two requires explicit reference kinds; register or attach typed references')
+                candidate_kwargs.pop('primary_reference')
+                candidate_kwargs.pop('reference_images')
+                candidate_kwargs.update(operation=job['operation'], media_references=typed)
             request = validate_request(candidate, {"operation": job["operation"], "prompt": compilation["prompt"],
                 "seconds": kwargs["seconds"], "resolution": kwargs["resolution"],
                 "aspect_ratio": kwargs["aspect_ratio"], "generate_audio": kwargs["generate_audio"],
-                "primary_reference": primary_reference, "reference_images": reference_images})
+                **({'media_references': typed} if typed else
+                   {'primary_reference': primary_reference, 'reference_images': reference_images})})
             if not request["ok"]:
                 raise ConfigError("; ".join(request["errors"]))
             video_client = client(candidate)
-            prepared = video_client.prepare(compilation["prompt"], **kwargs)
+            prepared = video_client.prepare(compilation["prompt"], **candidate_kwargs)
+            if typed:
+                from ..media_references import resolve_transports
+                transports = resolve_transports(root, reference_entries, upstream_id=candidate.upstream_id,
+                    account_id=candidate.identity.get('account_id', candidate.upstream_id), store_root=store_root,
+                    minimum_validity=candidate.capabilities['media_reference_limits']['minimum_url_validity_seconds'])
+                candidate_kwargs['media_references'] = transports
+                # Validate the actual wire mapping, without performing a POST.
+                video_client.fields(compilation['prompt'], candidate_kwargs)
         except ConfigError as error:
             decisions.append({"binding": candidate.id, "eligible": False, "reason": str(error)})
             continue
         decisions.append({"binding": candidate.id, "eligible": True})
         selection = {"selected_model": candidate.model, "selected_binding": candidate.id, "decisions": decisions,
                      'allow_same_model_fallback': fallback_allowed}
-        return candidate, video_client, kwargs, compilation, prepared, selection
+        return candidate, video_client, candidate_kwargs, compilation, prepared, selection
     raise ConfigError(jid + ": no compatible video binding: " + "; ".join(d["reason"] for d in decisions))
 
 
@@ -249,7 +287,7 @@ def _generate_serial(root: Path, config: dict, *, store_root: Path, job_ids: lis
                     if current and not retry:
                         raise ConfigError(jid + ": another create needs an explicit retry kind and reason")
                     history = current.get("history", []) + ([{k: v for k, v in current.items() if k != "history"}] if current else [])
-                    attempts = len(history) + 1
+                    attempts = sum(record.get('submission_sent') is not False for record in history) + 1
                     if attempts > config.get("execution", {}).get("max_create_attempts_per_task", 2):
                         raise ConfigError(jid + ": maximum create attempts reached")
                     attempt_id = uuid.uuid4().hex
@@ -280,13 +318,19 @@ def _generate_serial(root: Path, config: dict, *, store_root: Path, job_ids: lis
                     # structured 4xx rejection still requires explicit intent.
                     from vc_common import APIError
                     from .failures import confirmed_rejection
-                    rejected = confirmed_rejection(error, binding)
+                    from ..adapters.xingapi_references import LocalRequestError
+                    not_sent = isinstance(error, LocalRequestError)
+                    rejected = not_sent or confirmed_rejection(error, binding)
                     with state_lock(root):
                         state = read_state(root)
                         current = state["jobs"][jid]
-                        current.update(status="rejected" if rejected else "submission_unknown", error=safe_error(error, [binding.key]),
+                        current.update(status="rejected" if rejected else "submission_unknown", error=request_error(error, binding),
                             submission_receipt=video_client.last_submission)
-                        next(e for e in state["ledger"] if e["attempt_id"] == attempt_id)["status"] = current["status"]
+                        entry = next(e for e in state['ledger'] if e['attempt_id'] == attempt_id)
+                        entry['status'] = current['status']
+                        if not_sent:
+                            current['submission_sent'] = False
+                            entry.update(status='not-submitted', estimated=0, actual=0)
                         save_state(root, state)
                     create_error = error
                 if create_error is None:
@@ -312,7 +356,7 @@ def _generate_serial(root: Path, config: dict, *, store_root: Path, job_ids: lis
                         progress=progress, binding_override={jid: next_id})
                     results.extend(fallback_result["jobs"])
                     continue
-            raise ConfigError(safe_error(create_error, [binding.key])) from None
+            raise ConfigError(request_error(create_error, binding)) from None
         try:
             def status_update(status, payload):
                 with state_lock(root):
@@ -363,9 +407,9 @@ def _generate_serial(root: Path, config: dict, *, store_root: Path, job_ids: lis
             with state_lock(root):
                 state = read_state(root)
                 state["jobs"][jid].update(status="failed" if isinstance(error, ProviderTaskFailedError) else "read_pending",
-                    error=safe_error(error, [binding.key]))
+                    error=request_error(error, binding))
                 save_state(root, state)
-            raise ConfigError(safe_error(error, [binding.key])) from None
+            raise ConfigError(request_error(error, binding)) from None
     return {"ok": True, "jobs": results, "budget": summary(read_state(root)), "content": "unverified"}
 
 

@@ -42,6 +42,19 @@ def extend(schema):
     caps['prompt_limit'] = obj({'maximum': POS,
         'counting_rule': enum('unicode-codepoints', 'utf16-code-units', 'utf8-bytes')},
         ('maximum', 'counting_rule'))
+    media_limit = obj({'maximum_count': {'type': 'integer', 'minimum': 0},
+        'maximum_bytes': POS, 'maximum_total_bytes': POS, 'mime_types': STRING_LIST,
+        'roles': STRING_LIST, 'maximum_duration_seconds': {'type': 'number', 'exclusiveMinimum': 0},
+        'maximum_total_duration_seconds': {'type': 'number', 'exclusiveMinimum': 0},
+        'maximum_width': POS, 'maximum_height': POS, 'maximum_sample_rate': POS, 'maximum_channels': POS},
+        ('maximum_count', 'maximum_bytes', 'maximum_total_bytes', 'mime_types', 'roles'))
+    caps['media_reference_limits'] = obj({**{k: media_limit for k in ('image', 'video', 'audio')},
+        'maximum_total_count': {'type': 'integer', 'minimum': 0}, 'maximum_total_bytes': POS,
+        'allowed_combinations': {'type': 'array', 'items': {'type': 'array', 'minItems': 1,
+            'uniqueItems': True, 'items': enum('image', 'video', 'audio')}},
+        'audio_reference_with_generated_audio': BOOL, 'minimum_url_validity_seconds': POS},
+        ('image', 'video', 'audio', 'maximum_total_count', 'maximum_total_bytes', 'allowed_combinations',
+         'audio_reference_with_generated_audio', 'minimum_url_validity_seconds'))
     b['pricing']['properties'].update({
         'status': enum('confirmed', 'unverified'), 'version': STR, 'effective_at': STR,
         'valid_until': STR, 'account_group': STR, 'billing_event': STR,
@@ -87,6 +100,18 @@ def semantic_errors(config):
         if binding.get('enabled') and (upstream.get('archived') or model.get('archived')):
             errors.append(path + ': upstream/model is archived')
         declared = binding.get('declared_capabilities', {}).get('duration', {})
+        limits = binding.get('capability_overrides', {}).get('media_reference_limits')
+        if limits is not None:
+            from ..catalog.media_constraints import limits_errors
+            errors.extend(path + '.media_reference_limits: ' + error for error in limits_errors(limits))
+            if binding['adapter'] != 'xingapi-video-v2':
+                errors.append(path + ': typed media limits require xingapi-video-v2')
+        if 'reference-to-video' in binding['operations'] and binding['adapter'] not in {'xingapi-video-v2', 'unconfigured'}:
+            errors.append(path + ': reference-to-video requires a typed reference adapter')
+        if (binding.get('enabled') and binding['adapter'] == 'xingapi-video-v2' and
+                set(binding['operations']) & {'reference-to-video', 'image-to-video'} and
+                (not limits or not limits['maximum_total_count'] or not limits['allowed_combinations'])):
+            errors.append(path + ': enabled reference operations require explicit media limits and combinations')
         if declared.get('minimum') and declared.get('maximum') and declared['minimum'] > declared['maximum']:
             errors.append(path + '.declared_capabilities.duration: minimum exceeds maximum')
         pricing = binding.get('pricing', {})

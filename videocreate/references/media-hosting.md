@@ -25,6 +25,7 @@ videocreate media-ref host PROJECT --source FILE --kind video --role motion --up
 videocreate media-ref host PROJECT --source FILE --kind audio --role sound --upstream UPSTREAM_ID --lifetime 14400
 videocreate media-ref list PROJECT
 videocreate media-ref check PROJECT --reference REFERENCE_JSON --upstream UPSTREAM_ID
+videocreate media-ref attach PROJECT --reference REFERENCE_JSON --job JOB_ID
 ```
 
 `register` 检查真实格式、大小、时长和 SHA-256，并将不可变快照复制到项目。当前支持 PNG/JPEG/WebP、MP4、MP3/WAV，单文件不超过 512 MiB，使用 FFprobe 检查。`host` 为快照生成链接，再通过公网完整 GET 核对类型、字节和哈希，成功后将链接用 Windows DPAPI 保存；项目 JSON 只保留凭据引用、源哈希、过期时间和验证证据。失败时撤销刚生成的链接。
@@ -35,6 +36,14 @@ videocreate media-ref check PROJECT --reference REFERENCE_JSON --upstream UPSTRE
 
 管理器“生成文件直链”只创建文件发布，不自动绑定到项目；链接在结果窗口临时显示，可显式复制。CLI `media-server publish --source FILE --kind image --output PRIVATE_RECEIPT_JSON` 将链接保存到指定私有回执。日志与发布列表不输出完整链接。链接持有人在有效期内可下载；撤销和过期阻止后续访问，不能撤回已经下载的副本。
 
-## 本阶段边界
+## 接入生成
 
-dev16 完成了素材托管、外网读取和项目传输绑定。`media-ref` 不修改分镜、创建生成任务或产生上游费用。`xingapi-video-v1` 仍只支持文生视频；当前不能把这里的引用声明为已经传给模型。下一阶段需接入类型化计划、整批预检及 `images`/`videos`/`audios` 数组。原任务的查询和下载必须沿用原任务号及账户，不依赖素材链接续期，不重新创建。
+`attach` 在保存计划备份后，将带 kind/role/path/sha256 的引用加入指定 job，操作设为 `reference-to-video`。重复添加相同引用不重复写入。它不改变当前任务或自动执行生成；已提交任务输入改变仍需显式 replan。旧图生视频未注明 kind 的图片保持原样，不自动迁移为多媒体请求；要使用 v2，应明确所有引用的 kind。已有 `image-to-video` 仍要求恰好一张 opening-frame，且为图片数组中的第一张。通用 `reference-to-video` 可按模型合同使用没有首帧的身份、动作或声音参考。
+
+使用 `xingapi-video-v2` 的 binding 必须显式配置 `media_reference_limits`。管理器型号页新增“多媒体限制”：每类数量、单文件/总字节、MIME、角色，视频和音频还需要单文件/总时长；合计数量、合计字节和链接剩余有效秒数。高级字段 `allowed_combinations` 用类型数组列出允许组合，例如 `[["image"],["image","video"]]`；`audio_reference_with_generated_audio` 是是否允许参考音频与声音生成同时使用的布尔值。未知限制不可当作无限；未使用类型的数量填 0。可另设 maximum_width/height/sample_rate/channels 等边界。供应商备注不会自动生成这些执行约束。
+
+整批待执行任务在首个预算预留/POST 前检查本地源和全部参数，解析对应上游/账户的链接并完整核对公网文件。编译器在提示词与 reference_map 中保留用途及每类从 1 开始的序号；请求发送独立的 `images`、`videos`、`audios` 字符串数组，不把视频转首帧，不丢弃音频。只在 binding 声音开关为 explicit 时发送 `generate_audio`。持久化请求仅保存媒体元数据，v2 响应中的文件 URL 被脱敏，下载使用原任务的认证 content 端点。
+
+当前传整份注册文件，尚不接受在计划中指定参考片段的时间区间，也未实现末帧锁定。需要片段时先明确导出新文件再注册，不可静默忽略区间。`xingapi-video-v1` 继续只支持文生视频；安装升级不自动转换用户 binding 或启用声明能力。dev17 的公网与本地模拟 API 集成验证了三类数组、下载失败恢复及不重复创建，真实模型参考语义仍待单独验收。
+
+原任务的查询和下载沿用原任务号、账户及适配器快照，不依赖素材链接续期。临时链接失效不会触发重新生成。创建前最后的本地校验若拒绝请求，账本保留 not-submitted 证据和零费用，不把它计为已发出的请求；真正发送后的超时仍保持 submission_unknown。

@@ -24,10 +24,9 @@ from pathlib import Path
 from .config.storage import ConfigError, atomic_json, load_json, resolve_key
 from .planning.project import within
 from .runtime.state import state_lock
+from .catalog.media_constraints import ROLES
 
 MAX_BYTES = 512 * 1024 * 1024
-ROLES = {'image': {'opening-frame', 'identity', 'prop', 'scene', 'style'},
-         'video': {'motion', 'scene', 'style'}, 'audio': {'sound'}}
 
 
 def digest(path):
@@ -82,7 +81,9 @@ def inspect(path: Path, kind: str) -> dict:
     except (KeyError, ValueError, StopIteration, TypeError):
         raise ConfigError('Reference media could not be decoded as the selected kind') from None
     return {'kind': kind, 'sha256': digest(path), 'bytes': size, 'mime_type': mime, 'suffix': suffix,
-            'duration_seconds': duration, 'width': stream.get('width'), 'height': stream.get('height')}
+            'duration_seconds': duration, 'width': stream.get('width'), 'height': stream.get('height'),
+            'sample_rate': int(stream['sample_rate']) if stream.get('sample_rate') else None,
+            'channels': stream.get('channels')}
 
 
 def register(root, source, *, kind, role):
@@ -118,6 +119,25 @@ def prepare_references(root, references):
         if media['sha256'] != ref.get('sha256'):
             raise ConfigError('Reference source hash changed')
         result.append({**ref, **media})
+    return result
+
+
+def selection_request(root, bundle, job):
+    """Serializable, URL-free constraints for selecting a job's actual inputs."""
+    refs = job.get('references', [])
+    result = {'seconds': job['seconds'], 'resolution': bundle['brief']['resolution'],
+              'aspect_ratio': bundle['brief']['aspect_ratio']}
+    shots = [s for s in bundle['director']['shots'] if s['id'] in job['shot_ids']]
+    result['generate_audio'] = any(s.get('audio', {}).get('mode', 'ambience') in
+                                   {'native-dialogue', 'offscreen', 'ambience'} for s in shots)
+    if any('kind' in ref for ref in refs):
+        if any('kind' not in ref for ref in refs):
+            raise ConfigError('Explicitly type every reference before using a media URL adapter')
+        result['media_references'] = prepare_references(root, refs)
+    elif refs:
+        primary = next((ref for ref in refs if ref['role'] == 'opening-frame'), None)
+        result.update(primary_reference=primary['path'] if primary else None,
+            reference_images=[ref['path'] for ref in refs if ref['role'] != 'opening-frame'])
     return result
 
 
@@ -272,7 +292,7 @@ def resolve_transports(root, references, *, upstream_id, account_id, store_root,
             evidence = verify_url(url, media)
         else:
             evidence = record['verification']
-        result.append({'kind': media['kind'], 'sha256': media['sha256'], 'url': url,
+        result.append({**media, 'url': url,
                        'expires_at': expiry, 'verification': evidence})
     return result
 

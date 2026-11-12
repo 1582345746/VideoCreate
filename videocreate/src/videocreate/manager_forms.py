@@ -120,6 +120,18 @@ CAPABILITIES = [
     ('prompt_limit.counting_rule', '实际计数规则', ('unicode-codepoints', 'utf16-code-units', 'utf8-bytes')),
     ('audio_control', '声音开关', ('explicit', 'model-default', 'unsupported', 'unknown', 'not-applicable'))]
 
+MEDIA_REFERENCE_LIMITS = [('maximum_total_count', '所有素材合计数量', 'integer'),
+    ('maximum_total_bytes', '所有素材合计字节', 'integer'),
+    ('minimum_url_validity_seconds', '链接至少剩余有效秒数', 'integer')]
+for kind, label in [('image', '图片'), ('video', '视频'), ('audio', '音频')]:
+    MEDIA_REFERENCE_LIMITS += [(kind + '.' + key, label + ' · ' + title, data_type) for key, title, data_type in [
+        ('maximum_count', '数量上限', 'integer'), ('maximum_bytes', '单文件字节上限', 'integer'),
+        ('maximum_total_bytes', '合计字节上限', 'integer'), ('mime_types', 'MIME 类型（逗号分隔）', 'list'),
+        ('roles', '用途角色（逗号分隔）', 'list')]]
+    if kind != 'image':
+        MEDIA_REFERENCE_LIMITS += [(kind + '.maximum_duration_seconds', label + ' · 单文件秒数上限', 'number'),
+            (kind + '.maximum_total_duration_seconds', label + ' · 合计秒数上限', 'number')]
+
 PRICES = [
     ('listed_pricing.amount', '供应商展示金额', 'number'),
     ('listed_pricing.display_symbol', '展示货币符号', 'text'),

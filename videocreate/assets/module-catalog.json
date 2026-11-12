@@ -48,7 +48,7 @@
         "E05"
       ],
       "status": "partial",
-      "limitations": "Character counting, basic/tier pricing, rounding, validity and per-currency totals implemented; multimedia transport and refunds remain incomplete.",
+      "limitations": "Character counting, pricing and typed per-kind/combined bytes/duration/roles/combination constraints implemented. Model-specific live boundaries, refunds and general conditional rules remain incomplete.",
       "test_evidence": [
         "test_provider_management.py",
         "test_v3_config.py"
@@ -117,10 +117,11 @@
         "D08"
       ],
       "status": "partial",
-      "limitations": "User-supplied create/query/download contract implemented as xingapi-video-v1. Text-to-video only; URL reference mapping/storage, per-model boundaries, audio control and billing still incomplete.",
+      "limitations": "xingapi-video-v1 remains text-only; v2 implements typed HTTPS arrays with explicit per-kind/combined limits. Existing user bindings are not automatically upgraded. Per-model reference/audio/billing acceptance remains open.",
       "test_evidence": [
         "test_xingapi.py",
-        "test_pricing_discovery.py"
+        "test_pricing_discovery.py",
+        "test_typed_media_generation.py"
       ],
       "online_acceptance": "2026-11-12: Seedance2.5-V text-only 5-second test and 30-second historical computing comedy downloaded and fully decoded. Reference types, exact speech/lip sync and actual billing remain unverified."
     },
@@ -134,7 +135,8 @@
         "media-ref host",
         "media-ref link",
         "media-ref check",
-        "media-server start"
+        "media-server start",
+        "media-ref attach"
       ],
       "work_packages": [
         "D05",
@@ -142,12 +144,13 @@
         "D07"
       ],
       "status": "partial",
-      "limitations": "Typed, hash-bound local snapshots and account-scoped private HTTPS transport registry implemented. Image/video/audio hosting through an existing tunnel verified; generation plans/adapters do not yet consume these transports.",
+      "limitations": "Typed image/video/audio plan references, role/order compilation and account-scoped HTTPS transport consumed by xingapi-video-v2. Full-file references only; temporal trims, last-frame locking and live model reference semantics remain incomplete.",
       "test_evidence": [
         "test_reference_analysis.py",
-        "test_media_hosting.py"
+        "test_media_hosting.py",
+        "test_typed_media_generation.py"
       ],
-      "online_acceptance": "2026-11-12: public HTTPS PNG/MP4/WAV full GET hashes match; Range returns 206; revocation returns 404. Synthetic files only, zero provider creates; model reference semantics unverified."
+      "online_acceptance": "2026-11-12: public PNG/MP4/WAV hashes verified. A localhost protocol fixture consumed all three public arrays and recovered a failed download with expired inputs and original adapter: one fixture POST, zero paid provider creates. Real reference quality unverified."
     },
     {
       "id": "runtime",

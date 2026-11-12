@@ -33,10 +33,11 @@ def plan_schema():
             "ambience": STR, "lines": {"type": "array", "items": line}}, ("mode",)),
         "state_transition": obj({"cause_beat_id": STR, "evidence_shot_ids": STRING_LIST}, ("cause_beat_id", "evidence_shot_ids")),
     }, ("id", "scene_id", "information_goal", "framing", "planned_seconds", "actions", "cut_motivation"))
-    job = obj({"id": STR, "shot_ids": {**STRING_LIST, "minItems": 1}, "operation": enum("text-to-video", "image-to-video"),
+    job = obj({"id": STR, "shot_ids": {**STRING_LIST, "minItems": 1}, "operation": enum("text-to-video", "image-to-video", "reference-to-video"),
         "seconds": {"type": "number", "exclusiveMinimum": 0}, "model": STR, "binding_id": STR,
         "references": {"type": "array", "items": obj({"path": STR, "sha256": STR,
-            "role": enum("opening-frame", "identity", "prop", "scene")}, ("path", "sha256", "role"))},
+            "kind": enum('image', 'video', 'audio'),
+            "role": enum("opening-frame", "identity", "prop", "scene", "style", "motion", "sound")}, ("path", "sha256", "role"))},
         "depends_on": STRING_LIST, "required_quality_checks": STRING_LIST}, ("id", "shot_ids", "operation", "seconds"))
     segment = obj({"id": STR, "shot_id": STR, "clip_id": STR, "source_in": number, "source_out": number,
         "rate": {"type": "number", "exclusiveMinimum": 0}, "source_audio": enum("mute", "retime", "preserve"),

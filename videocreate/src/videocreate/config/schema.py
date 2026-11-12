@@ -22,9 +22,9 @@ BOOL = {"type": "boolean"}
 POS = {"type": "integer", "minimum": 1}
 STRING_LIST = {"type": "array", "items": STR, "uniqueItems": True}
 OPEN_OBJECT = {"type": "object"}
-OPERATIONS = ("text-to-video", "image-to-video", "text-to-image", "image-edit", "video-edit", "video-extend")
+OPERATIONS = ("text-to-video", "image-to-video", "reference-to-video", "text-to-image", "image-edit", "video-edit", "video-extend")
 WORKFLOW_OPERATIONS = ("text-to-video", "image-to-video", "text-to-image", "image-edit")
-ADAPTERS = ("sub2api-json-v1", "newapi-json-v1", "newapi-multipart-v1", "openai-images-v1", "xingapi-video-v1")
+ADAPTERS = ("sub2api-json-v1", "newapi-json-v1", "newapi-multipart-v1", "openai-images-v1", "xingapi-video-v1", "xingapi-video-v2")
 
 
 def capability_schema() -> dict[str, Any]:

@@ -1,8 +1,4 @@
-"""XingAPI's documented asynchronous /videos/generations contract.
-
-Only text-to-video is executable in this revision. Local files must not be
-silently converted to data URLs: XingAPI's common input requires HTTPS storage.
-"""
+"""Versioned XingAPI asynchronous contracts; v1 stays text-only for old tasks."""
 from __future__ import annotations
 
 import copy
@@ -38,6 +34,8 @@ class XingAPIVideoClient(BindingVideoClient):
         super().__init__(binding, wire.Sub2ApiVideoClient(binding.base_url, binding.key, binding.remote_model))
 
     def prepare(self, prompt, **kwargs):
+        if kwargs.get('media_references'):
+            raise ConfigError('Typed HTTPS media references require the version two adapter')
         primary, extra = self._split_references(kwargs.get('primary_reference'), kwargs.get('reference_images', ()), kwargs.get('references'))
         if primary is not None or extra:
             raise ConfigError('XingAPI requires HTTPS media URL arrays; local reference upload/mapping is not configured')
@@ -47,26 +45,34 @@ class XingAPIVideoClient(BindingVideoClient):
         result['wire_fields'] = {'seconds': 'duration', 'aspect_ratio': 'ratio', 'resolution': 'resolution'}
         return result
 
-    def create(self, prompt, **kwargs):
-        import media_client as wire
-        from provider_contracts import SubmissionUnknownError
-        self.last_submission = self.prepare(prompt, **kwargs)
+    def fields(self, prompt, kwargs):
         fields = {'model': self.model, 'prompt': prompt, 'duration': int(kwargs['seconds']),
                   'ratio': kwargs.get('aspect_ratio', '16:9'), 'resolution': kwargs.get('resolution', '480p')}
         if self.binding.capabilities['audio_control'] == 'explicit':
             fields['generate_audio'] = bool(kwargs.get('generate_audio', False))
+        return fields
+
+    def sanitize(self, value):
+        if isinstance(value, str):
+            return value.replace(self.binding.key, '[REDACTED]') if self.binding.key else value
+        if isinstance(value, dict):
+            return {k: self.sanitize(v) for k, v in redact_config(value).items()}
+        if isinstance(value, list):
+            return [self.sanitize(v) for v in value]
+        return value
+
+    def create(self, prompt, **kwargs):
+        self.last_submission = self.prepare(prompt, **kwargs)
+        fields = self.fields(prompt, kwargs)
+        return self.submit_fields(fields)
+
+    def submit_fields(self, fields):
+        import media_client as wire
+        from provider_contracts import SubmissionUnknownError
         response = self._submit('POST', wire.api_url(self.base_url, '/v1/videos/generations'),
                                 key=self.binding.key, value=fields,
                                 timeout=self.binding.options.get('request_timeout_seconds', 120))
-        def clean(value):
-            if isinstance(value, str):
-                return value.replace(self.binding.key, '[REDACTED]') if self.binding.key else value
-            if isinstance(value, dict):
-                return {k: clean(v) for k, v in value.items()}
-            if isinstance(value, list):
-                return [clean(v) for v in value]
-            return value
-        self.last_submission['create_response'] = clean(redact_config(copy.deepcopy(response)))
+        self.last_submission['create_response'] = self.sanitize(copy.deepcopy(response))
         body = unwrap(response)
         for key in ('id', 'task_id', 'request_id'):
             value = body.get(key)

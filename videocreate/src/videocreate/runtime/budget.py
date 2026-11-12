@@ -47,7 +47,7 @@ def reserve(state: dict, budget: dict, *, attempt_id: str, job_id: str, kind: st
     ledger = state.setdefault("ledger", [])
     if any(item["attempt_id"] == attempt_id for item in ledger):
         raise ConfigError("Attempt was already reserved")
-    count = sum(item["kind"] == kind for item in ledger)
+    count = sum(item["kind"] == kind and item.get('status') != 'not-submitted' for item in ledger)
     if count >= budget.get(f"max_{kind}_requests", 12 if kind == "video" else 12):
         raise ConfigError("Request budget is exhausted; no create was sent")
     maximum = budget.get("max_total")
@@ -73,7 +73,8 @@ def summary(state: dict) -> dict:
     currencies = sorted({i.get('currency', 'unknown') for i in ledger})
     by_currency = {currency: {'estimated_known_total': sum(i['estimated'] for i in ledger if i.get('currency', 'unknown') == currency and i.get('estimated') is not None),
         'actual_known_total': sum(i['actual'] for i in ledger if i.get('currency', 'unknown') == currency and i.get('actual') is not None)} for currency in currencies}
-    return {"requests": len(ledger), 'by_currency': by_currency,
+    return {"requests": sum(i.get('status') != 'not-submitted' for i in ledger),
+            'local_preflight_rejections': sum(i.get('status') == 'not-submitted' for i in ledger), 'by_currency': by_currency,
             "estimated_known_total": sum(i["estimated"] for i in ledger if i.get("estimated") is not None) if len(currencies) < 2 else None,
             "unknown_price_requests": sum(i.get("estimated") is None for i in ledger),
             "unknown_submission_requests": sum(i.get("status") in {"reserved", "submission_unknown"} for i in ledger),

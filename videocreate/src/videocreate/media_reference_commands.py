@@ -11,7 +11,7 @@ from .media_references import ROLES, bind_url, list_links, register, resolve_tra
 
 def command(argv):
     parser = argparse.ArgumentParser(prog='videocreate media-ref')
-    parser.add_argument('action', choices=['register', 'link', 'check', 'list', 'host'])
+    parser.add_argument('action', choices=['register', 'link', 'check', 'list', 'host', 'attach'])
     parser.add_argument('project', type=Path)
     parser.add_argument('--source', type=Path)
     parser.add_argument('--kind', choices=sorted(ROLES))
@@ -19,6 +19,7 @@ def command(argv):
     parser.add_argument('--reference', type=Path, help='Registered reference JSON')
     parser.add_argument('--config', type=Path)
     parser.add_argument('--upstream')
+    parser.add_argument('--job', help='Job ID for an explicit local plan attachment')
     inputs = parser.add_mutually_exclusive_group()
     inputs.add_argument('--url-file', type=Path, help='Read URL locally; never print it or put it in command arguments')
     inputs.add_argument('--url-env', help='Name of an environment variable containing the URL')
@@ -33,6 +34,42 @@ def command(argv):
         raise ConfigError('Use an existing VideoCreate project')
     if args.action == 'list':
         print_result({'ok': True, **list_links(root)})
+        return 0
+    if args.action == 'attach':
+        if not args.reference or not args.job:
+            raise ConfigError('Attach requires --reference and --job')
+        from .planning.project import load_project, validate_plan, within
+        from .runtime.state import state_lock
+        from .media_references import prepare_references
+        import copy
+        import time
+        reference = load_json(args.reference)
+        if 'kind' not in reference:
+            raise ConfigError('Attach needs an explicitly typed registered reference')
+        reference = {k: reference[k] for k in ('kind', 'path', 'sha256', 'role')}
+        prepare_references(root, [reference])
+        with state_lock(root):
+            bundle = load_project(root)
+            job = next((j for j in bundle['generation-plan']['jobs'] if j['id'] == args.job), None)
+            if job is None:
+                raise ConfigError('Unknown job ID')
+            before = copy.deepcopy(bundle['generation-plan'])
+            refs = job.setdefault('references', [])
+            if any('kind' not in ref for ref in refs):
+                raise ConfigError('Type the existing legacy references explicitly before attaching new media')
+            if reference not in refs:
+                refs.append({k: reference[k] for k in ('kind', 'path', 'sha256', 'role')})
+            job['operation'] = 'reference-to-video'
+            report = validate_plan(bundle, root)
+            if not report['ok']:
+                raise ConfigError('; '.join(report['errors']))
+            plan_path = within(root, bundle['project'].get('files', {}).get('generation-plan', 'generation-plan.json'))
+            if bundle['generation-plan'] != before:
+                atomic_json(root/'references/plan-history'/('before-attach-' + str(time.time_ns()) + '.json'), before)
+                atomic_json(plan_path, bundle['generation-plan'])
+        print_result({'ok': True, 'job_id': args.job, 'reference': reference,
+            'plan_modified': before != bundle['generation-plan'], 'paid_creates': 0,
+            'note': 'Only the plan changed. Existing tasks stay pinned; an input change requires explicit replan.'})
         return 0
     if args.action in {'register', 'host'}:
         if not args.source or not args.kind or not args.role:

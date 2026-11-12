@@ -11,7 +11,7 @@ from ..config.storage import ConfigError, resolve_key
 
 ADAPTER_ALIASES = {"sub2api-json-v1": "sub2api-json", "newapi-json-v1": "newapi-json",
                    "newapi-multipart-v1": "newapi-multipart", "openai-images-v1": "openai-images",
-                   "xingapi-video-v1": "xingapi-json"}
+                   "xingapi-video-v1": "xingapi-json", "xingapi-video-v2": "xingapi-json"}
 MUSE_VIDEO_MAX_SECONDS = 10
 
 
@@ -36,7 +36,7 @@ class Binding:
     def snapshot(self) -> dict[str, Any]:
         public = {"binding_id": self.id, "model": self.model, "remote_model": self.remote_model,
                   "upstream_id": self.upstream_id, "base_url": self.base_url.rstrip("/"),
-                  "adapter": self.adapter, "adapter_version": 1, "capabilities": self.capabilities,
+                  "adapter": self.adapter, "adapter_version": 2 if self.adapter == 'xingapi-video-v2' else 1, "capabilities": self.capabilities,
                   "adapter_options": self.options}
         hashed = public
         if self.identity:
@@ -59,7 +59,7 @@ def capabilities(config: dict[str, Any], binding: dict[str, Any]) -> dict[str, A
         "max_prompt_bytes": 4096, "max_reference_images": 1,
         "max_additional_reference_images": 0, "image_to_video_requires_primary": False,
         "reference_mime_types": ["image/jpeg", "image/png", "image/webp"],
-        "audio_control": "model-default" if adapter in {"sub2api-json-v1", "xingapi-video-v1"} else "explicit" if video else "not-applicable",
+        "audio_control": "model-default" if adapter in {"sub2api-json-v1", "xingapi-video-v1", "xingapi-video-v2"} else "explicit" if video else "not-applicable",
         "native_fps": None, "idempotency": "unknown", "cancel": "unsupported",
     }
     if video:
@@ -74,6 +74,7 @@ def capabilities(config: dict[str, Any], binding: dict[str, Any]) -> dict[str, A
     overrides = binding.get("capability_overrides", {})
     if config.get('schema_version') == 4:
         result['prompt_limit'] = None
+        result['media_reference_limits'] = None
     allowed = set(result) - {"verification_level"}
     if set(overrides) - allowed:
         raise ConfigError("capability_overrides: unknown capability field or read-only verification level")
@@ -194,6 +195,10 @@ def validate_request(binding: Binding, request: dict[str, Any]) -> dict[str, Any
         errors.append("Audio generation is unsupported")
     elif caps.get("audio_control") == "model-default":
         warnings.append("Audio switch is not transmitted: provider/model default controls the output; review actual audio")
+    typed = request.get('media_references', [])
+    if typed or request['operation'] == 'reference-to-video':
+        from .media_constraints import request_errors
+        errors.extend(request_errors(binding, request))
     refs = request.get("references", [])
     primary = request.get("primary_reference")
     additional = list(request.get("reference_images", []))
@@ -204,9 +209,13 @@ def validate_request(binding: Binding, request: dict[str, Any]) -> dict[str, Any
     if additional and primary is None:
         errors.append("Additional reference images require a primary image")
     if (request["operation"] == "image-to-video" and
-            caps.get("image_to_video_requires_primary") and primary is None):
+            caps.get("image_to_video_requires_primary") and primary is None and not typed):
         errors.append("Image-to-video requires one primary image")
     total_images = int(primary is not None) + len(additional)
+    if typed and (refs or total_images):
+        errors.append('Typed media references cannot be combined with legacy image fields')
+    if typed and request['operation'] == 'text-to-video':
+        errors.append('Text-to-video must not contain reference media')
     if total_images > caps.get("max_reference_images", 0):
         errors.append("Too many reference images for this binding")
     if request["operation"] in {"text-to-video", "image-to-video"} and len(additional) > caps.get("max_additional_reference_images", 0):

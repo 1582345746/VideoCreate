@@ -338,7 +338,7 @@ class Manager:
                                       readonly=bool(bid and key in {'id', 'model'}))
         enabled = tk.BooleanVar(value=original.get('enabled', False))
         ttk.Checkbutton(basic, text='启用此型号（协议与参数必须配置完整）', variable=enabled).grid(row=9, column=0, columnspan=2, sticky='w', pady=10)
-        from .manager_forms import Fields, DECLARED, CAPABILITIES, PRICES
+        from .manager_forms import Fields, DECLARED, CAPABILITIES, PRICES, MEDIA_REFERENCE_LIMITS
         notes = Fields(book, '备注与来源', {'notes': original.get('notes', ''),
             'tags': original.get('tags', []), 'documentation_url': original.get('documentation_url', ''),
             'sort_order': original.get('sort_order', 0)},
@@ -347,8 +347,13 @@ class Manager:
             '备注用于展示和选型，不会自动改变接口行为或要求重新生成。')
         declared = Fields(book, '供应商声明', original.get('declared_capabilities', {}), DECLARED,
             '声明仅供选型参考。未知留空；填写声明不会让接口自动支持视频或音频参考。')
-        caps = Fields(book, '执行参数', original.get('capability_overrides', {}), CAPABILITIES,
+        cap_values = copy.deepcopy(original.get('capability_overrides', {}))
+        media_values = cap_values.pop('media_reference_limits', {})
+        caps = Fields(book, '执行参数', cap_values, CAPABILITIES,
             '仅填写已核实的接口约束。其他字段在高级页；最终仍由共用校验器和 adapter 预检。')
+        media_caps = Fields(book, '多媒体限制', media_values, MEDIA_REFERENCE_LIMITS,
+            '仅适用星光 v2。未知不是无限；高级页还需明确 allowed_combinations（类型组合数组）和 '
+            'audio_reference_with_generated_audio（布尔值）。未使用的素材类型数量填 0。')
         options = self.json_tab(book, '协议选项', original.get('adapter_options', {}))
         prices = Fields(book, '价格', {k: original[k] for k in ('pricing', 'listed_pricing') if k in original}, PRICES,
             '展示价与预算价分开。未知币种不推算；每次与每秒价格同时填写会相加。')
@@ -366,6 +371,9 @@ class Manager:
                     'enabled': enabled.get(), 'setup_status': 'configured' if f['adapter'] != 'unconfigured' else 'draft',
                     **notes.read(), 'declared_capabilities': declared.read(),
                     'capability_overrides': caps.read(), 'adapter_options': self.read_object(options)}
+                typed_limits = media_caps.read()
+                if typed_limits:
+                    item['capability_overrides']['media_reference_limits'] = typed_limits
                 for key in ('pricing', 'listed_pricing'):
                     item.pop(key, None)
                 item.update(prices.read())

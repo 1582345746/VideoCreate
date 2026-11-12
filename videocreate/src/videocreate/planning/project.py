@@ -216,22 +216,30 @@ def validate_plan(bundle: dict[str, Any], root: Path | None = None) -> dict[str,
         assigned.update(selected)
         if not _positive(job.get("seconds")):
             errors.append(jid + ": invalid generation seconds")
-        if job.get("operation") not in {"text-to-video", "image-to-video"}:
+        if job.get("operation") not in {"text-to-video", "image-to-video", "reference-to-video"}:
             errors.append(jid + ": unsupported generation operation")
         refs = job.get("references", [])
+        if job.get('operation') == 'reference-to-video' and (not refs or any('kind' not in r for r in refs)):
+            errors.append(jid + ': reference-to-video needs explicitly typed references')
+        if job.get('operation') == 'text-to-video' and refs:
+            errors.append(jid + ': use image-to-video or reference-to-video for media references')
         if job.get("operation") == "image-to-video" and not refs:
             errors.append(jid + ": image-to-video needs actual references")
-        primary_refs = [ref for ref in refs if isinstance(ref, dict) and ref.get("role") == "opening-frame"]
+        primary_refs = [ref for ref in refs if isinstance(ref, dict) and ref.get('kind', 'image') == 'image' and ref.get("role") == "opening-frame"]
         if job.get("operation") == "image-to-video" and len(primary_refs) != 1:
             errors.append(jid + ": image-to-video needs exactly one opening-frame primary image")
         for ref in refs:
-            if not isinstance(ref, dict) or ref.get("role") not in {"opening-frame", "identity", "prop", "scene"} or not ref.get("path"):
+            from ..catalog.media_constraints import ROLES
+            if not isinstance(ref, dict) or ref.get("role") not in ROLES.get(ref.get('kind', 'image'), set()) or not ref.get("path"):
                 errors.append(jid + ": reference needs a supported role and path")
             elif root:
                 try:
                     path = within(root, ref["path"])
                     if ref.get("sha256") != hashlib.sha256(path.read_bytes()).hexdigest():
                         errors.append(jid + ": reference hash is missing or stale")
+                    elif 'kind' in ref:
+                        from ..media_references import inspect
+                        inspect(path, ref['kind'])
                 except ConfigError:
                     errors.append(jid + ": reference is missing or outside project")
         if len(selected) > 1:
@@ -325,6 +333,19 @@ def compile_job(bundle: dict[str, Any], job: dict[str, Any], *, max_bytes: int, 
     sections, retained = [], []
     style = bundle["brief"].get("visual_style", "cinematic natural light")
     sections.append("Visual style: " + style)
+    # Legacy untyped image plans keep their exact historical compiler output.
+    typed_refs = [ref for ref in job.get('references', []) if 'kind' in ref]
+    counters = {'image': 0, 'video': 0, 'audio': 0}
+    reference_map = []
+    for ref in typed_refs:
+        kind = ref['kind']
+        counters[kind] += 1
+        field = {'image': 'images', 'video': 'videos', 'audio': 'audios'}[kind]
+        mapping = {'field': field, 'index': counters[kind], 'role': ref['role'], 'sha256': ref['sha256']}
+        reference_map.append(mapping)
+        sections.append('Reference ' + field + '[' + str(counters[kind]) + '] purpose: ' + ref['role'] + '.')
+    if typed_refs:
+        retained.append('generation-plan.references.kind-role-order')
     if root and bundle["brief"].get("reference_profiles"):
         from ..references import style_notes
         notes = style_notes(root, bundle)
@@ -400,7 +421,8 @@ def compile_job(bundle: dict[str, Any], job: dict[str, Any], *, max_bytes: int, 
     return {"compiler": "videocreate-local-v1", "prompt": prompt, "utf8_bytes": len(prompt.encode()),
             "prompt_sha256": hashlib.sha256(prompt.encode()).hexdigest(), "retained": retained,
             "omitted_scope": ["future beats", "global ending", "non-visible cast", "unrelated scene state"],
-            "dropped_essential_fields": [], "verification": "compiled-not-generated"}
+            "dropped_essential_fields": [], "verification": "compiled-not-generated",
+            **({'reference_map': reference_map} if reference_map else {})}
 
 
 def save_bundle(root: Path, bundle: dict[str, Any]) -> None:
