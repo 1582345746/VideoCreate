@@ -11,7 +11,8 @@ def production_command(argv):
     parser = argparse.ArgumentParser(prog='videocreate production')
     parser.add_argument('action', choices=['status', 'next', 'impact', 'script-export', 'script-import',
         'checkpoint', 'policy', 'track', 'projects', 'deliver', 'metrics', 'import-clip', 'import-image', 'images-run',
-        'gif-video', 'gif-frames', 'gif-rebuild', 'continue-local', 'policy-show', 'policy-preview', 'policy-save'])
+        'gif-video', 'gif-frames', 'gif-rebuild', 'continue-local', 'policy-show', 'policy-preview', 'policy-save',
+        'legacy-edit-preview', 'legacy-edit-import'])
     parser.add_argument('project', type=Path, nargs='?')
     parser.add_argument('--file', type=Path)
     parser.add_argument('--stage', choices=production.AUTHORING)
@@ -21,6 +22,7 @@ def production_command(argv):
     parser.add_argument('--config', type=Path)
     parser.add_argument('--output-name', default='preview.mp4')
     parser.add_argument('--source', type=Path)
+    parser.add_argument('--destination', type=Path)
     parser.add_argument('--source-id')
     parser.add_argument('--shot-id')
     parser.add_argument('--gif')
@@ -41,16 +43,28 @@ def production_command(argv):
     parser.add_argument('--preview-token')
     parser.add_argument('--review-stage', choices=production.AUTHORING, action='append')
     args = parser.parse_args(argv)
-    if args.action != 'projects' and not args.project:
+    migration_actions={'legacy-edit-preview','legacy-edit-import'}
+    if args.action not in migration_actions | {'projects'} and not args.project:
         raise ConfigError('This action requires a project directory')
     if args.shot_id is not None and args.action not in {'import-clip', 'import-image'}:
         raise ConfigError('--shot-id is only consumed by import-clip/import-image')
     if args.action != 'continue-local' and (args.execute or args.token):
         raise ConfigError('--execute/--token are only consumed by continue-local')
     policy_actions = {'policy-show', 'policy-preview', 'policy-save'}
-    if args.action not in policy_actions and (args.source_token or args.preview_token or args.review_stage is not None):
+    if args.action not in policy_actions | migration_actions and (args.source_token or args.preview_token or args.review_stage is not None):
         raise ConfigError('--source-token/--preview-token/--review-stage are only consumed by policy-preview/policy-save')
-    if args.action in policy_actions:
+    if args.destination and args.action not in migration_actions:
+        raise ConfigError('--destination is only consumed by legacy-edit-preview/import')
+    if args.action in migration_actions:
+        from . import legacy_edit_import
+        if not args.source or not args.destination or args.project or args.source_token or args.review_stage:
+            raise ConfigError('Legacy migration uses --source OLD_PROJECT --destination NEW_PROJECT and no positional project')
+        if args.action=='legacy-edit-preview':
+            if args.preview_token:raise ConfigError('Use --preview-token only for legacy-edit-import')
+            result=legacy_edit_import.preview(args.source,args.destination)
+        else:
+            result=legacy_edit_import.execute(args.source,args.destination,expected_token=args.preview_token)
+    elif args.action in policy_actions:
         from . import production_policy
         if args.action == 'policy-show':
             if args.mode is not None or args.source_token or args.preview_token or args.review_stage is not None or args.reason:

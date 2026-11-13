@@ -48,9 +48,10 @@ def plan_schema():
         "depends_on": STRING_LIST, "required_quality_checks": STRING_LIST}, ("id", "shot_ids", "operation", "seconds"))
     segment = obj({"id": STR, "shot_id": STR, "clip_id": STR, "source_in": number, "source_out": number,
         "rate": {"type": "number", "exclusiveMinimum": 0}, "source_audio": enum("mute", "retime", "preserve"),
-        "cut_reason": STR, "filters": filters}, ("id", "shot_id", "clip_id", "source_in", "source_out", "cut_reason"))
+        "cut_reason": STR, "filters": filters, "source_gain_db":{"type":"number","minimum":-60,"maximum":60}},
+        ("id", "shot_id", "clip_id", "source_in", "source_out", "cut_reason"))
     track = obj({"id": STR, "kind": enum("dialogue", "ambience", "music", "effect"), "clip_id": STR, "path": STR,
-        "source_in": number, "source_out": number, "timeline_start": number, "gain_db": {"type": "number"}},
+        "source_in": number, "source_out": number, "timeline_start": number, "gain_db": {"type": "number"}, "loop": BOOL},
         ("id", "kind", "source_in", "source_out", "timeline_start"))
     cue = obj({"text": STR, "segment_id": STR, "source_start": number, "source_end": number, "start": number, "end": number}, ("text",))
     def array(items):
@@ -95,14 +96,15 @@ def plan_schema():
                 "frame_count": {"type": ["string", "null"]}, "codec": STR, "format": enum('PNG', 'JPEG', 'WEBP')},
                 ("width", "height", "has_audio"))},
             ("id", "kind", "path", "sha256", "shot_ids", "media")))}, ("jobs",)),
-        "timeline": obj({"format_version": {"type":"integer","enum":[1,2,3]}, "fps": STR, "width": POS, "height": POS,
+        "timeline": obj({"format_version": {"type":"integer","enum":[1,2,3,4]}, "fps": STR, "width": POS, "height": POS,
             "filters": filters,
+            "fade_seconds": number, "mix_limiter": BOOL,
             "loudness": obj({"target_lufs": {"type":"number","minimum":-24,"maximum":-10}}, ('target_lufs',)),
             "subtitle_render": obj({"burn": BOOL,"style": enum(*STYLES)}, ('burn','style')),
             "clips": array(obj({"id": STR, "job_id": STR, "path": STR}, ("id", "job_id"))),
             "segments": array(segment), "audio_tracks": array(track), "subtitles": array(cue),
             "transitions": array(obj({"id":STR,"left_segment_id":STR,"right_segment_id":STR,
-                "kind":enum('crossfade','fade-black','wipe-left'),"duration":{"type":"number","exclusiveMinimum":0},
+                "kind":enum('crossfade','fade-black','wipe-left','slide-left'),"duration":{"type":"number","exclusiveMinimum":0},
                 "audio":enum('crossfade','cut')},
                 ('id','left_segment_id','right_segment_id','kind','duration','audio'))),
             "overlays": array(obj({"id": STR, "text": STR, "path": STR, "start": number, "end": number,

@@ -15,7 +15,17 @@ FILTERS = {
     'sharpen': 'unsharp=5:5:0.65:5:5:0',
 }
 STYLES = ('clean', 'cinematic', 'news')
-KEYS = ('filters', 'loudness', 'subtitle_render')
+KEYS = ('filters', 'loudness', 'subtitle_render', 'fade_seconds', 'mix_limiter')
+
+
+def required_version(timeline):
+    segments, tracks, boundaries = (timeline.get(k, []) for k in ('segments', 'audio_tracks', 'transitions'))
+    if (any(k in timeline for k in ('fade_seconds', 'mix_limiter'))
+            or any(isinstance(s, dict) and 'source_gain_db' in s for s in (segments if isinstance(segments, list) else []))
+            or any(isinstance(t, dict) and 'loop' in t for t in (tracks if isinstance(tracks, list) else []))
+            or any(isinstance(t, dict) and t.get('kind') == 'slide-left' for t in (boundaries if isinstance(boundaries, list) else []))):
+        return 4
+    return 3 if present(timeline) else 1
 
 
 def present(timeline):
@@ -27,12 +37,15 @@ def present(timeline):
 def validate(timeline):
     from .model import number
     errors = []
-    if present(timeline) and timeline.get('format_version', 1) != 3:
-        errors.append('timeline finishing: format_version=3 is required')
+    version, actual = required_version(timeline), timeline.get('format_version', 1)
+    if not isinstance(actual, int) or isinstance(actual, bool) or actual < version:
+        errors.append(f'timeline finishing: format_version={version} or newer is required')
     segments = timeline.get('segments', [])
     groups = [('timeline', timeline)] + [(str(s.get('id', 'segment')), s)
         for s in (segments if isinstance(segments, list) else []) if isinstance(s, dict)]
     for label, item in groups:
+        if 'source_gain_db' in item and (not number(item['source_gain_db']) or abs(item['source_gain_db']) > 60):
+            errors.append(label + '.source_gain_db: use a finite gain from -60 to 60 dB')
         presets = item.get('filters', [])
         if (not isinstance(presets, list) or len(presets) > len(FILTERS)
                 or any(not isinstance(p, str) or p not in FILTERS for p in presets)):
@@ -50,7 +63,22 @@ def validate(timeline):
                 or not isinstance(value.get('burn'), bool)
                 or not isinstance(value.get('style'), str) or value['style'] not in STYLES):
             errors.append('timeline.subtitle_render: burn boolean and clean/cinematic/news style required')
+    if 'fade_seconds' in timeline and (not number(timeline['fade_seconds']) or timeline['fade_seconds'] < 0):
+        errors.append('timeline.fade_seconds: use a finite nonnegative duration')
+    if 'mix_limiter' in timeline and not isinstance(timeline['mix_limiter'], bool):
+        errors.append('timeline.mix_limiter: use a boolean')
+    tracks = timeline.get('audio_tracks', [])
+    for track in tracks if isinstance(tracks, list) else []:
+        if isinstance(track, dict) and 'loop' in track and not isinstance(track['loop'], bool):
+            errors.append('timeline.audio_tracks.loop: use a boolean')
     return errors
+
+
+def fade(ffmpeg, source, output, seconds, duration, run):
+    run([ffmpeg, '-nostdin', '-v', 'error', '-y', '-i', str(source), '-map', '0:v:0', '-map', '0:a?',
+         '-vf', f'fade=t=in:st=0:d={seconds},fade=t=out:st={duration-seconds}:d={seconds}',
+         '-c:v', 'libx264', '-preset', 'veryfast', '-pix_fmt', 'yuv420p', '-c:a', 'copy',
+         '-t', str(duration), '-movflags', '+faststart', str(output)])
 
 
 def filter_chain(timeline, segment):

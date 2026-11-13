@@ -1,0 +1,24 @@
+# Import a legacy native edit as a separate v3 project
+
+Use **迁移旧剪辑计划** on the manager's main screen, or:
+
+```powershell
+python scripts/videocreate.py production legacy-edit-preview --source OLD_PROJECT --destination NEW_PROJECT
+python scripts/videocreate.py production legacy-edit-import --source OLD_PROJECT --destination NEW_PROJECT --preview-token RETURNED_TOKEN
+```
+
+The source must contain native `edit-plan.json` version 1 or 2 and actual local video files. The destination must not exist and must sit outside the source directory; its parent must exist. Preview is read-only: it hashes/probes the exact files, returns the complete proposed v3 bundle, field mappings, differences and a token. Import requires that same token and rechecks all sources after copying and full decoding. Changed plan, captions, video, audio or destination require a fresh preview. The manager uses the same service in a background worker; closing the form detaches the UI while an already-started import completes.
+
+Import copies retained sources into a new `edit-only` project with no generation jobs, ledger or inherited approvals. It retains source windows, speeds, ordered global/segment filter presets, boundary cuts and dissolve/fade-black/wipe-left/slide-left transitions. Legacy dissolve becomes crossfade. The actual legacy native renderer uses 30 fps, so conflicting fps fields are rejected. Canvas dimensions must satisfy current v3 limits. Transition durations and segment playback durations must lie on the output-frame grid; the tool never silently rounds legacy cuts or invents a substitute effect.
+
+Source audio is kept/retimed with its original segment. With additional music, source level is 0.75; with voice it is 0.35; music level is 0.20, voice is 1.0. Gains are stored as dB in the new plan. Music loops across the complete picture; voice ends at the shorter of its actual duration and picture duration, with the source/silent base filling the remainder. The imported plan disables the newer mix limiter to avoid adding a limiter the old pipeline did not request. `normalize_lufs` retains its optional target, using the current two-pass processor. The old renderer did not consume `preserve_source=false`; that conflict requires an explicit source-plan correction instead of guessing the intended audio.
+
+UTF-8 SRT cues become absolute final-time captions and retain the explicit burn switch/style. The original SRT is kept as provenance. Malformed timestamps, styled markup, overlapping burned cues and unsupported timing extensions require explicit conversion. Captions use the current literal Pillow renderer, so font/style appearance can differ from the old libass renderer. Final visual fades run after captions, matching the legacy processing order. Requested LUFS is preserved while algorithms, encoding and some audio mixing arithmetic differ; migration does not promise identical bytes or identical perceived sound.
+
+Unknown execution fields, unsupported/non-native backends, legacy overlays without a verified native contract, missing/outside files and invalid constraints block preview. Backend/delivery/preview metadata and known tail-trim/generation metadata remain in the exact original plan snapshot; current v3 preview/delivery conventions control the new project. Preview lists these differences. Old task state, clean masters and edited outputs stay at the source; they are not reinterpreted as v3 jobs or approved outputs.
+
+Imported artifacts and source fingerprints are recorded in `migration/legacy-edit.manifest.json`; the original edit-plan and subtitle snapshots live under `migration/source-files`. Files are staged and fully decoded before the complete new directory is published. A copy/decode/stale-input failure does not publish the destination. This independent-directory import is separate from the still-incomplete transaction guarantees for arbitrary edits to existing multi-file projects. A failed interrupted process may leave a staging directory for inspection.
+
+The imported timeline uses format 4 and needs dev38+. New format 4 controls also work directly in **剪辑时间线与声音**: `source_gain_db` (-60 to 60), audio-track `loop` boolean, `fade_seconds` (0 to half the picture duration), `mix_limiter` boolean, and `slide-left` transitions. Omitted fields preserve prior rendering behavior. Loop repeats the whole audio source, then applies the authored source interval; it does not loop only a selected subwindow. Fades affect picture, including captions, and do not fade sound. Source gain/mixing and picture fades invalidate relevant mapped-original evidence; source review never approves the final edit.
+
+After importing, validate and render the new timeline, compare it with the old output, then play and listen to the actual media. Results remain `draft_preview`/`review_pending` until current content review passes. No provider configuration, upload, paid task or regeneration is part of migration.

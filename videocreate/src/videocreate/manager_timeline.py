@@ -82,7 +82,7 @@ class TimelineEditor:
         self.manager=manager;self.book=book;self.original=copy.deepcopy(value)
         sources={job['id']:job for job in bundle['generation-plan']['jobs']}
         sources.update({item['id']:item for item in bundle['generation-plan'].get('local_sources',[])})
-        remaining={key:item for key,item in value.items() if key not in {'clips','segments','transitions','audio_tracks','subtitles','overlays','filters','loudness','subtitle_render'}}
+        remaining={key:item for key,item in value.items() if key not in {'clips','segments','transitions','audio_tracks','subtitles','overlays','filters','loudness','subtitle_render','fade_seconds','mix_limiter'}}
         self.spec=ExactFields(book,'成片画布',remaining,[('fps','输出帧率（如 24/1）','text'),
             ('width','画布宽（像素）','integer'),('height','画布高（像素）','integer')],
             '成片规格与模型生成规格分开。输出帧率不是源片采样率，也不会补出真实动作细节。')
@@ -90,11 +90,13 @@ class TimelineEditor:
         self.finishing=ExactFields(book,'滤镜、响度与字幕烧录',{k:value[k] for k in KEYS if k in value},[
             ('filters','全局滤镜（英文名按顺序逗号分隔）','list'),
             ('loudness.target_lufs','完整混音目标 LUFS（-24 至 -10；留空保留）','number'),
+            ('fade_seconds','画面片头/片尾淡化秒数（不超过成片一半）','number'),
+            ('mix_limiter','独立音轨混合后限幅（缺省开启）','boolean'),
             ('subtitle_render.burn','是否将字幕烧入画面','boolean'),
             ('subtitle_render.style','字幕样式（烧录开关需同时填写）',STYLES)],
             '滤镜：'+', '.join(FILTERS)+'。全局滤镜→片段滤镜→转场→叠加→字幕→完整混音响度处理。'
             '字幕仍另存 SRT；烧录使用最终成片时间，重叠字幕请合并或重新定位。响度处理记录编码前后测量，静音跳过；不批准听感。'
-            '删除对应字段即可关闭处理。新设置保存为时间线格式 3；请使用当前技能渲染。')
+            '删除对应字段即可关闭处理。滤镜/响度/字幕使用格式 3，淡化/混音限幅、原声增益、循环音轨和滑动转场使用格式 4；请使用当前技能渲染。')
         def page(title):
             result=ttk.Frame(book);book.add(result,text=title);return result
         self.clips=OrderedItems(manager,page('剪辑素材'),value['clips'],'素材映射',
@@ -105,6 +107,7 @@ class TimelineEditor:
             ('shot_id','镜头 ID',shots),('clip_id','剪辑素材 ID',tuple(c['id'] for c in self.clips.read())),
             ('source_in','保留源片开始秒','number'),('source_out','保留源片结束秒','number'),
             ('rate','播放速度（缺省 1）','number'),('source_audio','原片声音',('mute','retime','preserve')),
+            ('source_gain_db','原片声音增益 dB（缺省 0）','number'),
             ('filters','片段滤镜（英文名按顺序逗号分隔）','list'),
             ('cut_reason','剪辑理由','multiline')],
             '按列表顺序连续播放，区间为 [开始,结束)。静态图片使用开始 0、结束=停留秒数、速度 1、原片静音；独立音轨另接配音。有台词的视频保持自然语速。')
@@ -120,16 +123,17 @@ class TimelineEditor:
             lambda b,v:ExactFields(b,'相邻片段过渡',v,[('id','转场 ID','text'),
                 ('left_segment_id','前片段',tuple(s['id'] for s in self.segments.read())),
                 ('right_segment_id','后片段',tuple(s['id'] for s in self.segments.read())),
-                ('kind','画面过渡',('crossfade','fade-black','wipe-left')),('duration','重叠秒数','number'),
+                ('kind','画面过渡',('crossfade','fade-black','wipe-left','slide-left')),('duration','重叠秒数','number'),
                 ('audio','原片声音过渡',('crossfade','cut'))],
-                '未列出的边界使用硬切。crossfade=交叉淡化，fade-black=经黑场过渡，wipe-left=向左擦除。'
+                '未列出的边界使用硬切。crossfade=交叉淡化，fade-black=经黑场过渡，wipe-left=向左擦除，slide-left=向左滑动。'
                 '重叠缩短成片，不能长于任一相邻片段，也不能形成三片重叠。片段播放时长和转场须对齐输出帧。'
                 '声音 cut 在重叠中点换轨；独立音轨与绝对字幕保持原成片时间。调整后核对实际对白和目标时长。'),new_transition)
         self.audio=OrderedItems(manager,page('独立音轨'),value.get('audio_tracks',[]),'声音事件',
             lambda b,v:FileFields(manager,b,'自然语速音轨',v,[('id','声音事件 ID','text'),
                 ('kind','用途',('dialogue','ambience','music','effect')),('clip_id','取自剪辑素材（与文件二选一）',tuple(c['id'] for c in self.clips.read())),
                 ('path','项目内声音文件（clip_id 非空时优先素材）','text'),('source_in','原声音开始秒','number'),
-                ('source_out','原声音结束秒','number'),('timeline_start','成片进入秒','number'),('gain_db','增益 dB','number')],root,
+                ('source_out','原声音结束秒','number'),('timeline_start','成片进入秒','number'),('gain_db','增益 dB','number'),
+                ('loop','循环素材以覆盖所填区间','boolean')],root,
                 '独立音轨保持自然语速；画面重排不移动这里的成片进入时间。与原片声音叠加，请明确静音避免双声。'),
             lambda items:{'id':identity(items,'audio'),'kind':'dialogue','source_in':0,'source_out':1,'timeline_start':0})
         self.subtitles=OrderedItems(manager,page('字幕'),value.get('subtitles',[]),'字幕',
@@ -154,14 +158,15 @@ class TimelineEditor:
     def read(self):
         value=self.spec.read();value.update(clips=self.clips.read(),segments=self.segments.read())
         value.update(self.finishing.read())
-        from .timeline.finishing import present
-        if present(value):value['format_version']=3
+        from .timeline.finishing import required_version
         transitions=self.transitions.read()
         if transitions or 'transitions' in self.original:value['transitions']=transitions
         if transitions and value.get('format_version',1)==1:value['format_version']=2
         for key,editor in [('audio_tracks',self.audio),('subtitles',self.subtitles),('overlays',self.overlays)]:
             items=editor.read()
             if items or key in self.original:value[key]=items
+        version=required_version(value)
+        if version>value.get('format_version',1):value['format_version']=version
         return value
 
     def select_segment(self,index):

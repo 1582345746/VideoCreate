@@ -1097,7 +1097,8 @@
           "enum": [
             1,
             2,
-            3
+            3,
+            4
           ]
         },
         "fps": {
@@ -1127,6 +1128,13 @@
           },
           "maxItems": 7,
           "uniqueItems": true
+        },
+        "fade_seconds": {
+          "type": "number",
+          "minimum": 0
+        },
+        "mix_limiter": {
+          "type": "boolean"
         },
         "loudness": {
           "type": "object",
@@ -1238,6 +1246,11 @@
                 },
                 "maxItems": 7,
                 "uniqueItems": true
+              },
+              "source_gain_db": {
+                "type": "number",
+                "minimum": -60,
+                "maximum": 60
               }
             },
             "required": [
@@ -1288,6 +1301,9 @@
               },
               "gain_db": {
                 "type": "number"
+              },
+              "loop": {
+                "type": "boolean"
               }
             },
             "required": [
@@ -1353,7 +1369,8 @@
                 "enum": [
                   "crossfade",
                   "fade-black",
-                  "wipe-left"
+                  "wipe-left",
+                  "slide-left"
                 ]
               },
               "duration": {

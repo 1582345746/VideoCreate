@@ -81,11 +81,15 @@ def render(root: Path, bundle: dict, state: dict, *, output_name: str = "preview
         raise ConfigError("Unknown edit scope")
     timeline = bundle["timeline"]
     plan = mapping(timeline)
-    from .finishing import captions, filter_chain, normalize, present
+    from .finishing import captions, fade, filter_chain, normalize, present, required_version
     burned_cues = captions(timeline, plan['subtitles'])
     finishing = {'global_filters': timeline.get('filters', []),
         'segment_filters': {s['id']: s['filters'] for s in timeline['segments'] if s.get('filters')},
         'subtitle_render': {**timeline.get('subtitle_render', {'burn': False}), 'burned_cues': len(burned_cues)}}
+    if required_version(timeline) == 4:
+        finishing.update(fade_seconds=timeline.get('fade_seconds', 0), mix_limiter=timeline.get('mix_limiter', True),
+            source_gain_db={s['id']:s['source_gain_db'] for s in timeline['segments'] if 'source_gain_db' in s},
+            looped_audio=[t['id'] for t in timeline.get('audio_tracks', []) if t.get('loop')])
     if bundle.get('generation-plan', {}).get('local_sources'):
         from ..planning.project import validate_plan
         check = validate_plan(bundle, root)
@@ -140,7 +144,7 @@ def render(root: Path, bundle: dict, state: dict, *, output_name: str = "preview
                 filters += ',' + selected_filters
             if source["has_audio"] and seg.get("source_audio", "mute") != "mute":
                 args += ["-af", "asetpts=PTS-STARTPTS," + atempo(rate)
-                    + f",apad=whole_dur={seg['duration']},atrim=duration={seg['duration']}", "-map", "0:a:0"]
+                    + f",volume={seg.get('source_gain_db',0)}dB,apad=whole_dur={seg['duration']},atrim=duration={seg['duration']}", "-map", "0:a:0"]
             else:
                 args += ["-f", "lavfi", "-i", f"anullsrc=r=48000:cl=stereo:d={seg['duration']}", "-map", "1:a:0"]
             args += ["-map", "0:v:0", "-vf", filters, "-t", str(seg["duration"]), "-c:v", "libx264",
@@ -176,11 +180,14 @@ def render(root: Path, bundle: dict, state: dict, *, output_name: str = "preview
             graph, labels = [], ["[0:a]"]
             for i, event in enumerate(audio, 1):
                 source = clips[event["clip_id"]] if event.get("clip_id") else within(root, event["path"])
+                if event.get('loop'):
+                    args += ['-stream_loop', '-1']
                 args += ["-i", str(source)]
                 delay = round(event["timeline_start"] * 48000)
                 graph.append(f"[{i}:a]atrim=start={event['source_in']}:end={event['source_out']},asetpts=PTS-STARTPTS,aresample=48000,volume={event.get('gain_db',0)}dB,adelay={delay}S:all=1[a{i}]")
                 labels.append(f"[a{i}]")
-            graph.append("".join(labels) + f"amix=inputs={len(labels)}:duration=first:normalize=0,alimiter=limit=0.95[mix]")
+            limiter = ',alimiter=limit=0.95' if timeline.get('mix_limiter', True) else ''
+            graph.append("".join(labels) + f"amix=inputs={len(labels)}:duration=first:normalize=0" + limiter + '[mix]')
             args += ["-filter_complex", ";".join(graph), "-map", "0:v", "-map", "[mix]", "-c:v", "copy", "-c:a", "aac",
                      "-t", str(plan["duration"]), "-movflags", "+faststart", str(final_temp)]
             run(args)
@@ -191,6 +198,9 @@ def render(root: Path, bundle: dict, state: dict, *, output_name: str = "preview
             composite(root, {**timeline, 'overlays': timeline.get('overlays', []) + burned_cues},
                       final_temp, folder / "composited.mp4", folder, ffmpeg, plan["duration"])
             final_temp = folder / "composited.mp4"
+        if timeline.get('fade_seconds'):
+            fade(ffmpeg, final_temp, folder / 'faded.mp4', timeline['fade_seconds'], plan['duration'], run)
+            final_temp = folder / 'faded.mp4'
         if 'loudness' in timeline:
             final_temp, finishing['loudness'] = normalize(ffmpeg, final_temp, folder / 'normalized.mp4',
                                                         timeline['loudness']['target_lufs'], plan['duration'], run)
@@ -211,7 +221,7 @@ def render(root: Path, bundle: dict, state: dict, *, output_name: str = "preview
         "source_kinds": kinds,
         "auxiliary_hashes": auxiliary,
         "fps_report": fps_notes, "technical_decode": "pass", "audio_content": "unverified", "content": "unverified", "paid_creates": 0}
-    if present(timeline):
+    if present(timeline) or required_version(timeline) == 4:
         manifest['finishing'] = finishing
     if "animation" in bundle:
         from ..animation.voices import profiles_hash

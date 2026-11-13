@@ -146,10 +146,12 @@ def _mapped_view(root, expected, item, layer):
         return False  # Compositing/mixing cannot certify the unmodified source.
     if layer == 'audio' and 'loudness' in timeline:
         return False
-    if layer != 'audio' and (timeline.get('filters') or
+    if layer != 'audio' and (timeline.get('filters') or timeline.get('fade_seconds') or
             timeline.get('subtitle_render', {}).get('burn') and timeline.get('subtitles')):
         return False
     for segment in manifest["mapping"]["segments"]:
+        if layer == 'audio' and segment.get('source_gain_db', 0) != 0:
+            continue
         if layer != 'audio' and segment.get('filters'):
             continue
         if (manifest.get("source_hashes", {}).get(segment["clip_id"]) != expected["sha256"]

@@ -67,7 +67,7 @@ class Manager:
                               ('复制为新上游', lambda: self.edit_upstream(copy_from=self.current_upstream)),
                               ('管理凭据', self.credential), ('归档 / 恢复上游', self.archive_upstream),
                               ('只读检查 / 导入目录', self.discover), ('新建制作项目', self.new_project), ('项目与任务', self.project_panel),
-                              ('角色与素材库', self.library_panel)]:
+                              ('角色与素材库', self.library_panel), ('迁移旧剪辑计划', self.legacy_edit_panel)]:
             ttk.Button(left, text=title, command=action).pack(fill='x', pady=(7, 0))
         ttk.Button(left, text='本机素材与 HTTPS 直链', command=self.media_panel).pack(fill='x', pady=(7, 0))
         right = ttk.Frame(main)
@@ -518,6 +518,10 @@ class Manager:
             completed=receive, failed=lambda error: note.set(str(error)))
         return win
 
+    def legacy_edit_panel(self):
+        from .manager_legacy_edit import open_form
+        return open_form(self)
+
     def new_project(self):
         from .manager_authoring import open_new
         def completed(result):
@@ -762,8 +766,17 @@ def main():
                         if (not form.graph_data['ok'] or form.read()['format_version']!=3
                                 or form.graph_data['finishing']['loudness']!={'target_lufs':-18}):
                             raise ConfigError('Packaged finishing controls did not produce a valid format 3 preview')
+                        set_field(form.finishing,'fade_seconds','.2')
+                        set_field(form.finishing,'mix_limiter','否')
+                        set_field(form.segments.editor,'source_gain_db','-6')
+                        form.draw()
+                        if not form.graph_data['ok'] or form.read()['format_version']!=4:
+                            raise ConfigError('Packaged format 4 controls did not preview')
                     dialog.withdraw();root.update_idletasks();dialog.destroy()
                 dialog=open_editor(manager,authored,'director',assets_only=True)
+                dialog.withdraw();root.update_idletasks();dialog.destroy()
+                from .manager_legacy_edit import open_form as migration_form
+                dialog=migration_form(manager,source=authored)
                 dialog.withdraw();root.update_idletasks();dialog.destroy()
             # Exercise real Tcl teardown in the packaged runtime too.
             owner = ttk.Frame(root)
@@ -801,6 +814,8 @@ def main():
                 'timeline_forms_created': True,
                 'timeline_transition_form_previewed': True,
                 'timeline_finishing_form_previewed': True,
+                'timeline_format4_controls_previewed': True,
+                'legacy_edit_migration_form_created': True,
                 'local_project_action_controls': local_controls,
                 'continuation_inspection_form_created': True,
                 'generation_execution_panel_created': True,

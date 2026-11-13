@@ -62,6 +62,8 @@ def validate_timeline(timeline: dict[str, Any]) -> list[str]:
     transition_errors, boundaries = layout(timeline, durations)
     errors.extend(transition_errors)
     cursor -= sum(record['duration'] for record in boundaries.values())
+    if number(timeline.get('fade_seconds')) and timeline['fade_seconds'] > cursor / 2:
+        errors.append('timeline.fade_seconds: fades must not exceed half the output duration')
     track_ids = set()
     for track in timeline.get("audio_tracks", []):
         if not isinstance(track, dict) or not isinstance(track.get("id"), str):

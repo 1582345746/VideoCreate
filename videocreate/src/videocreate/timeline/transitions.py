@@ -1,7 +1,7 @@
 """Explicit adjacent-segment transitions and local picture/source-audio assembly."""
 import re
 
-KINDS = {'crossfade': 'fade', 'fade-black': 'fadeblack', 'wipe-left': 'wipeleft'}
+KINDS = {'crossfade': 'fade', 'fade-black': 'fadeblack', 'wipe-left': 'wipeleft', 'slide-left': 'slideleft'}
 FIELDS = {'id', 'left_segment_id', 'right_segment_id', 'kind', 'duration', 'audio'}
 
 
@@ -9,15 +9,15 @@ def layout(timeline, durations):
     from .model import number, rational
     errors, boundaries = [], {}
     version = timeline.get('format_version', 1)
-    if isinstance(version, bool) or not isinstance(version, int) or version not in {1, 2, 3}:
-        errors.append('timeline.format_version: unsupported edit format; use 1, 2 or 3')
+    if isinstance(version, bool) or not isinstance(version, int) or version not in {1, 2, 3, 4}:
+        errors.append('timeline.format_version: unsupported edit format; use 1, 2, 3 or 4')
     records = timeline.get('transitions', [])
     if not isinstance(records, list):
         return errors + ['timeline.transitions: expected an array'], boundaries
     if not records:
         return errors, boundaries
-    if version not in {2, 3}:
-        errors.append('timeline.transitions: format_version=2 or 3 is required')
+    if version not in {2, 3, 4}:
+        errors.append('timeline.transitions: format_version=2, 3 or 4 is required')
     ids = [s.get('id') if isinstance(s, dict) and isinstance(s.get('id'), str) else None
            for s in timeline['segments']]
     adjacent = set(zip(ids, ids[1:]))
