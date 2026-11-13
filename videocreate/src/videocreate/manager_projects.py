@@ -3,6 +3,7 @@ import json
 import queue as queue_module
 import threading
 import tkinter as tk
+from . import manager_lifecycle as ui
 from tkinter import ttk
 from pathlib import Path
 import webbrowser
@@ -55,24 +56,24 @@ def open_panel(manager, root):
     footer = ttk.Frame(win);footer.pack(side='bottom', fill='x')
     book.pack(fill='both', expand=True, padx=18, pady=14)
     book.tab(0, text='制作步骤')
-    title = tk.StringVar()
+    title = ui.StringVar(win)
     ttk.Label(steps, textvariable=title, font=('Microsoft YaHei UI',15,'bold')).pack(anchor='w')
     ttk.Label(steps, text=str(root), wraplength=920).pack(anchor='w', pady=8)
     table = ttk.Treeview(steps, columns=('name','status','reason'), show='headings', height=11)
     for key, text, width in [('name','制作步骤',180),('status','状态',120),('reason','说明',600)]:
         table.heading(key,text=text);table.column(key,width=width)
     table.pack(fill='both',expand=True)
-    next_step = tk.StringVar()
+    next_step = ui.StringVar(win)
     ttk.Label(steps,textvariable=next_step,wraplength=920).pack(anchor='w',pady=12)
     tasks = ttk.Frame(book,padding=16);book.add(tasks,text='任务与路线')
     queue = ttk.Treeview(tasks,columns=('job','status','route','content'),show='headings',height=15)
     for key,text,width in [('job','任务 / 来源',160),('status','状态',140),('route','原始路线 / 本地路径',390),('content','内容审核',150)]:
         queue.heading(key,text=text);queue.column(key,width=width)
     queue.pack(fill='both',expand=True)
-    budget = tk.StringVar();ttk.Label(tasks,textvariable=budget,wraplength=920).pack(anchor='w',pady=10)
+    budget = ui.StringVar(win);ttk.Label(tasks,textvariable=budget,wraplength=920).pack(anchor='w',pady=10)
     evidence = manager.json_tab(book,'版本与影响',{})
     metrics = manager.json_tab(book,'制作统计',{})
-    message = tk.StringVar()
+    message = ui.StringVar(win)
     ttk.Label(footer,textvariable=message,wraplength=980).pack(anchor='w',padx=18,pady=5)
     actions = ttk.Frame(footer,padding=12);actions.pack(fill='x')
     local_busy = [False]
@@ -153,14 +154,20 @@ def open_panel(manager, root):
              '保留原视频和音轨，只登记本地副本；不发送模型请求。源片和剪辑仍需实际审片。')
         channel=queue_module.Queue()
         busy=[False]
-        note=tk.StringVar()
+        scheduled=[None]
+        def destroyed(event):
+            if event.widget is dialog and scheduled[0] is not None:
+                dialog.after_cancel(scheduled[0]);scheduled[0]=None
+        dialog.bind('<Destroy>',destroyed,add='+')
+        note=ui.StringVar(dialog)
         ttk.Label(dialog,textvariable=note,wraplength=700).pack(pady=6)
         def finish():
+            scheduled[0]=None
             if not dialog.winfo_exists():return
             try:
                 ok,result=channel.get_nowait()
             except queue_module.Empty:
-                dialog.after(100,finish);return
+                scheduled[0]=dialog.after(100,finish);return
             busy[0]=False
             submit.configure(state='normal')
             if not ok:
@@ -189,7 +196,7 @@ def open_panel(manager, root):
                 except Exception as exc:channel.put((False,exc))
             # Finish a started local transaction even if the application window closes.
             threading.Thread(target=worker,daemon=False).start()
-            dialog.after(100,finish)
+            scheduled[0]=dialog.after(100,finish)
         submit=ttk.Button(dialog,text='导入并加入时间线',command=apply)
         submit.pack(pady=12)
         dialog.protocol('WM_DELETE_WINDOW',lambda:note.set('正在导入，请等待完成。') if busy[0] else dialog.destroy())

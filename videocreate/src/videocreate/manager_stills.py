@@ -2,6 +2,7 @@
 import queue
 import threading
 import tkinter as tk
+from . import manager_lifecycle as ui
 from pathlib import Path
 from tkinter import filedialog, ttk
 
@@ -36,7 +37,7 @@ def open_form(manager, root, *, parent=None, source=None, completed=lambda resul
             ('shot_id','已有镜头 ID（混合项目可选）','text'), ('description','画面用途（新建镜头）','multiline')],
         '复制完整原图并校验哈希；EXIF 方向在渲染时归正，透明区域以黑色显示。停留时间由时间线设置，不生成动作；配音使用独立音轨。')
     book.select(form.section)
-    note = tk.StringVar(win)
+    note = ui.StringVar(win)
     ttk.Label(footer, textvariable=note, wraplength=680).pack(anchor='w', pady=5)
     channel, busy, scheduled = queue.Queue(), [False], [None]
 

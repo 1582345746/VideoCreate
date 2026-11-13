@@ -1,5 +1,6 @@
 """Readable side-by-side binding comparison; no selection changes or generation."""
 import tkinter as tk
+from . import manager_lifecycle as ui
 from tkinter import ttk
 
 from .catalog.presentation import compare, OPERATIONS
@@ -16,10 +17,10 @@ def open_panel(manager, identities):
     book.add(page, text='报价与参数')
     controls = ttk.Frame(page)
     controls.pack(fill='x', pady=(0,10))
-    operation = tk.StringVar(value='text-to-video' if manager.value['models'][manager.value['bindings'][identities[0]]['model']]['kind']=='video' else 'text-to-image')
-    seconds = tk.StringVar(value='5')
-    resolution = tk.StringVar(value=manager.value['defaults'].get('resolution','720p'))
-    ratio = tk.StringVar(value=manager.value['defaults'].get('aspect_ratio','16:9'))
+    operation = ui.StringVar(win, value='text-to-video' if manager.value['models'][manager.value['bindings'][identities[0]]['model']]['kind']=='video' else 'text-to-image')
+    seconds = ui.StringVar(win, value='5')
+    resolution = ui.StringVar(win, value=manager.value['defaults'].get('resolution','720p'))
+    ratio = ui.StringVar(win, value=manager.value['defaults'].get('aspect_ratio','16:9'))
     for label,var,options,width in [('操作',operation,list(OPERATIONS),23),('秒数',seconds,None,6),
             ('分辨率',resolution,None,9),('画幅',ratio,None,8)]:
         ttk.Label(controls,text=label).pack(side='left',padx=(0,5))
@@ -38,7 +39,7 @@ def open_panel(manager, identities):
     canvas.create_window((0,0),window=inner,anchor='nw')
     inner.bind('<Configure>',lambda _:canvas.configure(scrollregion=canvas.bbox('all')))
     win.bind('<MouseWheel>',lambda event:canvas.yview_scroll(-int(event.delta/120),'units'))
-    note=tk.StringVar()
+    note=ui.StringVar(win)
     ttk.Label(page,textvariable=note,wraplength=1080,foreground='#64748b').pack(anchor='w',pady=(10,0))
     def refresh():
         try:

@@ -2,6 +2,7 @@
 import queue
 import threading
 import tkinter as tk
+from . import manager_lifecycle as ui
 from pathlib import Path
 from tkinter import filedialog, ttk
 
@@ -30,13 +31,19 @@ def open_form(manager, root, *, frames=False, parent=None, completed=lambda resu
         '复制素材、校验哈希并本地转换，不调用模型。旧文件保留，完整播放审核后才能标记通过。')
     book.forget(basic)
     book.select(form.section)
-    channel=queue.Queue();busy=[False];note=tk.StringVar()
+    channel=queue.Queue();busy=[False];note=ui.StringVar(win)
+    scheduled=[None]
+    def destroyed(event):
+        if event.widget is win and scheduled[0] is not None:
+            win.after_cancel(scheduled[0]);scheduled[0]=None
+    win.bind('<Destroy>',destroyed,add='+')
     ttk.Label(win,textvariable=note,wraplength=700).pack(pady=6)
     def finish():
+        scheduled[0]=None
         if not win.winfo_exists():return
         try:ok,result=channel.get_nowait()
         except queue.Empty:
-            win.after(100,finish);return
+            scheduled[0]=win.after(100,finish);return
         busy[0]=False;submit.configure(state='normal')
         if not ok:
             note.set('转换失败；已保留原素材和项目配置。');manager.error(result);return
@@ -60,7 +67,7 @@ def open_form(manager, root, *, frames=False, parent=None, completed=lambda resu
                     fps=values.get('fps',10),width=values.get('width',480),loop=values.get('loop',0))
                 channel.put((True,result))
             except Exception as exc:channel.put((False,exc))
-        threading.Thread(target=worker,daemon=False).start();win.after(100,finish)
+        threading.Thread(target=worker,daemon=False).start();scheduled[0]=win.after(100,finish)
     submit=ttk.Button(win,text='本地转换并登记到项目',command=apply);submit.pack(pady=12)
     win.protocol('WM_DELETE_WINDOW',lambda:note.set('正在转换，请等待完成。') if busy[0] else win.destroy())
     return win

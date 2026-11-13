@@ -6,6 +6,7 @@ import queue
 import threading
 import weakref
 import tkinter as tk
+from . import manager_lifecycle as ui
 from pathlib import Path
 from tkinter import ttk, filedialog, messagebox
 
@@ -52,8 +53,8 @@ class StateMap:
         row=ttk.Frame(self.body);row.pack(fill='x',pady=3)
         kind=('空值' if value is None else '是/否' if isinstance(value,bool) else
               '数字' if isinstance(value,(int,float)) else '文字' if isinstance(value,str) else '复杂值（保留）')
-        name=tk.StringVar(row,value=key);typevar=tk.StringVar(row,value=kind)
-        raw=tk.StringVar(row,value='' if value is None else str(value).lower() if isinstance(value,bool) else
+        name=ui.StringVar(row,value=key);typevar=ui.StringVar(row,value=kind)
+        raw=ui.StringVar(row,value='' if value is None else str(value).lower() if isinstance(value,bool) else
                          value if isinstance(value,str) else json.dumps(value,ensure_ascii=False))
         ttk.Entry(row,textvariable=name,width=22).pack(side='left',padx=(0,6))
         choices=ttk.Combobox(row,textvariable=typevar,values=('文字','数字','是/否','空值'),state='readonly',width=12)
@@ -196,7 +197,7 @@ def open_editor(manager,root,layer,completed=None,assets_only=False):
         def read():return form.read()
     report=manager.json_tab(book,'修改预览',{'提示':'填写后点击“预览修改影响”。'})
     report.configure(state='disabled')
-    note=tk.StringVar(win,value='保存仅修改当前创作层；已提交任务、候选和账本不会被替换。')
+    note=ui.StringVar(win,value='保存仅修改当前创作层；已提交任务、候选和账本不会被替换。')
     ttk.Label(win,textvariable=note,wraplength=1000).pack(anchor='w',padx=16,pady=8)
     actions=ttk.Frame(win,padding=12);actions.pack(fill='x');pending={}
     win.authoring_busy=False
@@ -274,7 +275,7 @@ def open_editor(manager,root,layer,completed=None,assets_only=False):
 def open_new(manager,completed=None):
     win,book,basic=manager.dialog('新建制作项目')
     win.geometry('1020x800')
-    parent=tk.StringVar(win,value=str(manager.path.parent/'projects'));name=tk.StringVar(win)
+    parent=ui.StringVar(win,value=str(manager.path.parent/'projects'));name=ui.StringVar(win)
     for title,var in [('保存位置',parent),('新文件夹名称',name)]:
         ttk.Label(basic,text=title).pack(anchor='w',pady=(12,3));ttk.Entry(basic,textvariable=var).pack(fill='x')
     def folder():
@@ -287,7 +288,7 @@ def open_new(manager,completed=None):
          ('audience','目标受众','text'),('viewer_goal','观众应理解什么','multiline'),
          ('aspect_ratio','画幅',('16:9','9:16')),('seconds','目标秒数（选填，纯图/GIF/仅剪辑留空）','number')],
         '创建可编辑起稿，不选择或调用模型。模板内容需要根据当前主题编写，不能直接视为完成的剧本。')
-    note=tk.StringVar(win);ttk.Label(win,textvariable=note,wraplength=940).pack(anchor='w',padx=16,pady=8)
+    note=ui.StringVar(win);ttk.Label(win,textvariable=note,wraplength=940).pack(anchor='w',padx=16,pady=8)
     def create():
         try:
             filename=name.get().strip()

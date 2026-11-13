@@ -2,6 +2,7 @@
 import copy
 import math
 import tkinter as tk
+from . import manager_lifecycle as ui
 from tkinter import ttk, messagebox
 
 from .catalog.presentation import OPERATIONS, conditions, rates
@@ -55,7 +56,7 @@ class Prices(Fields):
             ('per_second','每秒金额（可为 0）','number')]
         for row,(key,label,kind) in enumerate(spec):
             raw=original.get(key, '') if key.startswith('per_') else original.get('when',{}).get(key,'')
-            var=tk.StringVar(value=str(raw));variables[key]=var
+            var=ui.StringVar(frame,value=str(raw));variables[key]=var
             ttk.Label(frame,text=label).grid(row=row,column=0,sticky='w',padx=(0,14),pady=9)
             widget=ttk.Combobox(frame,textvariable=var,values=('',*OPERATIONS),state='readonly') if key=='operation' else ttk.Entry(frame,textvariable=var)
             widget.grid(row=row,column=1,sticky='ew',pady=9)

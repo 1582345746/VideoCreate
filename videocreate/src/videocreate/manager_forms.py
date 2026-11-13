@@ -2,6 +2,7 @@
 import copy
 import json
 import tkinter as tk
+from . import manager_lifecycle as ui
 from tkinter import ttk
 
 from .config.storage import ConfigError, parse_json
@@ -58,7 +59,7 @@ class CombinationChoices:
         self.choices = []
         for length in range(1,4):
             for combo in itertools.combinations(kinds,length):
-                var = tk.BooleanVar(value=any(set(combo)==set(item) for item in self.initial))
+                var = ui.BooleanVar(parent, value=any(set(combo)==set(item) for item in self.initial))
                 self.choices.append((list(combo),var))
                 ttk.Checkbutton(parent,text=' + '.join({'image':'图片','video':'视频','audio':'音频'}[k] for k in combo),
                     variable=var).pack(anchor='w',pady=2)
@@ -97,7 +98,7 @@ class Fields:
             if isinstance(initial, list) and kind != 'combinations':
                 initial = ','.join(map(str, initial))
             if kind=='boolean' and isinstance(initial,bool):initial='是' if initial else '否'
-            var = tk.StringVar(value=str(initial))
+            var = ui.StringVar(inner, value=str(initial))
             ttk.Label(inner, text=label).grid(row=row, column=0, sticky='w', padx=(0, 15), pady=7)
             if kind=='combinations':
                 widget=ttk.Frame(inner)

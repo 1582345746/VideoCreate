@@ -1,6 +1,7 @@
 """Local asset cards and explicit snapshot imports for the manager."""
 import json
 import tkinter as tk
+from . import manager_lifecycle as ui
 from pathlib import Path
 from tkinter import ttk, filedialog, simpledialog
 
@@ -17,7 +18,7 @@ def open_panel(manager):
     book.tab(0, text='素材与版本')
     store = manager.path.parent
     bar = ttk.Frame(page); bar.pack(fill='x')
-    query = tk.StringVar()
+    query = ui.StringVar(win)
     ttk.Label(bar, text='搜索名称 / 标签 / 说明').pack(side='left')
     ttk.Entry(bar, textvariable=query).pack(side='left', fill='x', expand=True, padx=8)
     tree = ttk.Treeview(page, columns=('title', 'kind', 'version', 'media'), show='headings', height=10)
@@ -26,7 +27,7 @@ def open_panel(manager):
     tree.pack(fill='both', expand=True, pady=10)
     detail = tk.Text(page, height=10, wrap='word', font=('Microsoft YaHei UI', 10))
     detail.pack(fill='both', expand=True)
-    note = tk.StringVar(value='导入会复制所选版本。卡片与素材保留说明，不继承其他项目的内容审核。')
+    note = ui.StringVar(win, value='导入会复制所选版本。卡片与素材保留说明，不继承其他项目的内容审核。')
     ttk.Label(page, textvariable=note, wraplength=940).pack(anchor='w', pady=10)
     rows = {}
 
@@ -77,7 +78,7 @@ def open_panel(manager):
             fields = {}
             for key, title in [('id', '素材库 ID（小写英文、数字、横线）'), ('title', '展示名称'), ('tags', '标签（中文逗号分隔）'), ('notes', '备注')]:
                 ttk.Label(pane, text=title).pack(anchor='w', pady=(10, 0))
-                fields[key] = tk.StringVar(); ttk.Entry(pane, textvariable=fields[key]).pack(fill='x')
+                fields[key] = ui.StringVar(pane); ttk.Entry(pane, textvariable=fields[key]).pack(fill='x')
             def save():
                 try:
                     aid = assets[asset.current()]['id']

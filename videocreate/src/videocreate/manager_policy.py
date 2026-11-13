@@ -2,6 +2,7 @@
 import queue
 import threading
 import tkinter as tk
+from . import manager_lifecycle as ui
 from pathlib import Path
 from tkinter import ttk
 
@@ -38,19 +39,19 @@ class PolicyPanel:
         ttk.Label(basic, text='逐步核对会停在尚未核对的策划阶段。自动推进只保留勾选的策划检查点；'
             '略过的计划仍是未核对状态。生成预算、原任务恢复和实际审片继续使用原有规则。',
             wraplength=800).pack(anchor='w', pady=6)
-        self.mode = tk.StringVar(win)
+        self.mode = ui.StringVar(win)
         self.selector = ttk.Combobox(basic, textvariable=self.mode, values=list(MODES), state='readonly', width=48)
         self.selector.pack(anchor='w', pady=6)
         self.selector.bind('<<ComboboxSelected>>', self.changed)
         gatebox = ttk.LabelFrame(basic, text='自动推进时仍需核对的策划阶段', padding=8);gatebox.pack(fill='x', pady=5)
         self.gates, self.checks = {}, []
         for index, stage in enumerate(production.AUTHORING):
-            value = tk.BooleanVar(win)
+            value = ui.BooleanVar(win)
             button = ttk.Checkbutton(gatebox, text=production.NAMES[stage], variable=value, command=self.changed)
             button.grid(row=index // 3, column=index % 3, sticky='w', padx=14, pady=3)
             self.gates[stage] = value;self.checks.append(button)
         ttk.Label(basic, text='本次设置依据').pack(anchor='w')
-        self.reason = tk.StringVar(win)
+        self.reason = ui.StringVar(win)
         self.reason_entry = ttk.Entry(basic, textvariable=self.reason);self.reason_entry.pack(fill='x', pady=5)
         self.reason.trace_add('write', self.changed)
         stageframe = ttk.Frame(book, padding=8);book.add(stageframe, text='阶段与下一步')
@@ -58,11 +59,11 @@ class PolicyPanel:
         for column, title, width in [('name', '阶段', 140), ('status', '实际状态', 130), ('progression', '推进方式', 330)]:
             self.tree.heading(column, text=title);self.tree.column(column, width=width)
         self.tree.pack(fill='both', expand=True)
-        self.summary = tk.StringVar(win)
+        self.summary = ui.StringVar(win)
         ttk.Label(stageframe, textvariable=self.summary, wraplength=790).pack(anchor='w', pady=8)
         self.details = manager.json_tab(book, '预览与任务详情', {})
         self.details.configure(state='disabled')
-        self.message = tk.StringVar(win, value='正在读取当前流程、计划与任务。')
+        self.message = ui.StringVar(win, value='正在读取当前流程、计划与任务。')
         ttk.Label(footer, textvariable=self.message, wraplength=850).pack(anchor='w', pady=4)
         controls = ttk.Frame(footer);controls.pack(fill='x')
         self.buttons = {}

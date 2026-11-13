@@ -3,6 +3,7 @@ import copy
 import queue
 import threading
 import tkinter as tk
+from . import manager_lifecycle as ui
 import webbrowser
 from pathlib import Path
 from tkinter import filedialog,ttk
@@ -47,7 +48,7 @@ class References:
         actions=ttk.Frame(page);actions.pack(fill='x',pady=8)
         for text,fn in [('导入本地参考',self.import_file),('移除引用',self.remove),('上移',lambda:self.move(-1)),('下移',lambda:self.move(1)),('查看已保存资料对照',self.board)]:
             ttk.Button(actions,text=text,command=fn).pack(side='left',padx=4)
-        self.note=tk.StringVar(page,value='原文件保留；移除引用不删除文件。声音样本不会自动创建克隆声线。')
+        self.note=ui.StringVar(page,value='原文件保留；移除引用不删除文件。声音样本不会自动创建克隆声线。')
         ttk.Label(page,textvariable=self.note,wraplength=820).pack(anchor='w',pady=8);self.refresh()
 
     def refresh(self,index=None):

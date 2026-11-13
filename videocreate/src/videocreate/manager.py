@@ -4,8 +4,7 @@ from __future__ import annotations
 import copy
 import json
 import tkinter as tk
-import queue
-import threading
+from . import manager_lifecycle as ui
 from tkinter import ttk, messagebox, filedialog
 from pathlib import Path
 
@@ -34,13 +33,13 @@ class Manager:
             raise ConfigError('; '.join(self.record['errors']))
         self.value = service.migrate(self.record['config'])
         self.dirty = self.value != self.record['config']
-        self.search = tk.StringVar()
-        self.favorites_only = tk.BooleanVar()
-        self.kind_filter = tk.StringVar(value='全部类型')
-        self.family_filter = tk.StringVar(value='全部家族')
-        self.sort_order = tk.StringVar(value='配置顺序')
+        self.search = ui.StringVar(window)
+        self.favorites_only = ui.BooleanVar(window)
+        self.kind_filter = ui.StringVar(window, value='全部类型')
+        self.family_filter = ui.StringVar(window, value='全部家族')
+        self.sort_order = ui.StringVar(window, value='配置顺序')
         self.current_upstream = None
-        self.status = tk.StringVar()
+        self.status = ui.StringVar(window)
         self.build()
         self.refresh()
         self.window.protocol('WM_DELETE_WINDOW', self.close)
@@ -234,7 +233,7 @@ class Manager:
     @staticmethod
     def field(frame, row, label, value='', values=None, readonly=False, secret=False):
         ttk.Label(frame, text=label).grid(row=row, column=0, sticky='w', padx=(0, 14), pady=7)
-        var = tk.StringVar(value=str(value))
+        var = ui.StringVar(frame, value=str(value))
         if values is not None:
             widget = ttk.Combobox(frame, textvariable=var, values=values, state='readonly')
         else:
@@ -351,7 +350,7 @@ class Manager:
             choices = list(self.value['upstreams']) if key == 'upstream' else ['video', 'image'] if key == 'kind' else ['unconfigured', *ADAPTERS] if key == 'adapter' else None
             fields[key] = self.field(basic, i, label, default, values=choices,
                                       readonly=bool(bid and key in {'id', 'model'}))
-        enabled = tk.BooleanVar(value=original.get('enabled', False))
+        enabled = ui.BooleanVar(basic, value=original.get('enabled', False))
         ttk.Checkbutton(basic, text='启用此型号（协议与参数必须配置完整）', variable=enabled).grid(row=9, column=0, columnspan=2, sticky='w', pady=10)
         from .manager_forms import Fields, DECLARED, CAPABILITIES, MEDIA_REFERENCE_LIMITS
         from .manager_pricing import Prices
@@ -481,33 +480,17 @@ class Manager:
         ttk.Label(basic, text='只读取 /models；不会提交生成。导入条目保存为禁用草稿。', wraplength=650).pack(anchor='w')
         listing = tk.Listbox(basic, selectmode='extended', font=('Microsoft YaHei UI', 10))
         listing.pack(fill='both', expand=True, pady=12)
-        note = tk.StringVar(value='正在读取…')
+        note = ui.StringVar(win, value='正在读取…')
         ttk.Label(basic, textvariable=note, wraplength=650).pack(anchor='w')
         choices = ttk.Frame(win, padding=12)
         choices.pack(fill='x')
-        kind = tk.StringVar(value='video')
+        kind = ui.StringVar(win, value='video')
         ttk.Combobox(choices, textvariable=kind, values=['video', 'image'], state='readonly', width=10).pack(side='left')
-        family = tk.StringVar(value='custom')
+        family = ui.StringVar(win, value='custom')
         ttk.Label(choices, text='家族').pack(side='left', padx=8)
         ttk.Entry(choices, textvariable=family, width=18).pack(side='left')
-        packets = queue.Queue()
-        def work():
-            try:
-                from .catalog.discovery import models
-                packets.put((True, models(config, uid, store_root=self.path.parent)))
-            except (ConfigError, OSError, ValueError) as exc:
-                packets.put((False, str(exc)))
-        def receive():
-            if not win.winfo_exists():
-                return
-            try:
-                ok, result = packets.get_nowait()
-            except queue.Empty:
-                win.after(100, receive)
-                return
-            if not ok:
-                note.set(result)
-                return
+        background = ui.BackgroundCall(win)
+        def receive(result):
             for remote in result['ids']:
                 listing.insert('end', remote)
             known = {b['remote_model'] for b in config['bindings'].values() if b['upstream'] == uid}
@@ -530,8 +513,10 @@ class Manager:
                 self.error(exc)
         apply_button = ttk.Button(choices, text='导入所选为草稿', command=apply, state='disabled')
         apply_button.pack(side='right')
-        threading.Thread(target=work, daemon=True).start()
-        win.after(100, receive)
+        from .catalog.discovery import models
+        background.start(models, config, uid, store_root=self.path.parent,
+            completed=receive, failed=lambda error: note.set(str(error)))
+        return win
 
     def new_project(self):
         from .manager_authoring import open_new
@@ -766,6 +751,24 @@ def main():
                     dialog.withdraw();root.update_idletasks();dialog.destroy()
                 dialog=open_editor(manager,authored,'director',assets_only=True)
                 dialog.withdraw();root.update_idletasks();dialog.destroy()
+            # Exercise real Tcl teardown in the packaged runtime too.
+            owner = ttk.Frame(root)
+            probe = ui.StringVar(owner, value='lifecycle smoke')
+            command = probe.trace_add('write', lambda *_: None)
+            name = str(probe);owner.destroy()
+            if (probe._tk is not None or root.tk.call('info', 'exists', name)
+                    or root.tk.call('info', 'commands', command)):
+                raise ConfigError('Closed UI variables or trace commands remain live')
+            from .manager_media import open_panel as media_panel
+            media_window = media_panel(manager);media_window.withdraw()
+            root.update_idletasks();media_window.destroy()
+            import gc
+            import threading
+            collector = threading.Thread(target=gc.collect)
+            collector.start();collector.join(10)
+            if collector.is_alive():
+                raise ConfigError('Worker garbage collection did not finish')
+            ui.reap_interpreters()
             root.update_idletasks()
             atomic_json(args.smoke_report, {'ok': True, 'upstreams': len(manager.value['upstreams']),
                 'bindings': len(manager.models.get_children()), 'config_version': manager.value['schema_version'],
@@ -787,6 +790,9 @@ def main():
                 'generation_execution_panel_created': True,
                 'static_image_import_form_created': True,
                 'production_policy_panel_loaded': True,
+                'lifecycle_scope_tcl_cleanup': True,
+                'lifecycle_worker_gc': True,
+                'lifecycle_media_panel_close': True,
                 'network_requests': 0, 'saved': False, 'visual_review': 'not-performed'})
         finally:
             root.destroy()

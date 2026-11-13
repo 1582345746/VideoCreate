@@ -2,6 +2,7 @@
 import queue
 import threading
 import tkinter as tk
+from . import manager_lifecycle as ui
 from tkinter import ttk
 
 from . import production
@@ -26,7 +27,7 @@ def open_inspection(manager, root, decision, *, edit_layer, completed, import_vi
     details.configure(state='disabled')
     busy = [False]
     scheduled = [None]
-    note = tk.StringVar()
+    note = ui.StringVar(win)
     ttk.Label(footer, textvariable=note, wraplength=680).pack(anchor='w')
     buttons = ttk.Frame(footer);buttons.pack(fill='x', pady=8)
     stage = decision['stage']
@@ -38,7 +39,7 @@ def open_inspection(manager, root, decision, *, edit_layer, completed, import_vi
         if not layer:
             ttk.Label(basic, text='此阶段使用动画创作源或本地 GIF 配方，请通过原创作入口修改。', wraplength=680).pack(anchor='w', pady=8)
         ttk.Label(basic, text='请在“当前内容与任务”阅读本阶段内容，并填写本次核对结论。', wraplength=680).pack(anchor='w', pady=8)
-        reason = tk.StringVar()
+        reason = ui.StringVar(win)
         ttk.Label(basic, text='核对理由').pack(anchor='w')
         ttk.Entry(basic, textvariable=reason, width=76).pack(fill='x', pady=6)
         channel = queue.Queue()

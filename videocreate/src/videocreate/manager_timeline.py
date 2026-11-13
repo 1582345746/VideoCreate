@@ -1,6 +1,7 @@
 """Native edit decisions and a proportional timeline; never dispatch generation."""
 import copy
 import tkinter as tk
+from . import manager_lifecycle as ui
 from pathlib import Path
 from tkinter import ttk, filedialog
 
@@ -55,7 +56,7 @@ class SubtitleEditor:
     def __init__(self,book,value,segments):
         self.original=copy.deepcopy(value);self.initial='源片区间' if 'segment_id' in value else '成片时间'
         page=ttk.Frame(book,padding=12);book.add(page,text='定位方式')
-        self.mode=tk.StringVar(page,value=self.initial)
+        self.mode=ui.StringVar(page,value=self.initial)
         ttk.Combobox(page,textvariable=self.mode,values=('源片区间','成片时间'),state='readonly').pack(anchor='w',pady=8)
         ttk.Label(page,text='源片区间随对应片段的排序、裁切及速度映射；成片时间固定在成片秒数。切换方式后填写对应字段，不自动换算。',wraplength=700).pack(anchor='w')
         self.form=ExactFields(book,'字幕',value,[('text','实际听到并核对的字幕','multiline'),
@@ -114,7 +115,7 @@ class TimelineEditor:
                 ('path','项目内图片路径','text'),('start','成片开始秒','number'),('end','成片结束秒','number'),
                 ('position','位置',('top','center','bottom'))],root,'叠加进入本地渲染；字幕另存为 SRT，字幕不会自动烧录。'),
             lambda items:{'id':identity(items,'overlay'),'text':'','start':0,'end':1,'position':'bottom'})
-        self.graph_page=page('时间线示意');self.note=tk.StringVar(self.graph_page)
+        self.graph_page=page('时间线示意');self.note=ui.StringVar(self.graph_page)
         ttk.Label(self.graph_page,text='按当前未保存的编辑绘制比例示意；点击画面片段定位表单。此处没有播放视频或声音。',wraplength=850).pack(anchor='w',padx=12,pady=8)
         ttk.Button(self.graph_page,text='更新时间线示意',command=self.draw).pack(anchor='w',padx=12)
         ttk.Button(self.graph_page,text='刷新素材与片段选项',command=self.refresh_links).pack(anchor='w',padx=12,pady=4)

@@ -3,6 +3,7 @@ import json
 import queue
 import threading
 import tkinter as tk
+from . import manager_lifecycle as ui
 from pathlib import Path
 from tkinter import filedialog, ttk
 
@@ -54,11 +55,11 @@ class TaskPanel:
             self.tree.heading(key, text=label);self.tree.column(key, width=width)
         self.tree.pack(fill='both', expand=True)
         form = ttk.Frame(page);form.pack(fill='x', pady=12)
-        self.mode = tk.StringVar(self.win, value='生成或继续')
-        self.new_requests = tk.StringVar(self.win, value='1')
-        self.timeout = tk.StringVar(self.win, value='900')
-        self.reason = tk.StringVar(self.win)
-        self.binding = tk.StringVar(self.win)
+        self.mode = ui.StringVar(self.win, value='生成或继续')
+        self.new_requests = ui.StringVar(self.win, value='1')
+        self.timeout = ui.StringVar(self.win, value='900')
+        self.reason = ui.StringVar(self.win)
+        self.binding = ui.StringVar(self.win)
         fields = [('操作', self.mode, tuple(MODES)), ('本次最多新增请求', self.new_requests, None),
             ('本次等待上限（秒）', self.timeout, None), ('重做原因', self.reason, None)]
         for index, (label, variable, values) in enumerate(fields):
@@ -70,7 +71,7 @@ class TaskPanel:
         ttk.Combobox(form, textvariable=self.binding, values=values, state='readonly').grid(row=4,column=1,sticky='ew',padx=12)
         form.columnconfigure(1, weight=1)
         self.details = manager.json_tab(book, '预检与执行记录', {})
-        self.note = tk.StringVar(self.win)
+        self.note = ui.StringVar(self.win)
         ttk.Label(footer, textvariable=self.note, wraplength=980).pack(anchor='w', pady=5)
         row = ttk.Frame(footer);row.pack(fill='x')
         self.buttons = []
@@ -199,7 +200,7 @@ class TaskPanel:
         for row in packet['choices']:
             tree.insert('', 'end', iid=str(row['number']), values=(row['number'],row['upstream_id'],row['remote_model'],row.get('notes','')))
         tree.pack(fill='both',expand=True)
-        scope = tk.StringVar(win, value='仅本次')
+        scope = ui.StringVar(win, value='仅本次')
         ttk.Combobox(page, textvariable=scope, values=('仅本次','当前项目'), state='readonly').pack(anchor='w',pady=8)
         def choose():
             ids = tree.selection()

@@ -1,6 +1,7 @@
 """Director-layer screenplay forms; no parallel script, task or timeline state."""
 import copy
 import tkinter as tk
+from . import manager_lifecycle as ui
 from tkinter import ttk
 
 from .config.storage import ConfigError
@@ -103,7 +104,7 @@ class OrderedItems:
 class OptionalFields:
     def __init__(self,book,title,value,fields):
         page=ttk.Frame(book);book.add(page,text=title)
-        self.enabled=tk.BooleanVar(page,value=value is not None)
+        self.enabled=ui.BooleanVar(page,value=value is not None)
         ttk.Checkbutton(page,text='填写'+title,variable=self.enabled).pack(anchor='w',padx=12,pady=8)
         nested=ttk.Notebook(page);nested.pack(fill='both',expand=True)
         self.form=ExactFields(nested,title,value or {},fields)
@@ -115,7 +116,7 @@ class StateValue:
     """Optional shot state can remain either prose or an exact structured map."""
     def __init__(self,book,title,value):
         page=ttk.Frame(book,padding=12);book.add(page,text=title)
-        self.mode=tk.StringVar(page,value='未设置' if value is None else '状态表' if isinstance(value,dict) else '文字描述')
+        self.mode=ui.StringVar(page,value='未设置' if value is None else '状态表' if isinstance(value,dict) else '文字描述')
         choice=ttk.Combobox(page,textvariable=self.mode,values=('未设置','文字描述','状态表'),state='readonly')
         choice.pack(anchor='w')
         self.text=tk.Text(page,height=6,wrap='word',undo=True);self.text.insert('1.0',value if isinstance(value,str) else '')
@@ -162,7 +163,7 @@ LINE_FIELDS=[('speaker','说话者素材 ID','text'),('text','台词','multiline
 class AudioEditor:
     def __init__(self,manager,book,value):
         self.original=copy.deepcopy(value);page=ttk.Frame(book);book.add(page,text='声音与对白')
-        self.enabled=tk.BooleanVar(page,value=value is not None)
+        self.enabled=ui.BooleanVar(page,value=value is not None)
         ttk.Checkbutton(page,text='填写声音设计',variable=self.enabled).pack(anchor='w',padx=12,pady=8)
         nested=ttk.Notebook(page);nested.pack(fill='both',expand=True)
         basic=copy.deepcopy(value) if value is not None else {'mode':'ambience'};lines=basic.pop('lines',[])
