@@ -2,14 +2,12 @@
 from __future__ import annotations
 
 import hashlib
-import json
 import re
 import urllib.error
 import urllib.request
-from pathlib import Path
 
-from ..config.storage import ConfigError, atomic_json, resolve_key
-from ..config.management import add_binding, migrate, stamp
+from ..config.storage import ConfigError, parse_json, resolve_key
+from ..config.management import add_binding, migrate
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -24,8 +22,8 @@ def models(config, upstream_id, *, store_root):
     key = resolve_key(upstream['auth'], store_root=store_root)
     if not key:
         raise ConfigError('Upstream credential is unavailable')
-    base = upstream['base_url'].rstrip('/')
-    url = base + ('/models' if base.endswith('/v1') else '/v1/models')
+    from . import observations
+    url = observations.url(observations.identity(config,upstream_id))
     request = urllib.request.Request(url, headers={'Authorization': 'Bearer ' + key, 'Accept': 'application/json'})
     try:
         with urllib.request.build_opener(NoRedirect).open(request, timeout=min(60, upstream.get('request_timeout_seconds', 30))) as response:
@@ -37,23 +35,26 @@ def models(config, upstream_id, *, store_root):
     if len(raw) > 4 * 1024 * 1024:
         raise ConfigError('Model catalog exceeds the local response size limit')
     try:
-        data = json.loads(raw)
+        data = parse_json(raw.decode('utf-8-sig'))
         rows = data['data']
         if not isinstance(rows, list):
             raise ValueError()
-        ids = list(dict.fromkeys(row['id'] for row in rows if isinstance(row, dict) and
-                                isinstance(row.get('id'), str) and row['id'].strip()))
+        if any(not isinstance(row,dict) or 'id' not in row for row in rows):raise ValueError()
+        ids = observations.ids([row['id'] for row in rows])
+        if any(key in remote for remote in ids):raise ValueError()
     except (ValueError, KeyError, TypeError):
         raise ConfigError('Model catalog is not the supported data/id response format') from None
-    result = {'upstream': upstream_id, 'url': url, 'observed_at': stamp(), 'ids': ids,
-              'evidence_kind': 'catalog-only', 'paid_creates': 0}
-    digest = hashlib.sha256(json.dumps(result, sort_keys=True).encode()).hexdigest()
-    evidence = Path(store_root) / 'runtime' / 'catalogs' / (digest + '.json')
-    atomic_json(evidence, result)
-    return {'ok': True, **result, 'evidence': str(evidence)}
+    result=observations.record(config,upstream_id,ids,store_root=store_root)
+    return {**result,'network_requests':1}
 
 
-def import_models(config, upstream_id, ids, *, kind='video', family='custom'):
+def import_models(config, upstream_id, ids, *, kind='video', family='custom', observation=None):
+    from . import observations
+    ids=observations.ids(ids)
+    if upstream_id not in config['upstreams']:raise ConfigError('Unknown upstream')
+    if observation is not None:
+        observations.checked(observation,observations.identity(config,upstream_id))
+        if set(ids)-set(observation['ids']):raise ConfigError('Import selection contains models outside this catalog observation')
     result = migrate(config)
     existing = {b['remote_model'] for b in result['bindings'].values() if b['upstream'] == upstream_id}
     added = []
@@ -65,6 +66,10 @@ def import_models(config, upstream_id, ids, *, kind='video', family='custom'):
         identity = upstream_id[:40] + '-' + slug + '-' + hashlib.sha256(remote.encode()).hexdigest()[:8]
         result = add_binding(result, identity=identity, upstream=upstream_id, model=identity,
             remote_model=remote, family=family, kind=kind, display_name=remote)
+        if observation is not None:
+            result['bindings'][identity]['declared_capabilities']={'source':{'kind':'catalog',
+                'url':observation['url'],'observed_at':observation['observed_at'],
+                'notes':'Catalog-only observation SHA256: '+observation['observation_hash']}}
         added.append(identity)
         existing.add(remote)
     return result, added

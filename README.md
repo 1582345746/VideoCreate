@@ -2,13 +2,13 @@
 
 [![VideoCreate CI](https://github.com/1582345746/VideoCreate/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/1582345746/VideoCreate/actions/workflows/ci.yml)
 
-面向 Codex 的可恢复、多模型、多上游 AI 视频制作技能。产品名、技能入口和 Python 包统一为 **VideoCreate**。当前开发版为 `3.0.0.dev36`；这不是生产质量认证。
+面向 Codex 的可恢复、多模型、多上游 AI 视频制作技能。产品名、技能入口和 Python 包统一为 **VideoCreate**。当前开发版为 `3.0.0.dev42`；这不是生产质量认证。
 
 本轮增加单 JSON 上游管理、Windows 原生管理器、编号选型、配置 v4 迁移、制作步骤和剧本阅读稿。`providers`、`selection`、`production`、`modules` 共用现有任务与审核底座；`review page` 导出可播放的本地审片页。启动管理器可用 `python videocreate/scripts/videocreate_manager.py`，便携 EXE 的构建入口是 `tools/build_manager.py`。管理器不需要单独的模型数据库。
 
 使用方式与限制见 [上游和流程管理](videocreate/references/provider-management.md)。`modules list` 返回实际功能入口，`modules roadmap` 跟踪 73 个工作包；“已有实现”和“在线质量通过”分别记录。dev15 增加跨项目角色/场景/道具/声音素材库、制作统计和星光专用文生视频协议；多媒体 URL 参考、逐型号参数和计费仍分别验收，不把 30 图 / 10 视频 / 10 音频声明当成已实现的传输能力。
 
-最新范围和待办见 [73 项开发进度](docs/20261112-development-progress.zh-CN.md)。dev34 增加制作流程策略与指定策划检查点；dev35 处理管理器关闭窗口时的 Tk 变量、trace、解释器及后台轮询生命周期，详见 [本批验收](docs/20261113-dev35-acceptance.zh-CN.md)。dev36 新增 v3 相邻片段转场，含画面/原片声音过渡、重叠时间映射和审核边界，详见 [转场验收](docs/20261113-dev36-acceptance.zh-CN.md)。完整路线图继续进行，既有样片仍按实际播放和听音验收。
+最新范围和待办见 [73 项开发进度](docs/20261112-development-progress.zh-CN.md)。dev37–40 增加滤镜/响度/字幕烧录、旧剪辑迁移、未应用表单保护和损坏配置修复；[dev41](docs/20261113-dev41-acceptance.zh-CN.md) 增加按任务参数与参考数量筛选。[dev42](docs/20261113-dev42-acceptance.zh-CN.md) 增加按账户隔离的目录观察、型号变化对比、离线缓存和带来源的禁用草稿导入。完整路线图继续进行，既有样片仍按实际播放和听音验收。
 
 新工作使用分层 v3 计划：brief、story、director、generation-plan 和 timeline。旧的 v2 项目/任务仍保留兼容入口。v3 结构检查不会代替真实的视觉、动作和音频验收；模型和上游未通过实际样片验证时维持 unknown/unverified。
 

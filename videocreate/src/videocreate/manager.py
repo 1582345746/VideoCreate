@@ -69,7 +69,8 @@ class Manager:
         for title, action in [('新增上游', lambda: self.edit_upstream()), ('编辑上游', self.edit_selected_upstream),
                               ('复制为新上游', lambda: self.edit_upstream(copy_from=self.current_upstream)),
                               ('管理凭据', self.credential), ('归档 / 恢复上游', self.archive_upstream),
-                              ('只读检查 / 导入目录', self.discover), ('新建制作项目', self.new_project), ('项目与任务', self.project_panel),
+                              ('只读检查 / 导入目录', self.discover), ('查看已保存目录', lambda:self.discover(refresh=False)),
+                              ('新建制作项目', self.new_project), ('项目与任务', self.project_panel),
                               ('角色与素材库', self.library_panel), ('迁移旧剪辑计划', self.legacy_edit_panel)]:
             ttk.Button(left, text=title, command=action).pack(fill='x', pady=(7, 0))
         ttk.Button(left, text='本机素材与 HTTPS 直链', command=self.media_panel).pack(fill='x', pady=(7, 0))
@@ -513,54 +514,11 @@ class Manager:
             return win
         except (ConfigError,OSError,ValueError) as exc:self.error(exc)
 
-    def discover(self):
-        uid = self.current_upstream
-        if not uid:
-            self.error('先选择一个上游')
-            return
-        config = copy.deepcopy(self.value)
-        token = service.fingerprint(config)
-        win, book, basic = self.dialog('只读模型目录')
-        ttk.Label(basic, text='只读取 /models；不会提交生成。导入条目保存为禁用草稿。', wraplength=650).pack(anchor='w')
-        listing = tk.Listbox(basic, selectmode='extended', font=('Microsoft YaHei UI', 10))
-        listing.pack(fill='both', expand=True, pady=12)
-        note = ui.StringVar(win, value='正在读取…')
-        ttk.Label(basic, textvariable=note, wraplength=650).pack(anchor='w')
-        choices = ttk.Frame(win, padding=12)
-        choices.pack(fill='x')
-        kind = ui.StringVar(win, value='video')
-        ttk.Combobox(choices, textvariable=kind, values=['video', 'image'], state='readonly', width=10).pack(side='left')
-        family = ui.StringVar(win, value='custom')
-        ttk.Label(choices, text='家族').pack(side='left', padx=8)
-        ttk.Entry(choices, textvariable=family, width=18).pack(side='left')
-        background = ui.BackgroundCall(win)
-        def receive(result):
-            for remote in result['ids']:
-                listing.insert('end', remote)
-            known = {b['remote_model'] for b in config['bindings'].values() if b['upstream'] == uid}
-            missing = known - set(result['ids'])
-            note.set(f"读到 {len(result['ids'])} 个型号；{len(missing)} 个本地型号未出现在目录（保留）。选择型号后导入草稿。")
-            apply_button.configure(state='normal')
-        def apply():
-            try:
-                if token != service.fingerprint(self.value):
-                    raise ConfigError('配置已变更，请关闭后重新检查目录')
-                ids = [listing.get(i) for i in listing.curselection()]
-                if not ids:
-                    raise ConfigError('请选择需要导入的型号')
-                from .catalog.discovery import import_models
-                self.value, added = import_models(self.value, uid, ids, kind=kind.get(), family=family.get().strip() or 'custom')
-                self.changed()
-                note.set(f'已加入 {len(added)} 个草稿，请关闭窗口并保存配置。')
-                apply_button.configure(state='disabled')
-            except (ConfigError, OSError, ValueError) as exc:
-                self.error(exc)
-        apply_button = ttk.Button(choices, text='导入所选为草稿', command=apply, state='disabled')
-        apply_button.pack(side='right')
-        from .catalog.discovery import models
-        background.start(models, config, uid, store_root=self.path.parent,
-            completed=receive, failed=lambda error: note.set(str(error)))
-        return win
+    def discover(self, *, refresh=True):
+        if not self.current_upstream:
+            self.error('先选择一个上游');return
+        from .manager_catalog import CatalogPanel
+        return CatalogPanel(self,self.current_upstream,refresh=refresh).win
 
     def legacy_edit_panel(self):
         from .manager_legacy_edit import open_form
@@ -785,6 +743,38 @@ def main():
                 local_controls[profile] = {'render': expected_render, 'delivery': True, 'continue': True,
                     'static_image_import': expected_still, 'production_policy': True}
             with tempfile.TemporaryDirectory(prefix='videocreate-manager-smoke-') as temporary:
+                # Catalog history/import smoke uses an isolated synthetic config,
+                # never the user's observations, credentials or draft models.
+                import time
+                from .cli import skill_root
+                from .catalog import observations
+                catalog_path=Path(temporary)/'catalog/config.json'
+                catalog_value=service.migrate(load_json(skill_root()/'assets/config/videocreate.config.example.json'))
+                atomic_json(catalog_path,catalog_value);catalog_bytes=catalog_path.read_bytes()
+                catalog_upstream=next(iter(catalog_value['upstreams']))
+                observations.record(catalog_value,catalog_upstream,['smoke-gone','smoke-stable'],store_root=catalog_path.parent)
+                observations.record(catalog_value,catalog_upstream,['smoke-stable','smoke-new'],store_root=catalog_path.parent)
+                catalog_root=tk.Toplevel(root);catalog_root.withdraw()
+                catalog_manager=Manager(catalog_root,catalog_path);catalog_manager.current_upstream=catalog_upstream
+                catalog_window=catalog_manager.discover(refresh=False);catalog_window.withdraw();catalog_form=catalog_window.catalog_panel
+                deadline=time.monotonic()+10
+                while catalog_form.background.busy and time.monotonic()<deadline:root.update();time.sleep(.005)
+                if not catalog_form.result or catalog_form.result['network_requests']:
+                    raise ConfigError('Cached catalog form did not load offline')
+                catalog_form.view.set('相比上次未再出现')
+                if list(catalog_form.items.values())!=['smoke-gone']:
+                    raise ConfigError('Catalog form lost disappeared, unconfigured model names')
+                catalog_form.view.set('相比上次新增')
+                if list(catalog_form.items.values())!=['smoke-new']:
+                    raise ConfigError('Catalog form did not show the exact new model ID')
+                catalog_form.tree.selection_set(next(iter(catalog_form.items)))
+                catalog_form.apply()
+                draft=next((b for b in catalog_manager.value['bindings'].values() if b['remote_model']=='smoke-new'),None)
+                if (not draft or draft['enabled'] or draft['adapter']!='unconfigured' or
+                        draft['declared_capabilities']['source']['kind']!='catalog' or not catalog_manager.dirty
+                        or catalog_path.read_bytes()!=catalog_bytes):
+                    raise ConfigError('Catalog import did not remain a source-bound, unsaved disabled draft')
+                catalog_root.destroy()
                 project = Path(temporary) / 'edit-only'
                 save_bundle(project, create('edit-only', title='Offline import panel smoke'))
                 panel = project_panel(manager, project)
@@ -919,6 +909,8 @@ def main():
                 'comparison_and_pricing_forms_created': True,
                 'task_catalog_filter_preview_apply_clear': True,
                 'task_catalog_filter_exclusions_and_config_preserved': True,
+                'catalog_observation_cached_changes_exercised': True,
+                'catalog_source_bound_unsaved_draft_exercised': True,
                 'configuration_draft_guards_exercised': draft_guards_exercised,
                 'nested_price_draft_guard_exercised': draft_guards_exercised,
                 'configuration_repair_preview_apply_and_return': True,

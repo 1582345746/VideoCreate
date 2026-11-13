@@ -9,7 +9,7 @@ def providers_command(argv):
     from .cli import print_result
     from .config import management as m
     parser = argparse.ArgumentParser(prog='videocreate providers')
-    parser.add_argument('action', choices=['list', 'filter', 'compare', 'quotas', 'show', 'migrate', 'save', 'archive', 'restore', 'credential', 'discover', 'pricing', 'import-models', 'repair-inspect', 'repair-preview', 'repair-apply'])
+    parser.add_argument('action', choices=['list', 'filter', 'compare', 'quotas', 'show', 'migrate', 'save', 'archive', 'restore', 'credential', 'discover', 'catalog-show', 'pricing', 'import-models', 'repair-inspect', 'repair-preview', 'repair-apply'])
     parser.add_argument('--config', type=Path)
     parser.add_argument('--upstream')
     parser.add_argument('--project', type=Path, help='Register an existing v3 project for local quota accounting')
@@ -85,6 +85,10 @@ def providers_command(argv):
             raise ConfigError('Discovery requires --upstream')
         from .catalog.discovery import models
         result = models(record['config'], args.upstream, store_root=path.parent)
+    elif args.action == 'catalog-show':
+        if not args.upstream:raise ConfigError('Catalog history needs --upstream')
+        from .catalog.observations import show
+        result=show(record['config'],args.upstream,store_root=path.parent,file=args.file)
     elif args.action == 'import-models':
         if not args.upstream or not args.file or not args.kind:
             raise ConfigError('Import requires --upstream, --kind and --file with an ids list')
@@ -92,13 +96,18 @@ def providers_command(argv):
         values = load_json(args.file)
         if not isinstance(values.get('ids'), list):
             raise ConfigError('Import file requires an ids list')
-        changed, ids = import_models(record['config'], args.upstream, values['ids'], kind=args.kind, family=args.family or 'custom')
+        observation=values.get('observation')
+        if observation is None and 'observation_hash' in values:observation=values
+        changed, ids = import_models(record['config'], args.upstream, values['ids'], kind=args.kind,
+            family=args.family or 'custom',observation=observation)
         if args.apply:
             if not args.token:
                 raise ConfigError('Apply requires the current --token')
             result = {**m.save(path, changed, expected_token=args.token, reason='import catalog drafts'), 'added': ids}
         else:
-            result = {'ok': True, 'applied': False, 'draft_ids': ids, 'paid_creates': 0}
+            result = {'ok': True, 'applied': False, 'draft_ids': ids, 'paid_creates': 0,
+                'catalog_source':{'url':observation['url'],'observed_at':observation['observed_at'],
+                    'observation_hash':observation['observation_hash']} if observation is not None else None}
     elif args.action == 'migrate':
         result = m.migration(path, apply=args.apply, ask=not args.use_defaults)
     elif args.action == 'list':

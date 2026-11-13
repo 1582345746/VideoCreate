@@ -35,6 +35,21 @@ videocreate providers repair-apply --config DAMAGED --file LOCAL_DRAFT --token S
 
 ## 目录浏览与能力
 
+dev42 起，“只读检查 / 导入目录”打开“上游目录变化与草稿导入”，执行一次 `GET /models`。界面可搜索并筛选相比上次新增、未再出现、可导入以及本地未出现在目录的型号；尚未导入但本次消失的型号也保留变化行。“查看已保存目录”直接读取本地观察，不联网、不读密钥。刷新失败不替换上一份完整观察；首次观察明确没有可比基线，完整空目录可记录，但不会删除或禁用本地接入。
+
+```text
+videocreate providers discover --upstream UPSTREAM_ID
+videocreate providers catalog-show --upstream UPSTREAM_ID
+videocreate providers catalog-show --upstream UPSTREAM_ID --file OBSERVATION_JSON
+videocreate providers import-models --upstream UPSTREAM_ID --kind video --file CATALOG_REPORT_JSON
+```
+
+观察在配置目录的 `runtime/catalog-observations/` 下按上游 ID、地址和账户隔离，保存原样远端 ID、来源 URL、带时区时间及内容 SHA-256。相同账户的凭据轮换可沿用观察；不同账户或地址不可混用。旧无账户范围的 `runtime/catalogs/` 文件原样保留，不当作对比基线。损坏、哈希/文件名不符和不支持的观察保持原文件但不参与自动对比；报告列出忽略数量。SHA-256 只核对本地记录完整性，不是供应商签名或真实性认证。
+
+GUI 导入前重新核对配置和来源观察，变化后需重读；仅新增禁用、`unconfigured` 草稿，写入目录 URL、观察时间及哈希来源。已有接入的备注、报价、限制和启用状态保持，不自动合并同名的跨上游型号。应用只修改管理器待保存配置，需主窗口“保存配置”才落盘；关闭时可保留尚未应用的媒体类型/家族输入。关闭窗口仅停止 UI 回调，已开始的 GET 可完成并保存观察，不取消网络工作。
+
+CLI 导入接受完整 discover/catalog-show 报告或原始观察 JSON，校验来源范围与所选 ID，预览不改配置；`--apply --token TOKEN` 沿用配置并发保护。手动 `{"ids":["Exact-Model-ID"]}` 仍可导入，但没有目录观察来源。任何目录可见/消失、草稿导入或哈希一致都不能证明协议、可用性、参考语义、价格或影片质量。
+
 dev41 起，“按任务筛选”可填写操作、生成时长、分辨率、画幅和声音开关；选中“核对参考数量”后分别填写图片、视频、音频数，0 表示明确不使用该类素材。没有勾选时不假设数量为 0。图片任务不能填写视频时长/分辨率/画幅/声音参数。预览展示全部目录的符合、不符合和未核实条目及原因；应用到主表后继续叠加上游、家族、搜索和收藏条件。可以同时显示排除条目，或清除任务筛选；不会修改配置、项目选择或默认路线。条件修改后须重新预览，关闭时可以保留尚未应用的输入。
 
 CLI 使用同一服务，默认只输出参数范围相符的条目，`--include-excluded` 显示全部条目和原因；`--upstream`、`--kind`、`--family`、`--query`、`--favorites`、`--order` 可组合。任务文件只接受以下字段，未填写的参数不参与筛选：

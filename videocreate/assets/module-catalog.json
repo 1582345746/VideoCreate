@@ -14,7 +14,10 @@
       "entry_points": [
         "providers list",
         "providers migrate",
-        "providers save"
+        "providers save",
+        "providers discover",
+        "providers catalog-show",
+        "providers import-models"
       ],
       "work_packages": [
         "A01",
@@ -27,9 +30,11 @@
         "A10"
       ],
       "status": "partial",
-      "limitations": "v3/v4 compatible; draft models remain disabled; complex migration and evidence carry-forward still being audited.",
+      "limitations": "v3/v4 compatible; draft models remain disabled; complex migration and evidence carry-forward still being audited. Account/address-scoped catalog observations expose additions and disappearances, preserve local bindings, and import source-bound disabled drafts. Local hashes are integrity checks, not provider signatures; names do not establish capabilities or availability. Legacy unscoped catalogs are retained without comparison.",
       "test_evidence": [
-        "test_provider_management.py"
+        "test_provider_management.py",
+        "test_catalog_observations.py",
+        "test_manager_catalog_observations.py"
       ],
       "online_acceptance": "2026-11-12: XingAPI /models read succeeded; six exact IDs; catalog presence only."
     },
@@ -106,7 +111,7 @@
         "C07"
       ],
       "status": "partial",
-      "limitations": "Native catalog, authoring and local render/delivery forms share core services. The explicit task panel adds token-bound route/budget previews, numbered once/project choices, generation/recovery/retry and existing reconciliation/settlement receipt import. Portable EXE verified locally; clean-machine, human visual review, temporal-slice form and broader task controls remain pending. Widget-owned variables remove Tcl traces on UI teardown; catalog/media workers carry service data only and detach callbacks on closure. CPython interpreter lifetime is guarded across later worker GC; this does not establish human or clean-machine acceptance. Close/reload checks preserve unapplied config, price, credential, authoring, local-import and policy drafts on cancellation; local transactions block user closure while remote task panels remain detachable. Invalid JSON now opens an offline repair editor with byte-bound preview/apply, exact original backups, protected known identities and read-only newer formats. Unparseable originals cannot prove all historical identities. Forced-exit draft persistence and broader task/selection drafts remain open. Task-oriented catalog filters share scalar/count validators, explain exclusions and unknown contracts, and change the view only; they do not establish credentials, complete references or request readiness.",
+      "limitations": "Native catalog, authoring and local render/delivery forms share core services. The explicit task panel adds token-bound route/budget previews, numbered once/project choices, generation/recovery/retry and existing reconciliation/settlement receipt import. Portable EXE verified locally; clean-machine, human visual review, temporal-slice form and broader task controls remain pending. Widget-owned variables remove Tcl traces on UI teardown; catalog/media workers carry service data only and detach callbacks on closure. CPython interpreter lifetime is guarded across later worker GC; this does not establish human or clean-machine acceptance. Close/reload checks preserve unapplied config, price, credential, authoring, local-import and policy drafts on cancellation; local transactions block user closure while remote task panels remain detachable. Invalid JSON now opens an offline repair editor with byte-bound preview/apply, exact original backups, protected known identities and read-only newer formats. Unparseable originals cannot prove all historical identities. Forced-exit draft persistence and broader task/selection drafts remain open. Task-oriented catalog filters share scalar/count validators, explain exclusions and unknown contracts, and change the view only; they do not establish credentials, complete references or request readiness. Catalog changes have a native cached/live viewer with configuration/source checks before unsaved draft import.",
       "test_evidence": [
         "test_catalog_presentation.py",
         "test_manager_catalog_ui.py",
@@ -118,7 +123,8 @@
         "test_config_repair.py",
         "test_manager_repair.py",
         "test_catalog_task_filter.py",
-        "test_manager_task_filter.py"
+        "test_manager_task_filter.py",
+        "test_manager_catalog_observations.py"
       ],
       "online_acceptance": "No generation or provider connection is performed by filtering/comparison. Current live bindings and reference failures remain recorded independently; UI readiness does not certify model quality."
     },
