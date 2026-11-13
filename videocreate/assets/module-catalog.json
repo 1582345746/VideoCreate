@@ -328,7 +328,7 @@
         "H07"
       ],
       "status": "partial",
-      "limitations": "Native timeline forms edit video/static-image source mappings, segments, audio, captions and overlays. Static holds preserve original image hashes, normalize EXIF/alpha only for rendering and have distinct image versus final-video review. Shared canvas limits match rendering. Saving does not render or regenerate; explicit local rendering runs in a background worker. Waveform/playback/drag trimming, dynamic masking/tracking and speed curves remain pending. V3 format 2 adds adjacent crossfade/fade-black/wipe-left with explicit source-audio crossfade/cut, frame-grid validation, overlap-aware captions/metrics, mapped-review exclusion and pilot/animatic timing. Legacy direct timeline commands may ignore these fields; use dev36+. Filters/loudness and advanced effects remain incomplete.",
+      "limitations": "Native timeline forms edit video/static-image source mappings, segments, audio, captions and overlays. Static holds preserve original image hashes, normalize EXIF/alpha only for rendering and have distinct image versus final-video review. Saving does not render or regenerate; explicit local rendering runs in a background worker. Format 2 adds adjacent picture/source-audio transitions, overlap-aware captions/metrics and review boundaries. Format 3 (dev37+) adds ordered global/segment filter presets, final-mix two-pass loudness with actual encoded measurements, and literal mapped-caption burning. Modified final layers cannot certify raw sources; no automatic content/listening approval. Burned cues must not overlap; text-card previews show finishing plans only. Legacy edit-plan migration, waveform/playback/drag trimming, custom effects, masking/tracking and speed curves remain incomplete.",
       "test_evidence": [
         "test_editing_workflow.py",
         "test_v3_pipeline.py",
@@ -336,7 +336,8 @@
         "test_manager_project_actions.py",
         "test_static_image_timeline.py",
         "test_manager_static_images.py",
-        "test_timeline_transitions.py"
+        "test_timeline_transitions.py",
+        "test_timeline_finishing.py"
       ],
       "online_acceptance": "Not claimed by source implementation; consult binding receipts and the dated acceptance report."
     },

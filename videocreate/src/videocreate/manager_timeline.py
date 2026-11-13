@@ -82,10 +82,19 @@ class TimelineEditor:
         self.manager=manager;self.book=book;self.original=copy.deepcopy(value)
         sources={job['id']:job for job in bundle['generation-plan']['jobs']}
         sources.update({item['id']:item for item in bundle['generation-plan'].get('local_sources',[])})
-        remaining={key:item for key,item in value.items() if key not in {'clips','segments','transitions','audio_tracks','subtitles','overlays'}}
+        remaining={key:item for key,item in value.items() if key not in {'clips','segments','transitions','audio_tracks','subtitles','overlays','filters','loudness','subtitle_render'}}
         self.spec=ExactFields(book,'成片画布',remaining,[('fps','输出帧率（如 24/1）','text'),
             ('width','画布宽（像素）','integer'),('height','画布高（像素）','integer')],
             '成片规格与模型生成规格分开。输出帧率不是源片采样率，也不会补出真实动作细节。')
+        from .timeline.finishing import FILTERS, KEYS, STYLES
+        self.finishing=ExactFields(book,'滤镜、响度与字幕烧录',{k:value[k] for k in KEYS if k in value},[
+            ('filters','全局滤镜（英文名按顺序逗号分隔）','list'),
+            ('loudness.target_lufs','完整混音目标 LUFS（-24 至 -10；留空保留）','number'),
+            ('subtitle_render.burn','是否将字幕烧入画面','boolean'),
+            ('subtitle_render.style','字幕样式（烧录开关需同时填写）',STYLES)],
+            '滤镜：'+', '.join(FILTERS)+'。全局滤镜→片段滤镜→转场→叠加→字幕→完整混音响度处理。'
+            '字幕仍另存 SRT；烧录使用最终成片时间，重叠字幕请合并或重新定位。响度处理记录编码前后测量，静音跳过；不批准听感。'
+            '删除对应字段即可关闭处理。新设置保存为时间线格式 3；请使用当前技能渲染。')
         def page(title):
             result=ttk.Frame(book);book.add(result,text=title);return result
         self.clips=OrderedItems(manager,page('剪辑素材'),value['clips'],'素材映射',
@@ -96,6 +105,7 @@ class TimelineEditor:
             ('shot_id','镜头 ID',shots),('clip_id','剪辑素材 ID',tuple(c['id'] for c in self.clips.read())),
             ('source_in','保留源片开始秒','number'),('source_out','保留源片结束秒','number'),
             ('rate','播放速度（缺省 1）','number'),('source_audio','原片声音',('mute','retime','preserve')),
+            ('filters','片段滤镜（英文名按顺序逗号分隔）','list'),
             ('cut_reason','剪辑理由','multiline')],
             '按列表顺序连续播放，区间为 [开始,结束)。静态图片使用开始 0、结束=停留秒数、速度 1、原片静音；独立音轨另接配音。有台词的视频保持自然语速。')
         self.segments=OrderedItems(manager,self.segment_page,value['segments'],'片段',segment,
@@ -128,7 +138,7 @@ class TimelineEditor:
         self.overlays=OrderedItems(manager,page('文字与图片叠加'),value.get('overlays',[]),'叠加',
             lambda b,v:FileFields(manager,b,'画面叠加',v,[('id','叠加 ID','text'),('text','文字（与图片路径二选一）','multiline'),
                 ('path','项目内图片路径','text'),('start','成片开始秒','number'),('end','成片结束秒','number'),
-                ('position','位置',('top','center','bottom'))],root,'叠加进入本地渲染；字幕另存为 SRT，字幕不会自动烧录。'),
+                ('position','位置',('top','center','bottom'))],root,'叠加进入本地渲染；字幕另存为 SRT，可在滤镜、响度与字幕烧录页显式开启烧录。'),
             lambda items:{'id':identity(items,'overlay'),'text':'','start':0,'end':1,'position':'bottom'})
         self.graph_page=page('时间线示意');self.note=ui.StringVar(self.graph_page)
         ttk.Label(self.graph_page,text='按当前未保存的编辑绘制比例示意；点击画面片段定位表单。此处没有播放视频或声音。',wraplength=850).pack(anchor='w',padx=12,pady=8)
@@ -143,6 +153,9 @@ class TimelineEditor:
 
     def read(self):
         value=self.spec.read();value.update(clips=self.clips.read(),segments=self.segments.read())
+        value.update(self.finishing.read())
+        from .timeline.finishing import present
+        if present(value):value['format_version']=3
         transitions=self.transitions.read()
         if transitions or 'transitions' in self.original:value['transitions']=transitions
         if transitions and value.get('format_version',1)==1:value['format_version']=2
@@ -173,6 +186,8 @@ class TimelineEditor:
         self.note.set(f'成片 {duration:.3f} 秒；画面条按源区间 / 速度换算。声音与绝对字幕保持成片定位；保存后仍需渲染和实际审片。')
         if report.get('transitions'):
             self.note.set(self.note.get()+f" 转场共重叠 {report['transition_overlap_seconds']:.3f} 秒；紫色条标出过渡区间。")
+        if report.get('finishing'):
+            self.note.set(self.note.get()+' 已填写滤镜/声音/字幕处理；示意条不呈现实际处理效果，请渲染后播放核对。')
         def x(seconds):return left+width*seconds/duration if duration else left
         for label,y in [('画面',40),('音轨',100),('字幕',160),('叠加',220)]:self.canvas.create_text(32,y+12,text=label)
         for i,item in enumerate(report['segments']):

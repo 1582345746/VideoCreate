@@ -58,7 +58,23 @@ Output duration equals the sum of retained playback durations minus overlaps. So
 
 Text-card HTML and MP4 previews share overlap timing and remain unverified plans. Animation pilots retain transitions only between selected adjacent segments. Source captions retain their anchors; overlapping absolute events are mapped once when offsets agree. A trim that gives an overlapping event conflicting placements is rejected for an explicit full-timeline edit. Pilot trims must still satisfy the frame grid and cannot cut a spoken line.
 
-Use dev36 or newer for format 2 transition timelines. Older full plan validators reject the new fields, but some old direct timeline commands ignore unknown fields and can render hard cuts. Do not use those commands to validate or render this format. Project schema remains v3; format 2 does not migrate raw media, provider tasks or credentials. This release does not migrate legacy edit-plan files, add free-form FFmpeg filters, normalize loudness or implement all advanced effects.
+Use dev36 or newer for format 2 transition timelines. Older full plan validators reject the new fields, but some old direct timeline commands ignore unknown fields and can render hard cuts. Do not use those commands to validate or render this format. Project schema remains v3; format 2 does not migrate raw media, provider tasks or credentials. Legacy edit-plan migration and advanced effects remain separate.
+
+## Filters, loudness and burned subtitles
+
+**剪辑时间线与声音 → 滤镜、响度与字幕烧录** shares the timeline authoring preview/save service with CLI. New controls require `format_version=3` and dev37 or newer. Existing formats 1 and 2 retain their behavior. Example fragment:
+
+```json
+{"format_version":3,"filters":["warm","sharpen"],"loudness":{"target_lufs":-16},"subtitle_render":{"burn":true,"style":"clean"}}
+```
+
+`filters` is an ordered list of unique presets: `cinematic`, `warm`, `cool`, `vivid`, `monochrome`, `denoise`, `sharpen`. An empty list leaves picture unchanged. Each segment may also carry its own list. Rendering applies global then segment presets after canvas normalization and before transitions, followed by overlays and burned captions. These fixed presets reuse the older editor's expressions; arbitrary FFmpeg expressions are rejected. Global filtering therefore affects each segment before a fade, rather than filtering an already composited frame.
+
+Omit `loudness` to preserve the current mix level. When set, `target_lufs` must be finite from -24 to -10. The final mixed audio is measured, processed with a second loudnorm pass (LRA target 11 LU, true peak limit -1.5 dBTP), encoded as stereo AAC at 48 kHz, and measured again from the actual output bytes. The manifest records requested versus actual levels and `within_1_lu`; requested loudness is not a guarantee of perceived quality or encoded peak. Silence is preserved with `skipped_silence` and null LUFS/peak. Audio too short for finite gated measurement fails before replacing the prior deliverable; leave normalization unset or revise the clip explicitly. No automated listening approval follows from these measurements.
+
+`subtitle_render` requires both a `burn` boolean and a `style` of `clean`, `cinematic` or `news`. SRT export continues in both modes. Burned captions use the mapped final cue times, including source trimming, rate and transition overlap; end times are exclusive. Captions render through Pillow with local font fallback; text is literal and never becomes an FFmpeg expression or external subtitle path. Styles provide white text on a dark box, outlined white text, or warm-yellow text on a dark box. Long text must fit the canvas; split it explicitly. Simultaneous mapped burned cues are rejected for explicit merging/retiming; SRT-only cues may overlap. Captions sit above authored overlays. Platform fonts and actual typography still need visual review.
+
+The manifest binds the complete timeline and finishing report. Finishing edits leave raw media, original source reviews, provider jobs and ledger intact, while final approval becomes stale. Filtered/burned picture and normalized sound cannot certify unmodified source layers through mapped-final evidence. Animation pilots retain controls and selected segment filters; text-card previews expose planned effects while marking `finishing_effects_rendered=false`. Render actual footage to inspect the result. Removing settings disables processing; GUI no-op opening preserves explicit empty lists. This adds no migration from legacy `edit-plan.json`, custom filters, speed curves, tracking or automatic artistic approval.
 
 ## Continue the current project
 

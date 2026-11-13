@@ -753,6 +753,15 @@ def main():
                         form.transitions.add();form.draw()
                         if not form.graph_data['ok'] or len(form.graph_data.get('transitions',[]))!=1:
                             raise ConfigError('Packaged transition form did not produce a valid overlap preview')
+                        from .manager_timeline import set_field
+                        set_field(form.finishing,'filters','warm,sharpen')
+                        set_field(form.finishing,'loudness.target_lufs','-18')
+                        set_field(form.finishing,'subtitle_render.burn','是')
+                        set_field(form.finishing,'subtitle_render.style','clean')
+                        form.draw()
+                        if (not form.graph_data['ok'] or form.read()['format_version']!=3
+                                or form.graph_data['finishing']['loudness']!={'target_lufs':-18}):
+                            raise ConfigError('Packaged finishing controls did not produce a valid format 3 preview')
                     dialog.withdraw();root.update_idletasks();dialog.destroy()
                 dialog=open_editor(manager,authored,'director',assets_only=True)
                 dialog.withdraw();root.update_idletasks();dialog.destroy()
@@ -791,6 +800,7 @@ def main():
                 'generation_job_forms_created': True,
                 'timeline_forms_created': True,
                 'timeline_transition_form_previewed': True,
+                'timeline_finishing_form_previewed': True,
                 'local_project_action_controls': local_controls,
                 'continuation_inspection_form_created': True,
                 'generation_execution_panel_created': True,

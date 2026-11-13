@@ -24,7 +24,7 @@ def preview(root: Path, bundle: dict, *, video: bool = False) -> dict:
     title = html.escape(bundle["project"]["title"])
     page = '''<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>VideoCreate · TITLE</title><style>body{background:#10151b;color:#ebeee9;font:18px system-ui;max-width:1050px;margin:40px auto;padding:20px}small{color:#93a6b8}#card{background:#1b2530;border-radius:20px;padding:32px;min-height:350px}h1{font-size:30px}h2{color:#e1b86d}button{padding:12px 25px;background:#e1b86d;border:0;border-radius:8px}input{width:100%}.meta{color:#97c8ba}#strip{display:flex;gap:8px;flex-wrap:wrap}#strip button{background:#263747;color:white;margin:8px 0}</style>
-<h1>TITLE</h1><p><small>无付费生成的文字分镜预演 · draft_preview · 不代表人物、动作、声音已经实现</small></p>
+<h1>TITLE</h1><p><small>无付费生成的文字分镜预演 · draft_preview · 不代表人物、动作、声音已经实现。滤镜、响度和字幕烧录效果以实际素材渲染为准。</small></p>
 <div id="card"></div><p><button id="play">播放预演</button> <span id="clock"></span></p><input id="seek" type="range" min="0" step="0.01"><div id="strip"></div>
 <script>const cards=DATA;let t=0,playing=false,last=0;const duration=cards.at(-1).timeline_end,seek=document.getElementById('seek'),card=document.getElementById('card');seek.max=duration;
 function text(tag,value,cls){const e=document.createElement(tag);e.textContent=value;if(cls)e.className=cls;card.append(e)}
@@ -37,6 +37,10 @@ function tick(now){if(playing){if(last)t=Math.min(duration,t+(now-last)/1000);if
     path.write_text(page, encoding="utf-8")
     result = {"ok": True, "status": "draft_preview", "html": str(path), "duration": plan["duration"],
               "paid_creates": 0, "content_verified": False, "plan_hash": content_hash(bundle)}
+    from ..timeline.finishing import KEYS, present
+    if present(bundle['timeline']):
+        result['finishing_plan']={key:bundle['timeline'][key] for key in KEYS if key in bundle['timeline']}
+        result['finishing_effects_rendered']=False
     if video:
         result["video"] = str(render_cards(output, cards, bundle["project"]["title"], plan=plan))
     atomic_json(output / "animatic.manifest.json", result)

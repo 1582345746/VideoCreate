@@ -87,6 +87,13 @@ def script_export(root):
             lines.extend([segment['id']+' · '+('本地静态图片' if source and source['kind']=='image' else '本地视频' if source else '生成任务')+' '+identity,
                 '路径：'+(source['path'] if source else clip.get('path','按已选候选解析')),
                 ('图片停留' if source and source['kind']=='image' else '原片')+f" {segment['source_in']}–{segment['source_out']} 秒 → 成片 {segment['timeline_start']}–{segment['timeline_end']} 秒",''])
+    from .timeline.finishing import KEYS, present
+    if present(bundle['timeline']):
+        lines.extend(['## 成片处理计划','','全局滤镜→片段滤镜→转场→叠加→字幕→完整混音响度处理。实际效果仍须渲染、播放和听审。',''])
+        for key in KEYS:
+            if key in bundle['timeline']:lines.append(key+'：'+str(bundle['timeline'][key]))
+        for segment in bundle['timeline']['segments']:
+            if segment.get('filters'):lines.append(segment['id']+' filters：'+', '.join(segment['filters']))
     text = target.with_suffix('.md')
     text.write_text('\n'.join(lines), encoding='utf-8')
     return {'ok': True, 'script': str(target), 'reading_copy': str(text), 'source_hash': value['source_hash'], 'paid_creates': 0}

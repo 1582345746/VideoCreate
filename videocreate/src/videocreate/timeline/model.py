@@ -19,7 +19,8 @@ def rational(value: Any) -> Fraction:
 
 
 def validate_timeline(timeline: dict[str, Any]) -> list[str]:
-    errors = []
+    from .finishing import validate as validate_finishing
+    errors = validate_finishing(timeline)
     for key,default in [('width',720),('height',1280)]:
         value=timeline.get(key,default)
         if not isinstance(value,int) or isinstance(value,bool) or value%2 or not 64<=value<=4096:
@@ -109,13 +110,18 @@ def validate_timeline(timeline: dict[str, Any]) -> list[str]:
             errors.append(item["id"] + ": overlay interval outside timeline")
         if item.get("position", "bottom") not in {"top", "center", "bottom"}:
             errors.append(item["id"] + ": invalid overlay position")
+    if not errors:
+        from .finishing import captions
+        from ..config.storage import ConfigError
+        segments, _, _ = _mapped_segments(timeline)
+        try:
+            captions(timeline, _mapped_cues(timeline, segments))
+        except ConfigError as exc:
+            errors.append(str(exc))
     return errors
 
 
-def mapping(timeline: dict[str, Any]) -> dict[str, Any]:
-    errors = validate_timeline(timeline)
-    if errors:
-        raise ValueError("; ".join(errors))
+def _mapped_segments(timeline):
     from .transitions import layout
     _, boundaries = layout(timeline, {s['id']:(s['source_out']-s['source_in'])/s.get('rate',1)
                                       for s in timeline['segments']})
@@ -128,6 +134,10 @@ def mapping(timeline: dict[str, Any]) -> dict[str, Any]:
             transitions.append({**record, 'timeline_start':cursor, 'timeline_end':cursor+record['duration']})
         segments.append({**segment, "timeline_start": cursor, "timeline_end": cursor + duration, "duration": duration})
         cursor += duration
+    return segments, transitions, cursor
+
+
+def _mapped_cues(timeline, segments):
     by_id = {s["id"]: s for s in segments}
     cues = []
     for cue in timeline.get("subtitles", []):
@@ -135,6 +145,15 @@ def mapping(timeline: dict[str, Any]) -> dict[str, Any]:
             seg = by_id[cue["segment_id"]]
             cue = {**cue, "start": source_to_timeline(seg, cue["source_start"]), "end": source_to_timeline(seg, cue["source_end"])}
         cues.append(cue)
+    return cues
+
+
+def mapping(timeline: dict[str, Any]) -> dict[str, Any]:
+    errors = validate_timeline(timeline)
+    if errors:
+        raise ValueError("; ".join(errors))
+    segments, transitions, cursor = _mapped_segments(timeline)
+    cues = _mapped_cues(timeline, segments)
     return {"timebase": "seconds; source and timeline intervals are half-open", "fps": timeline["fps"],
             "duration": cursor, "segments": segments, "subtitles": cues, "audio_tracks": timeline.get("audio_tracks", []),
             **({'transitions':transitions,'transition_overlap_seconds':sum(r['duration'] for r in transitions)} if transitions else {})}

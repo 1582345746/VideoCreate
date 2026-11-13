@@ -89,7 +89,7 @@ class TransitionMappingTests(unittest.TestCase):
                          ('kind','unsupported'),('kind',[]),('audio',{}),('extra','ignored')]:
             value=timeline();value['transitions'][0][key]=item
             with self.subTest(key=key,item=str(item)):self.assertTrue(validate_timeline(value))
-        for version in (1,3,True,'2'):
+        for version in (1,4,True,'2'):
             value=timeline();value['format_version']=version
             with self.subTest(version=version):self.assertTrue(validate_timeline(value))
 

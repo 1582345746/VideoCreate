@@ -5,6 +5,8 @@ VISUAL_DESIGN_FIELDS = ('identity', 'wardrobe', 'expression_range', 'visual_styl
 PHYSICAL_DESIGN_FIELDS = ('scale', 'placement', 'contact_constraints')
 
 def plan_schema():
+    from ..timeline.finishing import FILTERS, STYLES
+    filters = {"type": "array", "items": enum(*FILTERS), "maxItems": len(FILTERS), "uniqueItems": True}
     number = {"type": "number", "minimum": 0}
     state = {"type": "object"}
     line = obj({"speaker": STR, "text": STR, "on_screen": BOOL, "start": number, "end": number,
@@ -46,7 +48,7 @@ def plan_schema():
         "depends_on": STRING_LIST, "required_quality_checks": STRING_LIST}, ("id", "shot_ids", "operation", "seconds"))
     segment = obj({"id": STR, "shot_id": STR, "clip_id": STR, "source_in": number, "source_out": number,
         "rate": {"type": "number", "exclusiveMinimum": 0}, "source_audio": enum("mute", "retime", "preserve"),
-        "cut_reason": STR}, ("id", "shot_id", "clip_id", "source_in", "source_out", "cut_reason"))
+        "cut_reason": STR, "filters": filters}, ("id", "shot_id", "clip_id", "source_in", "source_out", "cut_reason"))
     track = obj({"id": STR, "kind": enum("dialogue", "ambience", "music", "effect"), "clip_id": STR, "path": STR,
         "source_in": number, "source_out": number, "timeline_start": number, "gain_db": {"type": "number"}},
         ("id", "kind", "source_in", "source_out", "timeline_start"))
@@ -93,7 +95,10 @@ def plan_schema():
                 "frame_count": {"type": ["string", "null"]}, "codec": STR, "format": enum('PNG', 'JPEG', 'WEBP')},
                 ("width", "height", "has_audio"))},
             ("id", "kind", "path", "sha256", "shot_ids", "media")))}, ("jobs",)),
-        "timeline": obj({"format_version": {"type":"integer","enum":[1,2]}, "fps": STR, "width": POS, "height": POS,
+        "timeline": obj({"format_version": {"type":"integer","enum":[1,2,3]}, "fps": STR, "width": POS, "height": POS,
+            "filters": filters,
+            "loudness": obj({"target_lufs": {"type":"number","minimum":-24,"maximum":-10}}, ('target_lufs',)),
+            "subtitle_render": obj({"burn": BOOL,"style": enum(*STYLES)}, ('burn','style')),
             "clips": array(obj({"id": STR, "job_id": STR, "path": STR}, ("id", "job_id"))),
             "segments": array(segment), "audio_tracks": array(track), "subtitles": array(cue),
             "transitions": array(obj({"id":STR,"left_segment_id":STR,"right_segment_id":STR,

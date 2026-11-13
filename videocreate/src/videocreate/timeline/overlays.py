@@ -20,7 +20,8 @@ def raster(root, item, width, height, target):
         if not font_path:
             raise ConfigError("Overlay text needs a local TrueType font")
         draw = ImageDraw.Draw(canvas)
-        font = ImageFont.truetype(str(font_path), max(14, height//24))
+        style = item.get('caption_style')
+        font = ImageFont.truetype(str(font_path), max(14, height//(22 if style else 24)))
         lines, line = [], ""
         for char in item["text"]:
             if char == "\n" or draw.textlength(line+char, font=font) > width*.88:
@@ -36,8 +37,10 @@ def raster(root, item, width, height, target):
             raise ConfigError("Overlay text too long for canvas; split timed overlays")
         x = (width-tw)/2
         y = height*.06 if item.get("position") == "top" else height-th-height*.06 if item.get("position", "bottom") == "bottom" else (height-th)/2
-        draw.rounded_rectangle((x-18, y-12, x+tw+18, y+th+12), radius=8, fill=(0,0,0,165))
-        draw.multiline_text((x-box[0],y-box[1]), text, font=font, fill="white", spacing=8, align="center")
+        if style != 'cinematic':
+            draw.rounded_rectangle((x-18, y-12, x+tw+18, y+th+12), radius=8, fill=(0,0,0,200 if style == 'news' else 165))
+        draw.multiline_text((x-box[0],y-box[1]), text, font=font, fill='#ffe08a' if style == 'news' else 'white',
+                            spacing=8, align="center", stroke_width=1 if style == 'cinematic' else 0, stroke_fill='black')
     canvas.save(target)
 
 

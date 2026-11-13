@@ -81,6 +81,11 @@ def render(root: Path, bundle: dict, state: dict, *, output_name: str = "preview
         raise ConfigError("Unknown edit scope")
     timeline = bundle["timeline"]
     plan = mapping(timeline)
+    from .finishing import captions, filter_chain, normalize, present
+    burned_cues = captions(timeline, plan['subtitles'])
+    finishing = {'global_filters': timeline.get('filters', []),
+        'segment_filters': {s['id']: s['filters'] for s in timeline['segments'] if s.get('filters')},
+        'subtitle_render': {**timeline.get('subtitle_render', {'burn': False}), 'burned_cues': len(burned_cues)}}
     if bundle.get('generation-plan', {}).get('local_sources'):
         from ..planning.project import validate_plan
         check = validate_plan(bundle, root)
@@ -130,6 +135,9 @@ def render(root: Path, bundle: dict, state: dict, *, output_name: str = "preview
             else:
                 args += ["-ss", str(seg["source_in"]), "-t", str(duration), "-i", str(path)]
             filters = f"setpts=(PTS-STARTPTS)/{rate},scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps={timeline['fps']}"
+            selected_filters = filter_chain(timeline, seg)
+            if selected_filters:
+                filters += ',' + selected_filters
             if source["has_audio"] and seg.get("source_audio", "mute") != "mute":
                 args += ["-af", "asetpts=PTS-STARTPTS," + atempo(rate)
                     + f",apad=whole_dur={seg['duration']},atrim=duration={seg['duration']}", "-map", "0:a:0"]
@@ -178,10 +186,14 @@ def render(root: Path, bundle: dict, state: dict, *, output_name: str = "preview
             run(args)
         else:
             run([ffmpeg, "-v", "error", "-y", "-i", str(base), "-c", "copy", "-movflags", "+faststart", str(final_temp)])
-        if timeline.get("overlays"):
+        if timeline.get("overlays") or burned_cues:
             from .overlays import composite
-            composite(root, timeline, final_temp, folder / "composited.mp4", folder, ffmpeg, plan["duration"])
+            composite(root, {**timeline, 'overlays': timeline.get('overlays', []) + burned_cues},
+                      final_temp, folder / "composited.mp4", folder, ffmpeg, plan["duration"])
             final_temp = folder / "composited.mp4"
+        if 'loudness' in timeline:
+            final_temp, finishing['loudness'] = normalize(ffmpeg, final_temp, folder / 'normalized.mp4',
+                                                        timeline['loudness']['target_lufs'], plan['duration'], run)
         final_media = probe(final_temp)
         if plan.get('transitions'):
             from fractions import Fraction
@@ -199,6 +211,8 @@ def render(root: Path, bundle: dict, state: dict, *, output_name: str = "preview
         "source_kinds": kinds,
         "auxiliary_hashes": auxiliary,
         "fps_report": fps_notes, "technical_decode": "pass", "audio_content": "unverified", "content": "unverified", "paid_creates": 0}
+    if present(timeline):
+        manifest['finishing'] = finishing
     if "animation" in bundle:
         from ..animation.voices import profiles_hash
         manifest["animation_voice_cast_hash"] = profiles_hash(root, bundle)

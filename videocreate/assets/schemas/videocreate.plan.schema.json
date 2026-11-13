@@ -1096,7 +1096,8 @@
           "type": "integer",
           "enum": [
             1,
-            2
+            2,
+            3
           ]
         },
         "fps": {
@@ -1109,6 +1110,58 @@
         "height": {
           "type": "integer",
           "minimum": 1
+        },
+        "filters": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "cinematic",
+              "warm",
+              "cool",
+              "vivid",
+              "monochrome",
+              "denoise",
+              "sharpen"
+            ]
+          },
+          "maxItems": 7,
+          "uniqueItems": true
+        },
+        "loudness": {
+          "type": "object",
+          "properties": {
+            "target_lufs": {
+              "type": "number",
+              "minimum": -24,
+              "maximum": -10
+            }
+          },
+          "required": [
+            "target_lufs"
+          ],
+          "additionalProperties": false
+        },
+        "subtitle_render": {
+          "type": "object",
+          "properties": {
+            "burn": {
+              "type": "boolean"
+            },
+            "style": {
+              "type": "string",
+              "enum": [
+                "clean",
+                "cinematic",
+                "news"
+              ]
+            }
+          },
+          "required": [
+            "burn",
+            "style"
+          ],
+          "additionalProperties": false
         },
         "clips": {
           "type": "array",
@@ -1168,6 +1221,23 @@
               },
               "cut_reason": {
                 "type": "string"
+              },
+              "filters": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "cinematic",
+                    "warm",
+                    "cool",
+                    "vivid",
+                    "monochrome",
+                    "denoise",
+                    "sharpen"
+                  ]
+                },
+                "maxItems": 7,
+                "uniqueItems": true
               }
             },
             "required": [
