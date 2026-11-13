@@ -97,7 +97,7 @@ def verify_quality_task(binding_fingerprint: str, receipt: dict) -> str:
     return str(project_root)
 
 
-def record(store_root: Path, binding, receipt: dict) -> dict:
+def _validate_receipt(binding,receipt):
     errors = quality_method_errors(receipt)
     if errors:
         raise ConfigError("; ".join(errors))
@@ -118,6 +118,11 @@ def record(store_root: Path, binding, receipt: dict) -> dict:
     if stage in {"smoke", "quality"} and receipt["result"] == "pass":
         if not receipt.get("attempt_id") or not receipt.get("task_id"):
             raise ConfigError("Generation/quality evidence requires original attempt_id and provider task_id")
+    return stage
+
+
+def record(store_root: Path, binding, receipt: dict) -> dict:
+    stage=_validate_receipt(binding,receipt)
     if stage == "quality":
         project_root = verify_quality_task(binding.snapshot()["fingerprint"], receipt)
     else:
@@ -146,6 +151,7 @@ def status(store_root: Path, binding, *, operation=None) -> dict:
                 continue
             if receipt["stage"] not in rows or receipt["binding_fingerprint"] != binding.snapshot()["fingerprint"]:
                 raise ConfigError("Mismatched evidence")
+            _validate_receipt(binding,receipt)
             verified_evidence(receipt["evidence"])
             if receipt["stage"] == "quality":
                 verify_quality_task(binding.snapshot()["fingerprint"], receipt)

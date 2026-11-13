@@ -70,7 +70,7 @@ class Manager:
                               ('复制为新上游', lambda: self.edit_upstream(copy_from=self.current_upstream)),
                               ('管理凭据', self.credential), ('归档 / 恢复上游', self.archive_upstream),
                               ('只读检查 / 导入目录', self.discover), ('查看已保存目录', lambda:self.discover(refresh=False)),
-                              ('新建制作项目', self.new_project), ('项目与任务', self.project_panel),
+                              ('脱敏诊断导出', self.diagnostics_panel), ('新建制作项目', self.new_project), ('项目与任务', self.project_panel),
                               ('角色与素材库', self.library_panel), ('迁移旧剪辑计划', self.legacy_edit_panel)]:
             ttk.Button(left, text=title, command=action).pack(fill='x', pady=(7, 0))
         ttk.Button(left, text='本机素材与 HTTPS 直链', command=self.media_panel).pack(fill='x', pady=(7, 0))
@@ -520,6 +520,10 @@ class Manager:
         from .manager_catalog import CatalogPanel
         return CatalogPanel(self,self.current_upstream,refresh=refresh).win
 
+    def diagnostics_panel(self):
+        from .manager_diagnostics import DiagnosticsPanel
+        return DiagnosticsPanel(self).win
+
     def legacy_edit_panel(self):
         from .manager_legacy_edit import open_form
         return open_form(self)
@@ -775,6 +779,38 @@ def main():
                         or catalog_path.read_bytes()!=catalog_bytes):
                     raise ConfigError('Catalog import did not remain a source-bound, unsaved disabled draft')
                 catalog_root.destroy()
+                # Diagnostics exports only the displayed allowlisted report.
+                diagnostic_root=tk.Toplevel(root);diagnostic_root.withdraw()
+                diagnostic_manager=Manager(diagnostic_root,catalog_path)
+                diagnostic_window=diagnostic_manager.diagnostics_panel();diagnostic_window.withdraw()
+                diagnostic_form=diagnostic_window.diagnostics_panel;diagnostic_form.preview()
+                deadline=time.monotonic()+10
+                while diagnostic_form.call.busy and time.monotonic()<deadline:root.update();time.sleep(.005)
+                if not diagnostic_form.pending or diagnostic_form.pending['report']['disclosure']!='anonymous':
+                    raise ConfigError('Diagnostic form did not produce an anonymous preview')
+                diagnostic_report=diagnostic_form.pending['report'];diagnostic_output=Path(temporary)/'diagnostic.json'
+                diagnostic_form.export(diagnostic_output)
+                deadline=time.monotonic()+10
+                while diagnostic_form.call.busy and time.monotonic()<deadline:root.update();time.sleep(.005)
+                if not diagnostic_output.is_file() or load_json(diagnostic_output)!=diagnostic_report or catalog_path.read_bytes()!=catalog_bytes:
+                    raise ConfigError('Diagnostic export did not preserve the preview or saved configuration')
+                diagnostic_bytes=diagnostic_output.read_bytes()
+                diagnostic_form.export(diagnostic_output)
+                deadline=time.monotonic()+10
+                while diagnostic_form.call.busy and time.monotonic()<deadline:root.update();time.sleep(.005)
+                if diagnostic_form.pending is not None or diagnostic_output.read_bytes()!=diagnostic_bytes:
+                    raise ConfigError('Diagnostic form overwrote an existing file')
+                diagnostic_form.preview()
+                deadline=time.monotonic()+10
+                while diagnostic_form.call.busy and time.monotonic()<deadline:root.update();time.sleep(.005)
+                catalog_value['upstreams'][catalog_upstream]['notes']='changed after diagnostic preview'
+                atomic_json(catalog_path,catalog_value)
+                diagnostic_stale=Path(temporary)/'stale-diagnostic.json';diagnostic_form.export(diagnostic_stale)
+                deadline=time.monotonic()+10
+                while diagnostic_form.call.busy and time.monotonic()<deadline:root.update();time.sleep(.005)
+                if diagnostic_form.pending is not None or diagnostic_stale.exists():
+                    raise ConfigError('Diagnostic form exported a stale configuration preview')
+                diagnostic_root.destroy()
                 project = Path(temporary) / 'edit-only'
                 save_bundle(project, create('edit-only', title='Offline import panel smoke'))
                 panel = project_panel(manager, project)
@@ -911,6 +947,8 @@ def main():
                 'task_catalog_filter_exclusions_and_config_preserved': True,
                 'catalog_observation_cached_changes_exercised': True,
                 'catalog_source_bound_unsaved_draft_exercised': True,
+                'diagnostics_anonymous_preview_and_export': True,
+                'diagnostics_stale_preview_and_no_overwrite': True,
                 'configuration_draft_guards_exercised': draft_guards_exercised,
                 'nested_price_draft_guard_exercised': draft_guards_exercised,
                 'configuration_repair_preview_apply_and_return': True,

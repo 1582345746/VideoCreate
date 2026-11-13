@@ -495,6 +495,27 @@
       "limitations": "Release not yet finalized; see current acceptance record.",
       "test_evidence": [],
       "online_acceptance": "Not claimed by source implementation; consult binding receipts and the dated acceptance report."
+    },
+    {
+      "id": "provider-diagnostics",
+      "name": "脱敏诊断预览与导出",
+      "entry_points": [
+        "providers diagnostics",
+        "providers diagnostics-export",
+        "manager"
+      ],
+      "work_packages": [
+        "C06",
+        "J03",
+        "J07"
+      ],
+      "status": "implemented-offline",
+      "limitations": "Allowlisted saved-config, contract, cache and per-operation evidence summaries. Default aliases omit identities; optional model IDs and API host require local preview. No external credential lookup, network or creates. Inline values already saved in JSON are used only for label redaction and omitted. Source and current summaries must match before atomic no-replace export on a local filesystem with hardlink support. Reports do not establish complete request readiness, provider availability, price payment or content quality. Raw logs, task/media URLs and project-wide diagnosis are outside this report.",
+      "test_evidence": [
+        "test_provider_diagnostics.py",
+        "test_manager_diagnostics.py"
+      ],
+      "online_acceptance": "Offline feature; no provider request or generation is made."
     }
   ],
   "work_packages": [

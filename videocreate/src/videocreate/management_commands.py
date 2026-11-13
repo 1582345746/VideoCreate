@@ -9,7 +9,7 @@ def providers_command(argv):
     from .cli import print_result
     from .config import management as m
     parser = argparse.ArgumentParser(prog='videocreate providers')
-    parser.add_argument('action', choices=['list', 'filter', 'compare', 'quotas', 'show', 'migrate', 'save', 'archive', 'restore', 'credential', 'discover', 'catalog-show', 'pricing', 'import-models', 'repair-inspect', 'repair-preview', 'repair-apply'])
+    parser.add_argument('action', choices=['list', 'filter', 'compare', 'quotas', 'show', 'migrate', 'save', 'archive', 'restore', 'credential', 'discover', 'catalog-show', 'pricing', 'import-models', 'diagnostics', 'diagnostics-export', 'repair-inspect', 'repair-preview', 'repair-apply'])
     parser.add_argument('--config', type=Path)
     parser.add_argument('--upstream')
     parser.add_argument('--project', type=Path, help='Register an existing v3 project for local quota accounting')
@@ -35,10 +35,24 @@ def providers_command(argv):
     parser.add_argument('--resolution', default='720p')
     parser.add_argument('--aspect-ratio', default='16:9')
     parser.add_argument('--reason', default='explicit catalog edit')
+    parser.add_argument('--include-identifiers',action='store_true')
+    parser.add_argument('--output',type=Path)
     args = parser.parse_args(argv)
     path = user_config_path(args.config)
     if args.action!='filter' and (args.scenario_file or args.include_excluded or args.query or args.favorites or args.order!='configured'):
         raise ConfigError('Task scenario and catalog view flags require providers filter')
+    if args.action in {'diagnostics','diagnostics-export'}:
+        from . import diagnostics
+        if args.apply or args.preview_token or args.baseline:raise ConfigError('Diagnostics never applies configuration or repair changes')
+        if args.action=='diagnostics':
+            if args.file or args.output or args.token:raise ConfigError('Preview diagnostics first; export it through diagnostics-export')
+            result=diagnostics.preview(path,upstream=args.upstream,include_identifiers=args.include_identifiers)
+        else:
+            if not args.file or not args.output or not args.token:raise ConfigError('Diagnostic export needs --file PREVIEW_JSON --output NEW_JSON --token PREVIEW_TOKEN')
+            if args.upstream or args.include_identifiers:raise ConfigError('Diagnostic export uses the scope and disclosure of the saved preview')
+            result=diagnostics.export(path,load_json(args.file),args.output,token=args.token)
+        print_result(result);return 0
+    if args.include_identifiers or args.output:raise ConfigError('Diagnostic output/disclosure flags require providers diagnostics or diagnostics-export')
     if args.action.startswith('repair-'):
         from .config import repair
         if args.apply:raise ConfigError('Repair uses repair-preview then repair-apply with its preview token')
