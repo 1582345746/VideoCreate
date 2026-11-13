@@ -69,5 +69,6 @@ def open_form(manager, root, *, frames=False, parent=None, completed=lambda resu
             except Exception as exc:channel.put((False,exc))
         threading.Thread(target=worker,daemon=False).start();scheduled[0]=win.after(100,finish)
     submit=ttk.Button(win,text='本地转换并登记到项目',command=apply);submit.pack(pady=12)
-    win.protocol('WM_DELETE_WINDOW',lambda:note.set('正在转换，请等待完成。') if busy[0] else win.destroy())
+    from .manager_drafts import DraftGuard
+    DraftGuard(win,read=form.read,label='GIF 转换参数',busy=lambda:busy[0])
     return win

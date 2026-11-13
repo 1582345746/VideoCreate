@@ -253,16 +253,11 @@ def open_editor(manager,root,layer,completed=None,assets_only=False):
             background(lambda:authoring.save(root,layer,data,source_token=snapshot['source_token'],preview_token=token),saved)
         except (ConfigError,OSError,ValueError) as exc:
             save_button.configure(state='disabled');manager.error(exc)
-    def close():
-        if win.authoring_busy:return
-        try:dirty=read()!=value
-        except (ConfigError,ValueError):dirty=True
-        if dirty and not messagebox.askyesno('未保存的创作修改','关闭并放弃此表单中尚未保存的修改？',parent=win):return
-        win.destroy()
+    from .manager_drafts import DraftGuard
+    guard=DraftGuard(win,read=read,value=value,label='当前创作层',busy=lambda:win.authoring_busy)
     ttk.Button(actions,text='预览修改影响',command=preview).pack(side='left',padx=6)
     save_button=ttk.Button(actions,text='保存当前创作层',command=save,state='disabled');save_button.pack(side='left',padx=6)
-    ttk.Button(actions,text='关闭',command=close).pack(side='right')
-    win.protocol('WM_DELETE_WINDOW',close)
+    ttk.Button(actions,text='关闭',command=guard.close).pack(side='right')
     # Public widget references support real form interaction without a second UI model.
     win.authoring_read=weakref.proxy(read);win.authoring_form=weakref.proxy(form)
     if layer=='story':win.authoring_events=weakref.proxy(events);win.authoring_states=weakref.proxy(states)
@@ -303,12 +298,7 @@ def open_new(manager,completed=None):
             if completed:completed(result)
         except (ConfigError,OSError,ValueError,TypeError) as exc:manager.error(exc)
     ttk.Button(win,text='创建草稿项目',command=create).pack(pady=12)
-    initial=form.read();initial_parent=parent.get()
-    def close():
-        try:dirty=bool(name.get()) or parent.get()!=initial_parent or form.read()!=initial
-        except (ConfigError,ValueError):dirty=True
-        if dirty and not messagebox.askyesno('未保存的制作需求','关闭并放弃尚未创建的制作需求？',parent=win):return
-        win.destroy()
-    win.protocol('WM_DELETE_WINDOW',close)
+    from .manager_drafts import DraftGuard
+    DraftGuard(win,read=lambda:(name.get(),parent.get(),form.read()),label='尚未创建的制作需求')
     win.authoring_form=weakref.proxy(form);win.authoring_parent=parent;win.authoring_name=name
     return win

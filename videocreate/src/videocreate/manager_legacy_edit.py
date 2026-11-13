@@ -48,4 +48,6 @@ def open_form(manager,*,source=None,completed=lambda result:None):
     ttk.Button(footer,text='按此预览创建 v3 项目',command=apply).pack(side='left',padx=5)
     book.select(form.section)
     win.migration_form,win.migration_call,win.migration_state=form,call,state
+    from .manager_drafts import DraftGuard
+    DraftGuard(win,read=form.read,label='旧剪辑计划迁移位置',busy=lambda:call.busy)
     return win

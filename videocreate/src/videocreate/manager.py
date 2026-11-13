@@ -191,13 +191,17 @@ class Manager:
             self.error(exc)
             return False
 
-    def reload(self):
+    def reload(self, *, discard_forms=False):
+        from .manager_drafts import confirm_close, guards
+        if not discard_forms and not confirm_close(self.window, scope='configuration'):return
         if self.dirty and not messagebox.askyesno('重新载入', '丢弃当前未保存的修改并读取磁盘配置？', parent=self.window):
             return
         try:
             record = service.load(self.path)
             if record['errors']:
                 raise ConfigError('; '.join(record['errors']))
+            for guard in guards(self.window):
+                if guard.scope == 'configuration':guard.window.destroy()
             self.record = record
             self.value = service.migrate(record['config'])
             self.dirty = self.value != record['config']
@@ -209,12 +213,14 @@ class Manager:
         if self.dirty:
             self.error('请先保存或重新载入，避免丢失未保存的修改。')
             return
+        from .manager_drafts import confirm_close
+        if not confirm_close(self.window, scope='configuration'):return
         backup = filedialog.askopenfilename(parent=self.window, title='选择配置备份',
             initialdir=self.path.parent / 'backups', filetypes=[('JSON', '*.json')])
         if backup:
             try:
                 service.restore(self.path, backup, expected_token=self.record['token'])
-                self.reload()
+                self.reload(discard_forms=True)
             except (ConfigError, OSError, ValueError) as exc:
                 self.error(exc)
 
@@ -327,6 +333,8 @@ class Manager:
             except (ConfigError, OSError, ValueError) as exc:
                 self.error(exc)
         ttk.Button(win, text='应用到待保存配置', command=apply).pack(pady=(0, 15))
+        from .manager_drafts import DraftGuard
+        DraftGuard(win, label='上游设置（尚未应用到待保存配置）', scope='configuration')
 
     def edit_selected_binding(self):
         bid = self.selected_binding()
@@ -401,6 +409,8 @@ class Manager:
             except (ConfigError, OSError, ValueError) as exc:
                 self.error(exc)
         ttk.Button(win, text='应用到待保存配置', command=apply).pack(pady=(0, 15))
+        from .manager_drafts import DraftGuard
+        DraftGuard(win, label='型号、参数与价格（尚未应用到待保存配置）', scope='configuration')
 
     def credential(self):
         uid = self.current_upstream
@@ -426,6 +436,8 @@ class Manager:
             except (ConfigError, OSError, ValueError) as exc:
                 self.error(exc)
         ttk.Button(win, text='加密保存并应用引用', command=apply).pack(pady=15)
+        from .manager_drafts import DraftGuard
+        DraftGuard(win, label='本机凭据（尚未加密保存或应用）', scope='configuration')
 
     def favorite(self):
         bid = self.selected_binding()
@@ -595,6 +607,8 @@ class Manager:
         self.changed()
 
     def close(self):
+        from .manager_drafts import confirm_close
+        if not confirm_close(self.window):return
         if self.dirty:
             answer = messagebox.askyesnocancel('未保存修改', '保存配置后关闭？', parent=self.window)
             if answer is None or answer and not self.save():
@@ -671,6 +685,35 @@ def main():
             original = manager.value['bindings'][identities[0]] if identities else {}
             price_form = Prices(book, {k: original[k] for k in ('pricing','listed_pricing') if k in original})
             price_value = price_form.read()
+            draft_guards_exercised = bool(identities and manager.value['upstreams'])
+            if draft_guards_exercised:
+                # Exercise the actual config forms without applying or saving drafts.
+                upstream_id = next(iter(manager.value['upstreams']))
+                original_upstream = manager.current_upstream
+                def last_dialog():
+                    return [w for w in root.winfo_children() if isinstance(w, tk.Toplevel)][-1]
+                manager.edit_upstream(upstream_id)
+                draft_window = last_dialog()
+                if draft_window.draft_guard.dirty():raise ConfigError('Untouched upstream form is dirty')
+                def children(parent):
+                    for child in parent.winfo_children():
+                        yield child
+                        yield from children(child)
+                field = next(w for w in children(draft_window) if isinstance(w, ttk.Entry) and not w.instate(['readonly']))
+                initial_text=field.get();field.insert('end',' synthetic draft')
+                if not draft_window.draft_guard.dirty():raise ConfigError('Unapplied upstream draft was not detected')
+                field.delete(0,'end');field.insert(0,initial_text)
+                draft_window.draft_guard.close()
+                if draft_window.winfo_exists():raise ConfigError('Unchanged config form did not close')
+                manager.edit_binding(identities[0]);draft_window=last_dialog()
+                if draft_window.draft_guard.dirty():raise ConfigError('Untouched binding form is dirty')
+                draft_window.draft_guard.close()
+                manager.current_upstream=upstream_id;manager.credential();draft_window=last_dialog()
+                if draft_window.draft_guard.dirty():raise ConfigError('Untouched credential form is dirty')
+                draft_window.draft_guard.close();manager.current_upstream=original_upstream
+                draft_window=price_form.edit()
+                if draft_window.draft_guard.dirty():raise ConfigError('Untouched price form is dirty')
+                draft_window.draft_guard.close()
             from .runtime.quotas import status as quota_status
             quota_reports = [quota_status(manager.path.parent, manager.value, uid)
                 for uid in manager.value['upstreams']]
@@ -801,6 +844,8 @@ def main():
                 'bindings': len(manager.models.get_children()), 'config_version': manager.value['schema_version'],
                 'comparison_count': comparison_count, 'conditional_tiers': len(price_value.get('pricing',{}).get('tiers',[])),
                 'comparison_and_pricing_forms_created': True,
+                'configuration_draft_guards_exercised': draft_guards_exercised,
+                'nested_price_draft_guard_exercised': draft_guards_exercised,
                 'quota_module_loaded': True, 'quota_upstreams': len(quota_reports),
                 'edit_only_panel_created': True, 'local_source_module_loaded': callable(import_clip),
                 'image_and_gif_panels_created': True,

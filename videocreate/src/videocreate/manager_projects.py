@@ -199,7 +199,8 @@ def open_panel(manager, root):
             scheduled[0]=dialog.after(100,finish)
         submit=ttk.Button(dialog,text='导入并加入时间线',command=apply)
         submit.pack(pady=12)
-        dialog.protocol('WM_DELETE_WINDOW',lambda:note.set('正在导入，请等待完成。') if busy[0] else dialog.destroy())
+        from .manager_drafts import DraftGuard
+        DraftGuard(dialog,read=form.read,label='本地视频导入参数',busy=lambda:busy[0])
     def edit_layer(layer,assets_only=False):
         try:
             from .manager_authoring import open_editor

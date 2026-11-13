@@ -71,6 +71,8 @@ Dialogue examples default to generated video audio (`native-dialogue`), preservi
 
 Run `config init` when a user configuration is missing. Tell the user its exact returned path and use the local `manager` form or `config open` for configuration. `providers migrate` previews v3→v4; `--apply` keeps a backup. The manager stores credentials encrypted on Windows and writes only references to JSON. Never ask for a key in chat. Existing older Windows settings can be migrated with `config migrate --apply`.
 
+Configuration forms stage edits until applied, then the main manager saves them to disk; price tiers apply to their parent model form first. Close/reload checks keep unapplied drafts when cancelled, including on main-window exit. These checks never apply inputs, save credentials, generate media or grant spending. Local copy/save transactions finish before user-requested closure; the remote-task panel retains its existing detachable recovery behavior. See [provider-management.md](references/provider-management.md) for scope and force-exit limits.
+
 `config validate --ready` is an offline API readiness check, not a browser readiness check. `doctor` checks local configuration; `doctor --read-only` additionally queries catalogs without creating media. Catalog visibility does not verify video, audio, likeness or reference semantics. Installation and inspection do not authorize paid probes or optional model downloads.
 
 Each binding selects one canonical model, one named upstream instance, one exact remote model ID and one versioned adapter. Grok/Seedance are model families; Sub2API/NewAPI are platforms. Do not infer a wire protocol from a model name. Read [configuration.md](references/configuration.md) for the single JSON and its limits.

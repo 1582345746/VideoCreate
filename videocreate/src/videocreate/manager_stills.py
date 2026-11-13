@@ -75,4 +75,6 @@ def open_form(manager, root, *, parent=None, source=None, completed=lambda resul
     win.bind('<Destroy>', destroyed, add='+')
     # Expose the form for the existing manager smoke and actual control tests.
     win.still_form, win.still_submit = form, submit
+    from .manager_drafts import DraftGuard
+    DraftGuard(win,read=form.read,label='静态图片导入参数',busy=lambda:busy[0])
     return win

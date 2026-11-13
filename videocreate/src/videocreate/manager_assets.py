@@ -16,8 +16,9 @@ from .manager_screenplay import ExactFields,OptionalFields,OrderedItems,identity
 def local_work(manager,parent,work,done):
     progress=tk.Toplevel(parent);progress.title('整理本地素材');progress.transient(parent.winfo_toplevel());progress.grab_set()
     ttk.Label(progress,text='正在复制、校验本地素材，请稍候。',padding=24).pack(fill='both',expand=True)
-    progress.protocol('WM_DELETE_WINDOW',lambda:None)
     channel=queue.Queue();timer=[None]
+    from .manager_drafts import DraftGuard
+    DraftGuard(progress,read=lambda:None,busy=lambda:timer[0] is not None)
     def destroyed(event):
         if event.widget is progress and timer[0] is not None:
             progress.after_cancel(timer[0]);timer[0]=None

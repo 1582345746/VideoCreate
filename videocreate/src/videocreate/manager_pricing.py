@@ -70,6 +70,8 @@ class Prices(Fields):
                 self.refresh();win.destroy()
             except (ConfigError,ValueError) as exc:messagebox.showerror('档位未保存',str(exc),parent=win)
         ttk.Button(frame,text='应用档位',command=apply).grid(row=len(spec)+1,column=0,columnspan=2,pady=12)
+        from .manager_drafts import DraftGuard
+        DraftGuard(win,label='价格档位（尚未应用到型号表单）',scope='configuration')
         return win
 
     @staticmethod

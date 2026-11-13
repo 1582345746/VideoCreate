@@ -98,6 +98,7 @@ def open_panel(manager):
             manager.changed()
             if manager.save():
                 options.update(media_server.settings(manager.value))
+                guard.reset()
                 refresh()
         except (ConfigError, ValueError, OSError) as exc:
             manager.error(exc)
@@ -153,6 +154,8 @@ def open_panel(manager):
             except (ConfigError, ValueError, OSError) as exc:
                 manager.error(exc)
         ttk.Button(inner, text='仅为这个文件生成链接', command=create).pack(pady=10)
+        from .manager_drafts import DraftGuard
+        DraftGuard(picker, read=lambda:(kind.get(),hours.get()), label='素材链接设置')
 
     def revoke():
         chosen = tree.selection()
@@ -169,5 +172,7 @@ def open_panel(manager):
         button = ttk.Button(bar, text=label, command=action)
         button.pack(side='left', padx=(0, 6))
         buttons.append(button)
+    from .manager_drafts import DraftGuard
+    guard=DraftGuard(win, read=lambda:(url.get(),port.get()), label='素材服务域名与端口', scope='configuration')
     refresh()
     return win

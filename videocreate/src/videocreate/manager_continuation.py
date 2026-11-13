@@ -89,7 +89,10 @@ def open_inspection(manager, root, decision, *, edit_layer, completed, import_vi
     if decision['action'] == 'import-gif' and import_gif:
         ttk.Button(buttons, text='视频转 GIF', command=lambda: import_gif(False)).pack(side='left', padx=4)
         ttk.Button(buttons, text='静帧转 GIF', command=lambda: import_gif(True)).pack(side='left', padx=4)
-    ttk.Button(buttons, text='关闭', command=win.destroy).pack(side='right', padx=4)
+    from .manager_drafts import DraftGuard
+    guard=DraftGuard(win,read=lambda:reason.get() if decision['action']=='inspect-authoring' else None,
+        label='本阶段核对结论',busy=lambda:busy[0])
+    ttk.Button(buttons, text='关闭', command=guard.close).pack(side='right', padx=4)
 
     def destroyed(event):
         if event.widget == win and scheduled[0] is not None:

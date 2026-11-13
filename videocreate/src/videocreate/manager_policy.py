@@ -71,7 +71,10 @@ class PolicyPanel:
                 ('保存已预览策略', self.save), ('核对选中策划阶段', self.inspect)]:
             button = ttk.Button(controls, text=text, command=action);button.pack(side='left', padx=4)
             self.buttons[text] = button
-        ttk.Button(controls, text='关闭', command=win.destroy).pack(side='right', padx=4)
+        from .manager_drafts import DraftGuard
+        self.guard=DraftGuard(win,read=lambda:(self.mode.get(),[s for s,v in self.gates.items() if v.get()],self.reason.get()),
+            label='制作流程与检查点设置',busy=lambda:self.busy)
+        ttk.Button(controls, text='关闭', command=self.guard.close).pack(side='right', padx=4)
         win.bind('<Destroy>', self.destroyed, add='+')
         self.reload()
 
@@ -131,6 +134,7 @@ class PolicyPanel:
                 self.mode.set(next(label for label, mode in MODES.items() if mode == result['policy']))
                 for stage, value in self.gates.items():value.set(stage in result['required_authoring_stages'])
                 self.reason.set('');self.display(result);self.message.set('已载入当前流程。修改后先预览，再保存。')
+                self.guard.reset()
             elif operation == 'preview':
                 self.preview_result = result;self.display(result['after'])
                 before = (result['before']['next'] or {}).get('name', '查看交付清单')
@@ -139,7 +143,7 @@ class PolicyPanel:
             elif operation == 'save':
                 self.preview_result = None;self.message.set('流程设置已保存；尚未执行生成或批准媒体。')
                 self.completed(result)
-                self.reload();return
+                self.reload(discard=True);return
             else:
                 from .manager_continuation import open_inspection
                 def edit_layer(layer, **kwargs):
@@ -151,7 +155,9 @@ class PolicyPanel:
             self.enabled()
         self.scheduled = self.win.after(80, finish)
 
-    def reload(self):
+    def reload(self, *, discard=False):
+        if self.busy:return
+        if not discard and self.snapshot is not None and not self.guard.confirm():return
         self.start('load', {})
 
     def options(self):
