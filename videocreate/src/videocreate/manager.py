@@ -699,14 +699,14 @@ def main():
                         yield from widgets(child)
                 labels = {w.cget('text') for w in widgets(panel) if isinstance(w, ttk.Button)}
                 expected_render = profile not in {'image-only', 'gif-only', 'gif-local'}
-                verified = ('继续制作' in labels and '导出交付清单' in labels and ('渲染当前时间线' in labels) == expected_render)
+                verified = ('制作流程与检查点' in labels and '继续制作' in labels and '导出交付清单' in labels and ('渲染当前时间线' in labels) == expected_render)
                 if not verified:
                     raise ConfigError('Packaged local project controls are incomplete: ' + profile)
                 expected_still = profile in {'edit-only', 'mixed-video'}
                 if ('导入静态图片' in labels) != expected_still:
                     raise ConfigError('Packaged static import controls do not match the project profile')
                 local_controls[profile] = {'render': expected_render, 'delivery': True, 'continue': True,
-                    'static_image_import': expected_still}
+                    'static_image_import': expected_still, 'production_policy': True}
             with tempfile.TemporaryDirectory(prefix='videocreate-manager-smoke-') as temporary:
                 project = Path(temporary) / 'edit-only'
                 save_bundle(project, create('edit-only', title='Offline import panel smoke'))
@@ -749,6 +749,15 @@ def main():
                 from .manager_tasks import open_panel as execution_panel
                 task_window = execution_panel(manager, authored)
                 task_window.withdraw();root.update_idletasks();task_window.destroy()
+                from .manager_policy import open_panel as policy_panel
+                import time
+                policy_window = policy_panel(manager, authored);policy_window.withdraw()
+                policy_deadline = time.monotonic() + 10
+                while policy_window.policy_panel.busy and time.monotonic() < policy_deadline:
+                    root.update();time.sleep(.01)
+                if not policy_window.policy_panel.snapshot:
+                    raise ConfigError('Production policy panel did not load its shared offline service')
+                policy_window.destroy()
                 dialog = open_inspection(manager, authored, describe(authored),
                     edit_layer=lambda *args, **kwargs: None, completed=lambda value: None)
                 dialog.withdraw();root.update_idletasks();dialog.destroy()
@@ -777,6 +786,7 @@ def main():
                 'continuation_inspection_form_created': True,
                 'generation_execution_panel_created': True,
                 'static_image_import_form_created': True,
+                'production_policy_panel_loaded': True,
                 'network_requests': 0, 'saved': False, 'visual_review': 'not-performed'})
         finally:
             root.destroy()

@@ -208,6 +208,8 @@
         "authoring outline",
         "production status",
         "production next",
+        "production policy-show/policy-preview/policy-save",
+        "manager project panel · 制作流程与检查点",
         "production continue-local",
         "production script-export",
         "production script-import",
@@ -233,10 +235,12 @@
         "F09"
       ],
       "status": "partial",
-      "limitations": "Continue-local resolves authoring/import/local output steps; explicit task execution separately preflights dependencies/routes/budget and dispatches generation or original-task recovery. Static-image holds use the shared local import/render/review path. Neither path approves media. Drag editing, full workflow policy UI and broader online acceptance remain incomplete.",
+      "limitations": "Continue-local resolves authoring/import/local output steps; the policy panel previews gradual versus automatic progression with selected authoring checks and preserves actual checkpoint/media states. Explicit task execution separately preflights dependencies/routes/budget and dispatches generation or original-task recovery. Policy does not start an unattended loop, authorize spending or approve media. Drag editing and broader online acceptance remain incomplete.",
       "test_evidence": [
         "test_production_progress.py",
         "test_production_continue.py",
+        "test_production_policy.py",
+        "test_manager_production_policy.py",
         "test_authoring.py",
         "test_screenplay_authoring.py",
         "test_edit_only_production.py",

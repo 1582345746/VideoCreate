@@ -59,6 +59,28 @@ python scripts/videocreate.py production continue-local PROJECT --execute --toke
 
 The first command only describes. The second executes only a currently executable local render, review-page export or delivery, and rejects a changed description. It never opens a browser itself; use the returned `page` path. This is a check at action start, not a long project lock across FFmpeg or an immutable filesystem snapshot. Concurrent subsequent edits can stale the output through the existing manifest/review rules. Assisted authoring and authorized automatic continuation retain the existing policy semantics; this entry grants no spending authorization.
 
+## Production policy and selected plan checkpoints
+
+Every project panel exposes **制作流程与检查点**. It reads current stage applicability, checkpoint versions, task/budget status and actual media review through the shared offline policy service. **逐步核对策划阶段** stops continuation at each applicable unchecked authoring stage. **按现有授权推进，保留所选检查点** bypasses other unchecked authoring stages while still stopping at selected checks such as theme/script/storyboard. Bypassing does not mark a plan checked or a stage complete. Nonapplicable stages retain explicit skip reasons.
+
+The stage table distinguishes actual state from progression policy. Select any applicable authoring stage and use **核对选中策划阶段** to inspect its actual current contents, edit through its authoritative source, or record a reason for the current input hash. This uses the same inspection/checkpoint service as **继续制作**. Script/content changes make relevant plan checks stale; policy changes do not alter existing decisions, candidates, bills or media receipts. Runtime generation/edit/review/delivery stages cannot be configured away as plan checks.
+
+Use **预览策略变化** before **保存已预览策略**. The preview shows the current/proposed next step and binds project path, plan, tasks/ledger, existing policy/checkpoints and derived source/review state. Changed inputs or two competing saves reject the old preview. Editing the mode, checks or reason requires a fresh preview. Reading and previewing write nothing; saving writes only production/stages.json. Unchanged settings do not add another history entry. The background worker owns no Tk objects; closing its window stops UI callbacks while an already started transaction completes.
+
+CLI equivalents require no provider configuration:
+
+```powershell
+python scripts/videocreate.py production policy-show PROJECT
+python scripts/videocreate.py production policy-preview PROJECT --mode auto-within-authorization --review-stage theme --review-stage script --reason "Continue the current plan with theme/script checks" --source-token SOURCE_TOKEN
+python scripts/videocreate.py production policy-save PROJECT --mode auto-within-authorization --review-stage theme --review-stage script --reason "Continue the current plan with theme/script checks" --source-token SOURCE_TOKEN --preview-token PREVIEW_TOKEN
+```
+
+Repeat exactly the preview's mode, checks and reason when saving. Omitting --review-stage means no selected authoring checks in automatic mode; assisted mode still checks every applicable authoring stage and retains selected automatic checks for a later explicit switch. The legacy `production policy --mode ... --reason ...` uses the same service against the current source and preserves saved selected checks.
+
+Changed policies use production record schema_version=2, preserving v1 decisions/history and unrelated extension data. Current code reads v1/v2; older code that only supports v1 must reject this newer record instead of silently ignoring selected checks. Existing projects are upgraded only on an actual policy change, not on reading or preview. Production records stay outside the user configuration and task state.
+
+Policy guides the **continue** workflow. It does not start an unattended execution loop, submit models, renew authorization, alter budgets or approve generated media. Explicit generation/recovery entries retain their own preview/authorization/runtime contracts and do not record plan checkpoints on the user's behalf. Unknown submissions, invalid plans and missing required local sources continue to take priority over selected plan checks. Final acceptance still requires actual media review.
+
 ## CLI authoring
 
 The CLI uses the same service as the manager. It requires no provider configuration:

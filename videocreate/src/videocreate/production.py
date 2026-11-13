@@ -153,9 +153,21 @@ def impact(root, candidate=None):
 def _record(root):
     path = root / 'production' / 'stages.json'
     value = load_json(path) if path.exists() else {'schema_version': 1, 'policy': 'assisted', 'decisions': {}, 'history': []}
-    if value.get('schema_version') != 1:
+    if value.get('schema_version') not in {1, 2}:
         raise ConfigError('Unsupported production stage record')
+    required = value.get('required_authoring_stages', [])
+    if (not isinstance(value.get('policy'), str) or value.get('policy') not in {'assisted', 'auto-within-authorization'}
+            or not isinstance(required, list) or any(not isinstance(s, str) or s not in AUTHORING for s in required)
+            or len(set(required)) != len(required) or value.get('schema_version') == 1 and required):
+        raise ConfigError('Invalid production policy or authoring review stages')
     return value
+
+
+def next_for_policy(stages, record):
+    """Automatic progression bypasses unchecked plans without approving them."""
+    required = set(AUTHORING) if record.get('policy', 'assisted') == 'assisted' else set(record.get('required_authoring_stages', []))
+    return next((s for s in stages if s['status'] not in {'complete', 'skipped'}
+        and (s['id'] not in AUTHORING or s['id'] in required)), None)
 
 
 def _authoring_inputs(bundle, root):
@@ -179,9 +191,9 @@ def _authoring_inputs(bundle, root):
         'storyboard': [*bundle['generation-plan'].get('image_jobs',[]),*bundle['generation-plan'].get('local_gifs',[])] or bundle['director']['shots'], 'references': observed}
 
 
-def status(root, *, output_name='preview.mp4'):
+def status(root, *, output_name='preview.mp4', _policy_record=None):
     root = Path(root).resolve()
-    bundle, state, record = load_project(root), read_state(root), _record(root)
+    bundle, state, record = load_project(root), read_state(root), _record(root) if _policy_record is None else _policy_record
     check = validate_plan(bundle, root)
     inputs = _authoring_inputs(bundle, root)
     stages = []
@@ -218,7 +230,8 @@ def status(root, *, output_name='preview.mp4'):
     ambiguous = [r['job_id'] for r in active if r['status'] in {'submitting', 'submission_unknown'}]
     complete = bool(active) and all(r['status'] == 'completed' for r in active)
     generation = 'skipped' if not planned else 'blocked' if ambiguous else 'stale' if affected['changed_job_inputs'] else 'complete' if complete else 'pending'
-    stages.append({'id': 'generation', 'name': NAMES['generation'], 'status': generation, 'blocked_by': ambiguous})
+    stages.append({'id': 'generation', 'name': NAMES['generation'], 'status': generation, 'blocked_by': ambiguous,
+        'reason': 'This plan has no provider video jobs; local sources use their own import workflow' if not planned else ''})
     local_rows = []
     for source in bundle['generation-plan'].get('local_sources', []):
         from .local_sources import verify_source
@@ -244,7 +257,7 @@ def status(root, *, output_name='preview.mp4'):
         {'id': 'editing', 'name': NAMES['editing'], 'status': 'stale' if review_error else 'complete' if final else 'pending', 'reason': review_error},
         {'id': 'review', 'name': NAMES['review'], 'status': 'complete' if review['status'] == 'accepted_delivery' else 'blocked' if review['status'] == 'rejected' else 'pending', 'reason': review['status']},
         {'id': 'delivery', 'name': NAMES['delivery'], 'status': 'ready' if review['status'] == 'accepted_delivery' else 'pending'}])
-    next_step = next((s for s in stages if s['status'] not in {'complete', 'skipped'}), None)
+    next_step = next_for_policy(stages, record)
     if ambiguous:
         next_step = {'id': 'reconcile', 'name': '核对原提交；不重复创建', 'jobs': ambiguous}
     elif bundle['brief'].get('workflow_profile') == 'edit-only' and not bundle['generation-plan'].get('local_sources'):
@@ -253,12 +266,11 @@ def status(root, *, output_name='preview.mp4'):
         next_step={'id':'author-mixed-sources','name':'导入本地视频或编写需要生成的镜头','errors':check['errors']}
     elif not check['ok']:
         next_step = {'id': 'repair-plan', 'name': '修复计划结构', 'errors': check['errors']}
-    elif record.get('policy') == 'auto-within-authorization':
-        next_step = next((s for s in stages if s['id'] not in AUTHORING and s['status'] not in {'complete', 'skipped'}), None)
     from .runtime.budget import summary as budget_summary
     return {'ok': check['ok'], 'project': str(root), 'title': bundle['project']['title'],
         'branch': 'animation' if 'animation' in bundle else bundle['brief'].get('workflow_profile', bundle['brief']['intent']),
-        'policy': record.get('policy', 'assisted'), 'stages': stages, 'next': next_step,
+        'policy': record.get('policy', 'assisted'), 'required_authoring_stages': record.get('required_authoring_stages', []),
+        'stages': stages, 'next': next_step,
         'jobs': task_rows, 'local_sources': local_rows, 'impact': affected, 'budget': budget_summary(state),
         'review': review, 'errors': check['errors'], 'warnings': check['warnings'], 'paid_creates': 0}
 
@@ -281,17 +293,13 @@ def checkpoint(root, stage, *, reason, expected_hash):
 
 
 def policy(root, mode, reason):
-    root = Path(root).resolve()
-    load_project(root)
-    if mode not in {'assisted', 'auto-within-authorization'} or not reason.strip():
-        raise ConfigError('Choose assisted/auto-within-authorization and record the user instruction')
-    with state_lock(root):
-        record = _record(root)
-        record['policy'] = mode
-        record['history'].append({'policy': mode, 'reason': reason, 'at': stamp()})
-        atomic_json(root / 'production' / 'stages.json', record)
-    return {'ok': True, 'policy': mode, 'paid_creates': 0,
-        'note': 'Policy guides next steps; it does not create tasks, grant spending authorization or approve media.'}
+    from . import production_policy
+    current = production_policy.describe(root)
+    required = current['required_authoring_stages']
+    preview = production_policy.preview(root, mode=mode, required_stages=required,
+        reason=reason, source_token=current['source_token'])
+    return production_policy.save(root, mode=mode, required_stages=required, reason=reason,
+        source_token=current['source_token'], preview_token=preview['preview_token'])
 
 
 def project_index(store_root, project=None):

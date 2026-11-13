@@ -7,6 +7,26 @@ from .planning.project import content_hash, load_project
 from .runtime.state import read_state
 
 
+def authoring_step(result, bundle, root, stage, row):
+    """Shared plan inspection for the next step and explicit stage selection."""
+    value = production._authoring_inputs(bundle, root)[stage]
+    if content_hash(value) != row['input_hash']:
+        raise ConfigError('Stage content changed while reading; refresh and try again')
+    profile = bundle['brief'].get('workflow_profile')
+    image = profile in {'image-only', 'gif-only', 'gif-local'}
+    layer = {'theme': 'brief', 'outline': 'story', 'script': 'director',
+        'characters': 'director', 'storyboard': 'generation-plan' if image else 'director',
+        'references': 'generation-plan'}[stage]
+    if 'animation' in bundle and layer in {'story', 'director', 'generation-plan'}:
+        layer = None
+    if profile == 'gif-local' and stage in {'storyboard', 'references'}:
+        layer = None
+    result.update(action='inspect-authoring', input_hash=row['input_hash'], value=value,
+        edit_layer=layer, assets_only=stage == 'characters',
+        note='核对当前计划后可登记理由；此操作只核对计划，实际媒体继续使用审片记录。')
+    return result
+
+
 def _snapshot(root, output_name):
     root = Path(root).resolve()
     bundle, state = load_project(root), read_state(root)
@@ -27,22 +47,8 @@ def _snapshot(root, output_name):
         'jobs': current['jobs'], 'errors': current['errors'], 'review': current['review'],
         'reusable': current['impact']}
     if stage in production.AUTHORING:
-        inputs = production._authoring_inputs(bundle, root)
         row = next(s for s in current['stages'] if s['id'] == stage)
-        value = inputs[stage]
-        if content_hash(value) != row['input_hash']:
-            raise ConfigError('Stage content changed while reading; refresh and try again')
-        layer = {'theme': 'brief', 'outline': 'story', 'script': 'director',
-            'characters': 'director', 'storyboard': 'generation-plan' if image else 'director',
-            'references': 'generation-plan'}[stage]
-        # These sources belong to the animation sidecar, not a competing form.
-        if 'animation' in bundle and layer in {'story', 'director', 'generation-plan'}:
-            layer = None
-        if profile == 'gif-local' and stage in {'storyboard', 'references'}:
-            layer = None
-        result.update(action='inspect-authoring', input_hash=row['input_hash'], value=value,
-            edit_layer=layer, assets_only=stage == 'characters',
-            note='核对当前计划后可登记理由；此操作只核对计划，实际媒体继续使用审片记录。')
+        authoring_step(result, bundle, root, stage, row)
     elif stage == 'editing' and not image:
         result.update(action='render', executable=True, note='渲染当前已保存时间线，完成后仍需实际观看和听音。')
     elif stage == 'review':

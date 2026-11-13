@@ -204,7 +204,7 @@ def impact(root,bundle,state):
 
 
 def status(root,bundle,state,record,check,stages):
-    from .production import AUTHORING,NAMES
+    from .production import NAMES,next_for_policy
     from .runtime.budget import summary
     task_rows=rows(root,bundle,state)
     from . import local_gifs
@@ -214,20 +214,20 @@ def status(root,bundle,state,record,check,stages):
     complete=bool(task_rows) and all(r['status']=='completed' for r in task_rows)
     review=review_summary([*task_rows,*local_rows])
     stages.extend([
-        {'id':'generation','name':NAMES['generation'],'status':'skipped' if not task_rows else 'blocked' if ambiguous else 'stale' if affected['changed_job_inputs'] else 'complete' if complete else 'pending','blocked_by':ambiguous},
+        {'id':'generation','name':NAMES['generation'],'status':'skipped' if not task_rows else 'blocked' if ambiguous else 'stale' if affected['changed_job_inputs'] else 'complete' if complete else 'pending','blocked_by':ambiguous,
+            'reason':'This collection has no provider image jobs; local GIF recipes use source imports' if not task_rows else ''},
         {'id':'editing','name':NAMES['editing'],'status':'stale' if affected['changed_local_gifs'] else 'complete' if local_rows else 'ready' if bundle['brief']['workflow_profile']=='gif-local' else 'skipped',
             'reason':'Local GIF conversion uses source snapshots and explicit recipes; no video timeline' if local_rows or bundle['brief']['workflow_profile']=='gif-local' else 'Pure image/GIF deliverables have no video timeline'},
         {'id':'review','name':NAMES['review'],'status':'complete' if review['status']=='accepted_delivery' else 'blocked' if review['status']=='rejected' else 'pending','reason':review['status']},
         {'id':'delivery','name':NAMES['delivery'],'status':'ready' if review['status']=='accepted_delivery' else 'pending'}])
-    remaining=[s for s in stages if s['status'] not in {'complete','skipped'}]
-    if record.get('policy')=='auto-within-authorization':remaining=[s for s in remaining if s['id'] not in AUTHORING]
-    next_step=remaining[0] if remaining else None
+    next_step=next_for_policy(stages,record)
     if ambiguous:next_step={'id':'reconcile','name':'核对原图片提交；不重复创建','jobs':ambiguous}
     elif bundle['brief']['workflow_profile']=='gif-local' and not local_rows:
         next_step={'id':'import-gif-source','name':'导入视频或有序静帧，制作本地 GIF'}
     elif not check['ok']:next_step={'id':'repair-plan','name':'完善图片提示词与计划','errors':check['errors']}
     return {'ok':check['ok'],'project':str(root),'title':bundle['project']['title'],'branch':bundle['brief']['workflow_profile'],
-        'policy':record.get('policy','assisted'),'stages':stages,'next':next_step,'jobs':task_rows,'local_sources':[], 'local_gifs':local_rows,
+        'policy':record.get('policy','assisted'),'required_authoring_stages':record.get('required_authoring_stages',[]),
+        'stages':stages,'next':next_step,'jobs':task_rows,'local_sources':[], 'local_gifs':local_rows,
         'impact':affected,'budget':summary(state),'review':review,'errors':check['errors'],'warnings':check['warnings'],'paid_creates':0}
 
 

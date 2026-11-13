@@ -11,7 +11,7 @@ def production_command(argv):
     parser = argparse.ArgumentParser(prog='videocreate production')
     parser.add_argument('action', choices=['status', 'next', 'impact', 'script-export', 'script-import',
         'checkpoint', 'policy', 'track', 'projects', 'deliver', 'metrics', 'import-clip', 'import-image', 'images-run',
-        'gif-video', 'gif-frames', 'gif-rebuild', 'continue-local'])
+        'gif-video', 'gif-frames', 'gif-rebuild', 'continue-local', 'policy-show', 'policy-preview', 'policy-save'])
     parser.add_argument('project', type=Path, nargs='?')
     parser.add_argument('--file', type=Path)
     parser.add_argument('--stage', choices=production.AUTHORING)
@@ -37,6 +37,9 @@ def production_command(argv):
     parser.add_argument('--retry',choices=['content','replan'])
     parser.add_argument('--execute', action='store_true')
     parser.add_argument('--token')
+    parser.add_argument('--source-token')
+    parser.add_argument('--preview-token')
+    parser.add_argument('--review-stage', choices=production.AUTHORING, action='append')
     args = parser.parse_args(argv)
     if args.action != 'projects' and not args.project:
         raise ConfigError('This action requires a project directory')
@@ -44,7 +47,25 @@ def production_command(argv):
         raise ConfigError('--shot-id is only consumed by import-clip/import-image')
     if args.action != 'continue-local' and (args.execute or args.token):
         raise ConfigError('--execute/--token are only consumed by continue-local')
-    if args.action in {'gif-video','gif-frames','gif-rebuild'}:
+    policy_actions = {'policy-show', 'policy-preview', 'policy-save'}
+    if args.action not in policy_actions and (args.source_token or args.preview_token or args.review_stage is not None):
+        raise ConfigError('--source-token/--preview-token/--review-stage are only consumed by policy-preview/policy-save')
+    if args.action in policy_actions:
+        from . import production_policy
+        if args.action == 'policy-show':
+            if args.mode is not None or args.source_token or args.preview_token or args.review_stage is not None or args.reason:
+                raise ConfigError('policy-show only reads the current policy; use policy-preview/policy-save to change it')
+            result = production_policy.describe(args.project)
+        else:
+            options = {'mode': args.mode, 'required_stages': args.review_stage or [], 'reason': args.reason,
+                'source_token': args.source_token}
+            if args.action == 'policy-preview':
+                if args.preview_token:
+                    raise ConfigError('--preview-token is only consumed by policy-save')
+                result = production_policy.preview(args.project, **options)
+            else:
+                result = production_policy.save(args.project, preview_token=args.preview_token, **options)
+    elif args.action in {'gif-video','gif-frames','gif-rebuild'}:
         from .local_gifs import build
         if not args.gif:
             raise ConfigError('Local GIF conversion needs an explicit --gif ID')
