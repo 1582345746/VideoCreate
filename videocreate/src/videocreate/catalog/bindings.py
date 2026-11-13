@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import math
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -152,7 +153,8 @@ def route_bindings(config: dict[str, Any], model: str, *, operation: str,
     return result
 
 
-def validate_request(binding: Binding, request: dict[str, Any]) -> dict[str, Any]:
+def validate_parameters(binding: Binding, request: dict[str, Any]) -> dict[str, Any]:
+    """Check scalar request parameters without inventing reference files."""
     caps = binding.capabilities
     errors: list[str] = []
     warnings: list[str] = []
@@ -173,7 +175,7 @@ def validate_request(binding: Binding, request: dict[str, Any]) -> dict[str, Any
     duration = caps.get("duration", {})
     seconds = request.get("seconds")
     if seconds is not None:
-        if not isinstance(seconds, (int, float)) or isinstance(seconds, bool) or not duration:
+        if not isinstance(seconds, (int, float)) or isinstance(seconds, bool) or not math.isfinite(seconds) or not duration:
             errors.append("Duration constraint is unknown or invalid")
         else:
             maximum = duration["maximum"]
@@ -187,7 +189,8 @@ def validate_request(binding: Binding, request: dict[str, Any]) -> dict[str, Any
             errors.append(f"Unsupported {field} for this binding")
     for condition in caps.get("conditions", []):
         if all(request.get(k) == v for k, v in condition.get("when", {}).items()):
-            if "max_seconds" in condition and seconds is not None and seconds > condition["max_seconds"]:
+            if ("max_seconds" in condition and type(seconds) in {int,float}
+                    and math.isfinite(seconds) and seconds > condition["max_seconds"]):
                 errors.append("Duration exceeds this resolution/operation condition")
     if "generate_audio" in request and caps.get("audio_control") == "unknown":
         errors.append("Audio control capability is unknown")
@@ -195,6 +198,13 @@ def validate_request(binding: Binding, request: dict[str, Any]) -> dict[str, Any
         errors.append("Audio generation is unsupported")
     elif caps.get("audio_control") == "model-default":
         warnings.append("Audio switch is not transmitted: provider/model default controls the output; review actual audio")
+    return {'errors':errors,'warnings':warnings}
+
+
+def validate_request(binding: Binding, request: dict[str, Any]) -> dict[str, Any]:
+    caps = binding.capabilities
+    parameters = validate_parameters(binding, request)
+    errors, warnings = parameters['errors'], parameters['warnings']
     typed = request.get('media_references', [])
     if typed or request['operation'] == 'reference-to-video':
         from .media_constraints import request_errors

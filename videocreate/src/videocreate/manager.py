@@ -39,6 +39,9 @@ class Manager:
         self.family_filter = ui.StringVar(window, value='全部家族')
         self.sort_order = ui.StringVar(window, value='配置顺序')
         self.current_upstream = None
+        self.task_scenario = None
+        self.task_exclusions = False
+        self.task_report = None
         self.status = ui.StringVar(window)
         self.build()
         self.refresh()
@@ -78,6 +81,11 @@ class Manager:
         ttk.Checkbutton(bar, text='收藏', variable=self.favorites_only, command=self.refresh_models).pack(side='left', padx=8)
         ttk.Button(bar, text='新增型号', command=lambda: self.edit_binding()).pack(side='right', padx=(8, 0))
         self.search.trace_add('write', lambda *_: self.refresh_models())
+        taskbar=ttk.Frame(right);taskbar.pack(fill='x',pady=(0,8))
+        ttk.Button(taskbar,text='按任务筛选',command=self.task_filter).pack(side='left')
+        ttk.Button(taskbar,text='清除任务筛选',command=self.clear_task_filter).pack(side='left',padx=8)
+        self.task_note=ui.StringVar(self.window,value='可按操作、时长、分辨率、画幅和参考数量筛选；不提交生成。')
+        ttk.Label(taskbar,textvariable=self.task_note,wraplength=650,style='Muted.TLabel').pack(side='left')
         filters = ttk.Frame(right)
         filters.pack(fill='x', pady=(0,8))
         for label,var,choices,width in [('媒体',self.kind_filter,['全部类型','视频','图片'],10),
@@ -141,14 +149,25 @@ class Manager:
         selected = self.models.selection()
         self.models.delete(*self.models.get_children())
         from .catalog.presentation import rows
-        visible = rows(self.value,upstream=self.current_upstream,
+        filters=dict(upstream=self.current_upstream,
             kind={'视频':'video','图片':'image'}.get(self.kind_filter.get()),
             family=None if self.family_filter.get()=='全部家族' else self.family_filter.get(),
             query=self.search.get(),favorites=self.favorites_only.get(),
             order={'配置顺序':'configured','名称':'name','上游':'upstream','家族':'family'}[self.sort_order.get()])
+        if self.task_scenario is not None:
+            from .catalog.suitability import query
+            self.task_report=query(self.value,self.task_scenario,**filters)
+            visible=[row for row in self.task_report['bindings'] if self.task_exclusions or row['task_fit']['matches']]
+            n=self.task_report['counts']
+            self.task_note.set(f"参数范围相符 {n['parameters-match']} · 不符合 {n['excluded']} · 未核实 {n['unverified']}；尚需正式选型与预检。")
+        else:
+            visible=rows(self.value,**filters);self.task_report=None
+            self.task_note.set('可按操作、时长、分辨率、画幅和参考数量筛选；不提交生成。')
         for row in visible:
+            state=row['state_text']
+            if 'task_fit' in row:state={'parameters-match':'参数范围相符','excluded':'不符合任务','unverified':'尚未核实'}[row['task_fit']['status']]+' · '+state
             self.models.insert('', 'end', iid=row['id'], values=(row['upstream_name'],
-                ('★ ' if row['favorite'] else '') + row['display_name'], row['state_text'],
+                ('★ ' if row['favorite'] else '') + row['display_name'], state,
                 row['price_text'].replace('\n',' · '), row['notes'].replace('\n', ' ')))
         self.models.selection_set([bid for bid in selected if self.models.exists(bid)])
         self.show_details()
@@ -164,11 +183,24 @@ class Manager:
         selected = self.models.selection()
         from .catalog.presentation import card
         data = card(self.value, selected[0]) if len(selected)==1 else None
+        if data and self.task_report:
+            row=next((row for row in self.task_report['bindings'] if row['id']==selected[0]),None)
+            if row:
+                fit=row['task_fit']
+                data['fields']['本次任务筛选']='；'.join(fit['reasons']+fit['unknowns']) or '已填写参数与数量范围相符；尚未检查实际素材、提示词、凭据和完整请求。'
+                if fit['warnings']:data['fields']['参数说明']='；'.join(fit['warnings'])
         self.detail.configure(state='normal')
         self.detail.delete('1.0', 'end')
         self.detail.insert('1.0', '\n\n'.join(key+'：'+value for key,value in data['fields'].items()) if data else
             ('已选择 '+str(len(selected))+' 个型号。点击“比较所选”查看报价与参数对照。' if selected else '选择型号可查看参数、报价、备注与来源。'))
         self.detail.configure(state='disabled')
+
+    def task_filter(self):
+        from .manager_task_filter import TaskFilterPanel
+        return TaskFilterPanel(self).win
+
+    def clear_task_filter(self):
+        self.task_scenario=None;self.task_exclusions=False;self.refresh_models()
 
     def save(self):
         try:
@@ -665,6 +697,24 @@ def main():
         root.withdraw()
         try:
             manager = Manager(root, user_config_path(args.config))
+            original_value=copy.deepcopy(manager.value)
+            original_dirty=manager.dirty
+            original_rows=set(manager.models.get_children())
+            task_window=manager.task_filter();task_window.withdraw()
+            task_form=task_window.task_filter_panel
+            task_form.fields['seconds'].set('5');task_form.fields['resolution'].set('720p')
+            task_form.fields['aspect_ratio'].set('16:9');task_form.check_counts.set(True)
+            task_form.preview()
+            if not task_form.pending:raise ConfigError('Task catalog filter did not preview')
+            task_form.apply()
+            expected={row['id'] for row in manager.task_report['bindings'] if row['task_fit']['matches']}
+            if set(manager.models.get_children())!=expected:raise ConfigError('Task filter rows disagree with the shared service')
+            task_window=manager.task_filter();task_window.withdraw();task_form=task_window.task_filter_panel
+            task_form.excluded.set(True);task_form.preview();task_form.apply()
+            if set(manager.models.get_children())!=original_rows:raise ConfigError('Task filter omitted excluded explanation rows')
+            manager.clear_task_filter()
+            if manager.value!=original_value or manager.dirty!=original_dirty or set(manager.models.get_children())!=original_rows:
+                raise ConfigError('Task catalog filter changed configuration or failed to restore the view')
             # Exercise the packaged comparison and price-form modules too;
             # row counts alone do not prove the new UI is distributable.
             identities = list(manager.models.get_children())[:2]
@@ -867,6 +917,8 @@ def main():
                 'bindings': len(manager.models.get_children()), 'config_version': manager.value['schema_version'],
                 'comparison_count': comparison_count, 'conditional_tiers': len(price_value.get('pricing',{}).get('tiers',[])),
                 'comparison_and_pricing_forms_created': True,
+                'task_catalog_filter_preview_apply_clear': True,
+                'task_catalog_filter_exclusions_and_config_preserved': True,
                 'configuration_draft_guards_exercised': draft_guards_exercised,
                 'nested_price_draft_guard_exercised': draft_guards_exercised,
                 'configuration_repair_preview_apply_and_return': True,

@@ -63,7 +63,8 @@
         "selection list",
         "selection choose",
         "selection impact",
-        "jobs run --binding"
+        "jobs run --binding",
+        "providers filter"
       ],
       "work_packages": [
         "B01",
@@ -74,9 +75,10 @@
         "B07"
       ],
       "status": "partial",
-      "limitations": "Numbered choices are config/version-bound; existing tasks stay pinned. Natural-language aliases and all entry points need further audit.",
+      "limitations": "Numbered choices are config/version-bound; existing tasks stay pinned. Natural-language aliases and all entry points need further audit. Task filters expose parameter/count matches, exclusions and unknown contracts without replacing stable numbered selection.",
       "test_evidence": [
-        "test_provider_management.py"
+        "test_provider_management.py",
+        "test_catalog_task_filter.py"
       ],
       "online_acceptance": "Not claimed by source implementation; consult binding receipts and the dated acceptance report."
     },
@@ -90,7 +92,9 @@
         "项目与任务 · 导出交付清单",
         "providers repair-inspect",
         "providers repair-preview",
-        "providers repair-apply"
+        "providers repair-apply",
+        "providers filter",
+        "按任务筛选"
       ],
       "work_packages": [
         "C01",
@@ -102,7 +106,7 @@
         "C07"
       ],
       "status": "partial",
-      "limitations": "Native catalog, authoring and local render/delivery forms share core services. The explicit task panel adds token-bound route/budget previews, numbered once/project choices, generation/recovery/retry and existing reconciliation/settlement receipt import. Portable EXE verified locally; clean-machine, human visual review, temporal-slice form and broader task controls remain pending. Widget-owned variables remove Tcl traces on UI teardown; catalog/media workers carry service data only and detach callbacks on closure. CPython interpreter lifetime is guarded across later worker GC; this does not establish human or clean-machine acceptance. Close/reload checks preserve unapplied config, price, credential, authoring, local-import and policy drafts on cancellation; local transactions block user closure while remote task panels remain detachable. Invalid JSON now opens an offline repair editor with byte-bound preview/apply, exact original backups, protected known identities and read-only newer formats. Unparseable originals cannot prove all historical identities. Forced-exit draft persistence and broader task/selection drafts remain open.",
+      "limitations": "Native catalog, authoring and local render/delivery forms share core services. The explicit task panel adds token-bound route/budget previews, numbered once/project choices, generation/recovery/retry and existing reconciliation/settlement receipt import. Portable EXE verified locally; clean-machine, human visual review, temporal-slice form and broader task controls remain pending. Widget-owned variables remove Tcl traces on UI teardown; catalog/media workers carry service data only and detach callbacks on closure. CPython interpreter lifetime is guarded across later worker GC; this does not establish human or clean-machine acceptance. Close/reload checks preserve unapplied config, price, credential, authoring, local-import and policy drafts on cancellation; local transactions block user closure while remote task panels remain detachable. Invalid JSON now opens an offline repair editor with byte-bound preview/apply, exact original backups, protected known identities and read-only newer formats. Unparseable originals cannot prove all historical identities. Forced-exit draft persistence and broader task/selection drafts remain open. Task-oriented catalog filters share scalar/count validators, explain exclusions and unknown contracts, and change the view only; they do not establish credentials, complete references or request readiness.",
       "test_evidence": [
         "test_catalog_presentation.py",
         "test_manager_catalog_ui.py",
@@ -112,7 +116,9 @@
         "test_manager_lifecycle.py",
         "test_manager_drafts.py",
         "test_config_repair.py",
-        "test_manager_repair.py"
+        "test_manager_repair.py",
+        "test_catalog_task_filter.py",
+        "test_manager_task_filter.py"
       ],
       "online_acceptance": "No generation or provider connection is performed by filtering/comparison. Current live bindings and reference failures remain recorded independently; UI readiness does not certify model quality."
     },

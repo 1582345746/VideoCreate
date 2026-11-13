@@ -9,7 +9,7 @@ def providers_command(argv):
     from .cli import print_result
     from .config import management as m
     parser = argparse.ArgumentParser(prog='videocreate providers')
-    parser.add_argument('action', choices=['list', 'compare', 'quotas', 'show', 'migrate', 'save', 'archive', 'restore', 'credential', 'discover', 'pricing', 'import-models', 'repair-inspect', 'repair-preview', 'repair-apply'])
+    parser.add_argument('action', choices=['list', 'filter', 'compare', 'quotas', 'show', 'migrate', 'save', 'archive', 'restore', 'credential', 'discover', 'pricing', 'import-models', 'repair-inspect', 'repair-preview', 'repair-apply'])
     parser.add_argument('--config', type=Path)
     parser.add_argument('--upstream')
     parser.add_argument('--project', type=Path, help='Register an existing v3 project for local quota accounting')
@@ -23,7 +23,12 @@ def providers_command(argv):
     parser.add_argument('--group', choices=['upstreams', 'models', 'bindings'])
     parser.add_argument('--id')
     parser.add_argument('--version')
-    parser.add_argument('--family', default='custom')
+    parser.add_argument('--family')
+    parser.add_argument('--scenario-file',type=Path)
+    parser.add_argument('--include-excluded',action='store_true')
+    parser.add_argument('--query',default='')
+    parser.add_argument('--favorites',action='store_true')
+    parser.add_argument('--order',choices=['configured','name','upstream','family'],default='configured')
     parser.add_argument('--binding', action='append', help='Two to four binding IDs for offline comparison')
     parser.add_argument('--seconds', type=float, default=5)
     parser.add_argument('--operation', default='text-to-video')
@@ -32,6 +37,8 @@ def providers_command(argv):
     parser.add_argument('--reason', default='explicit catalog edit')
     args = parser.parse_args(argv)
     path = user_config_path(args.config)
+    if args.action!='filter' and (args.scenario_file or args.include_excluded or args.query or args.favorites or args.order!='configured'):
+        raise ConfigError('Task scenario and catalog view flags require providers filter')
     if args.action.startswith('repair-'):
         from .config import repair
         if args.apply:raise ConfigError('Repair uses repair-preview then repair-apply with its preview token')
@@ -48,7 +55,14 @@ def providers_command(argv):
         print_result(result);return 0
     if args.preview_token or args.baseline:raise ConfigError('--preview-token/--baseline are only consumed by configuration repair')
     record = m.load(path)
-    if args.action == 'quotas':
+    if args.action == 'filter':
+        if not args.scenario_file:raise ConfigError('Task filter needs --scenario-file with the intended parameters and counts')
+        from .catalog.suitability import query
+        result=query(record['config'],load_json(args.scenario_file),upstream=args.upstream,kind=args.kind,
+            family=args.family,query=args.query,favorites=args.favorites,order=args.order)
+        if not args.include_excluded:result['bindings']=[row for row in result['bindings'] if row['task_fit']['matches']]
+        result.update(config=str(path),revision=record['revision'],include_excluded=args.include_excluded)
+    elif args.action == 'quotas':
         if not args.upstream:
             raise ConfigError('Quota status requires --upstream')
         from .runtime import quotas
@@ -78,7 +92,7 @@ def providers_command(argv):
         values = load_json(args.file)
         if not isinstance(values.get('ids'), list):
             raise ConfigError('Import file requires an ids list')
-        changed, ids = import_models(record['config'], args.upstream, values['ids'], kind=args.kind, family=args.family)
+        changed, ids = import_models(record['config'], args.upstream, values['ids'], kind=args.kind, family=args.family or 'custom')
         if args.apply:
             if not args.token:
                 raise ConfigError('Apply requires the current --token')
