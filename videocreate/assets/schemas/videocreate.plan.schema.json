@@ -1092,6 +1092,13 @@
     "timeline": {
       "type": "object",
       "properties": {
+        "format_version": {
+          "type": "integer",
+          "enum": [
+            1,
+            2
+          ]
+        },
         "fps": {
           "type": "string"
         },
@@ -1253,6 +1260,51 @@
             },
             "required": [
               "text"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "transitions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "left_segment_id": {
+                "type": "string"
+              },
+              "right_segment_id": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "crossfade",
+                  "fade-black",
+                  "wipe-left"
+                ]
+              },
+              "duration": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "audio": {
+                "type": "string",
+                "enum": [
+                  "crossfade",
+                  "cut"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "left_segment_id",
+              "right_segment_id",
+              "kind",
+              "duration",
+              "audio"
             ],
             "additionalProperties": false
           }

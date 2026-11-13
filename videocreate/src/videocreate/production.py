@@ -54,6 +54,10 @@ def script_export(root):
                     f"原片区间：{segment['source_in']}–{segment['source_out']} 秒；速度：{segment.get('rate',1)}",
                 f"成片区间：{segment['timeline_start']}–{segment['timeline_end']} 秒",
                 '声音：'+segment.get('source_audio','mute'), '切点用途：'+segment['cut_reason'], ''])
+        for transition in mapped.get('transitions',[]):
+            lines.extend(['## 转场 '+transition['id'],'',
+                transition['left_segment_id']+' → '+transition['right_segment_id']+' · '+transition['kind'],
+                f"成片重叠：{transition['timeline_start']}–{transition['timeline_end']} 秒；原片声音：{transition['audio']}", ''])
     if bundle['brief'].get('workflow_profile')!='edit-only':
         for scene in value['scenes']:
             lines.extend(['## 场景 '+scene['id'],'','布局：'+scene['map'],'轴线：'+scene['axis'],''])

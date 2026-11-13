@@ -151,6 +151,9 @@ def _mapped_view(root, expected, item, layer):
             continue
         start = segment["timeline_start"] + item["start"] - segment["source_in"]
         end = segment["timeline_start"] + item["end"] - segment["source_in"]
+        if any(start < transition['timeline_end'] - 1e-9 and end > transition['timeline_start'] + 1e-9
+               for transition in manifest['mapping'].get('transitions', [])):
+            continue  # Mixed/faded picture or source audio cannot certify original bytes.
         if (abs(view["start"] - start) < .001 and abs(view["end"] - end) < .001
                 and 0 <= start < end <= manifest["media"]["duration"] + .001
                 and (layer != "audio" or segment.get("source_audio", "mute") == "preserve")):

@@ -10,7 +10,7 @@ from .config.storage import ConfigError
 from .planning.project import load_project, within
 from .runtime.candidates import records, selected
 from .runtime.state import read_state
-from .timeline.model import number, validate_timeline
+from .timeline.model import mapping, number, validate_timeline
 
 
 def union_seconds(windows):
@@ -29,6 +29,7 @@ def report(root, *, output_name='preview.mp4'):
     errors = [] if image_only else validate_timeline(bundle['timeline'])
     if errors:
         raise ConfigError('; '.join(errors))
+    edit = mapping(bundle['timeline']) if not image_only else None
     hashes, warnings = {}, []
 
     def artifact_valid(artifact):
@@ -199,6 +200,8 @@ def report(root, *, output_name='preview.mp4'):
             'reviewed_usable_playback':imported_reviewed if review_available else None,
             'note':'Imported footage/images are excluded from generated-attempt counts and model quality rates. Static holds add playback time, not captured source seconds or generated motion.'},
         'seconds': {'generated_known': sum(known_durations), 'completed_duration_unknown': missing_durations,
+            'output_timeline_duration':edit['duration'] if edit else 0,
+            'transition_overlap':edit.get('transition_overlap_seconds',0) if edit else 0,
             'completed_artifact_missing_or_changed': invalid_artifacts, 'retained_planned_playback': planned_playback,
             'retained_available_playback': available_playback, 'retained_unique_source': sum(union_seconds(w) for w in windows.values()),
             'reviewed_usable_playback': usable_playback if review_available else None,
@@ -210,6 +213,7 @@ def report(root, *, output_name='preview.mp4'):
         'costs_by_currency': costs, 'delivery_status': review['status'], 'warnings': warnings,
         'unavailable_segments': unavailable_segments, 'explicit_clip_segments_not_matched_to_candidate': unmatched_segments,
         'notes': ['Generated seconds count hash-valid completed candidates with measured durations, including unselected candidates.',
+            'Retained playback and its unit-cost denominator sum source contributions; overlapping transitions count both sources. Output timeline duration subtracts each overlap once.',
             'Reviewed usable seconds mean source-layer approval for retained windows, not final edit/story acceptance.',
             'Unit costs include every ledger attempt in this project, including images and retries; currencies are separate components, never converted.',
             'Unknown billing or review data stays null; these samples do not establish a model ranking.',

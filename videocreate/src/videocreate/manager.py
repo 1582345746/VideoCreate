@@ -748,6 +748,11 @@ def main():
                 dialog.withdraw();root.update_idletasks();dialog.destroy()
                 for layer in ('brief','story','director','generation-plan','timeline'):
                     dialog=open_editor(manager,authored,layer)
+                    if layer=='timeline':
+                        form=dialog.authoring_timeline
+                        form.transitions.add();form.draw()
+                        if not form.graph_data['ok'] or len(form.graph_data.get('transitions',[]))!=1:
+                            raise ConfigError('Packaged transition form did not produce a valid overlap preview')
                     dialog.withdraw();root.update_idletasks();dialog.destroy()
                 dialog=open_editor(manager,authored,'director',assets_only=True)
                 dialog.withdraw();root.update_idletasks();dialog.destroy()
@@ -785,6 +790,7 @@ def main():
                 'project_asset_forms_created': True,
                 'generation_job_forms_created': True,
                 'timeline_forms_created': True,
+                'timeline_transition_form_previewed': True,
                 'local_project_action_controls': local_controls,
                 'continuation_inspection_form_created': True,
                 'generation_execution_panel_created': True,

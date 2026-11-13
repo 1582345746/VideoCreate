@@ -15,11 +15,14 @@ from .pipeline import checked
 
 def _pieces(start, end, windows):
     pieces = []
-    for old_start, old_end, new_start in windows:
-        left, right = max(start, old_start), min(end, old_end)
-        if right <= left:
-            continue
-        placed = new_start + left - old_start
+    points=sorted({start,end,*[v for left,right,_ in windows for v in (left,right) if start<v<end]})
+    for left,right in zip(points,points[1:]):
+        offsets=[placed-old_start for old_start,old_end,placed in windows
+                 if old_start < right-1e-9 and old_end > left+1e-9]
+        if not offsets:continue
+        if max(offsets)-min(offsets)>1e-6:
+            raise ConfigError('Pilot event crosses a changed transition overlap; author its timing in the full timeline')
+        placed=left+offsets[0]
         if pieces and abs(pieces[-1][1] - left) < 1e-6 and abs(pieces[-1][2] + pieces[-1][1] - pieces[-1][0] - placed) < 1e-6:
             pieces[-1] = (pieces[-1][0], right, pieces[-1][2])
         else:
@@ -71,6 +74,10 @@ def prepare(bundle, edits=None):
                 raise ConfigError("Retimed silent-action shots require explicit source_audio=retime or mute")
             retimed.add(seg["id"])
     timeline = {**copy.deepcopy(original), "segments": segments, "audio_tracks": [], "subtitles": [], "overlays": []}
+    if original.get('transitions'):
+        retained={segment['id'] for segment in segments}
+        timeline['transitions']=[record for record in original['transitions']
+            if record['left_segment_id'] in retained and record['right_segment_id'] in retained]
     old_map = mapping(original)
     new_map = mapping(timeline)
     old_by_id = {s["id"]: s for s in old_map["segments"]}
@@ -104,6 +111,13 @@ def prepare(bundle, edits=None):
                 "source_in": track["source_in"] + left - start, "source_out": track["source_in"] + right - start,
                 "timeline_start": placed})
     for cue in old_map["subtitles"]:
+        if old_map.get('transitions') and 'segment_id' in cue:
+            selected=next((s for s in new_map['segments'] if s['id']==cue['segment_id']),None)
+            if selected is None:continue
+            if cue['source_end']<=selected['source_in'] or cue['source_start']>=selected['source_out']:continue
+            if not selected['source_in']<=cue['source_start']<cue['source_end']<=selected['source_out']:
+                raise ConfigError('Subtitle: pilot trim would cut a spoken line or subtitle; revise the edit explicitly')
+            timeline['subtitles'].append(copy.deepcopy(cue));continue
         pieces = _pieces(cue["start"], cue["end"], windows)
         _intact(pieces, cue["start"], cue["end"], "Subtitle")
         for left, right, placed in pieces:

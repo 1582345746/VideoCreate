@@ -82,7 +82,7 @@ class TimelineEditor:
         self.manager=manager;self.book=book;self.original=copy.deepcopy(value)
         sources={job['id']:job for job in bundle['generation-plan']['jobs']}
         sources.update({item['id']:item for item in bundle['generation-plan'].get('local_sources',[])})
-        remaining={key:item for key,item in value.items() if key not in {'clips','segments','audio_tracks','subtitles','overlays'}}
+        remaining={key:item for key,item in value.items() if key not in {'clips','segments','transitions','audio_tracks','subtitles','overlays'}}
         self.spec=ExactFields(book,'成片画布',remaining,[('fps','输出帧率（如 24/1）','text'),
             ('width','画布宽（像素）','integer'),('height','画布高（像素）','integer')],
             '成片规格与模型生成规格分开。输出帧率不是源片采样率，也不会补出真实动作细节。')
@@ -100,6 +100,21 @@ class TimelineEditor:
             '按列表顺序连续播放，区间为 [开始,结束)。静态图片使用开始 0、结束=停留秒数、速度 1、原片静音；独立音轨另接配音。有台词的视频保持自然语速。')
         self.segments=OrderedItems(manager,self.segment_page,value['segments'],'片段',segment,
             lambda items:{'id':identity(items,'seg'),'shot_id':'','clip_id':'','source_in':0,'source_out':1,'rate':1,'source_audio':'mute','cut_reason':''})
+        self.transition_page=page('片段转场')
+        def new_transition(items):
+            segments=self.segments.read()
+            return {'id':identity(items,'transition'),'left_segment_id':segments[0]['id'] if segments else '',
+                'right_segment_id':segments[1]['id'] if len(segments)>1 else '',
+                'kind':'crossfade','duration':.5,'audio':'crossfade'}
+        self.transitions=OrderedItems(manager,self.transition_page,value.get('transitions',[]),'转场',
+            lambda b,v:ExactFields(b,'相邻片段过渡',v,[('id','转场 ID','text'),
+                ('left_segment_id','前片段',tuple(s['id'] for s in self.segments.read())),
+                ('right_segment_id','后片段',tuple(s['id'] for s in self.segments.read())),
+                ('kind','画面过渡',('crossfade','fade-black','wipe-left')),('duration','重叠秒数','number'),
+                ('audio','原片声音过渡',('crossfade','cut'))],
+                '未列出的边界使用硬切。crossfade=交叉淡化，fade-black=经黑场过渡，wipe-left=向左擦除。'
+                '重叠缩短成片，不能长于任一相邻片段，也不能形成三片重叠。片段播放时长和转场须对齐输出帧。'
+                '声音 cut 在重叠中点换轨；独立音轨与绝对字幕保持原成片时间。调整后核对实际对白和目标时长。'),new_transition)
         self.audio=OrderedItems(manager,page('独立音轨'),value.get('audio_tracks',[]),'声音事件',
             lambda b,v:FileFields(manager,b,'自然语速音轨',v,[('id','声音事件 ID','text'),
                 ('kind','用途',('dialogue','ambience','music','effect')),('clip_id','取自剪辑素材（与文件二选一）',tuple(c['id'] for c in self.clips.read())),
@@ -128,6 +143,9 @@ class TimelineEditor:
 
     def read(self):
         value=self.spec.read();value.update(clips=self.clips.read(),segments=self.segments.read())
+        transitions=self.transitions.read()
+        if transitions or 'transitions' in self.original:value['transitions']=transitions
+        if transitions and value.get('format_version',1)==1:value['format_version']=2
         for key,editor in [('audio_tracks',self.audio),('subtitles',self.subtitles),('overlays',self.overlays)]:
             items=editor.read()
             if items or key in self.original:value[key]=items
@@ -141,7 +159,7 @@ class TimelineEditor:
     def refresh_links(self):
         try:
             self.read()
-            for editor in (self.clips,self.segments,self.audio,self.subtitles):editor.refresh(editor.current)
+            for editor in (self.clips,self.segments,self.transitions,self.audio,self.subtitles):editor.refresh(editor.current)
             self.draw()
         except (ConfigError,ValueError) as exc:self.manager.error(exc)
 
@@ -153,6 +171,8 @@ class TimelineEditor:
             self.note.set('当前示意不可计算：'+'；'.join(report['errors']));return
         duration=report['duration'];width=max(780,self.canvas.winfo_width()-110);left=70
         self.note.set(f'成片 {duration:.3f} 秒；画面条按源区间 / 速度换算。声音与绝对字幕保持成片定位；保存后仍需渲染和实际审片。')
+        if report.get('transitions'):
+            self.note.set(self.note.get()+f" 转场共重叠 {report['transition_overlap_seconds']:.3f} 秒；紫色条标出过渡区间。")
         def x(seconds):return left+width*seconds/duration if duration else left
         for label,y in [('画面',40),('音轨',100),('字幕',160),('叠加',220)]:self.canvas.create_text(32,y+12,text=label)
         for i,item in enumerate(report['segments']):
@@ -161,9 +181,21 @@ class TimelineEditor:
             self.canvas.create_text((x(item['timeline_start'])+x(item['timeline_end']))/2,58,text=item['id'],tags=(tag,))
             self.canvas.tag_bind(tag,'<Button-1>',lambda event,index=i:self.select_segment(index))
             self.canvas.create_text(x(item['timeline_start']),24,text=f"{item['timeline_start']:.2f}",anchor='w')
+        for item in report.get('transitions',[]):
+            tag='transition-'+item['id']
+            self.canvas.create_rectangle(x(item['timeline_start']),76,x(item['timeline_end']),94,fill='#c084fc',tags=(tag,))
+            self.canvas.create_text((x(item['timeline_start'])+x(item['timeline_end']))/2,85,text=item['id'],tags=(tag,))
+            self.canvas.tag_bind(tag,'<Button-1>',lambda event,identity=item['id']:self.select_transition(identity))
         for group,y,color in [('audio_tracks',100,'#a7f3d0'),('subtitles',160,'#fde68a'),('overlays',220,'#fecdd3')]:
             for item in report[group]:
                 start=item['timeline_start'] if group=='audio_tracks' else item['start']
                 end=start+item['source_out']-item['source_in'] if group=='audio_tracks' else item['end']
                 self.canvas.create_rectangle(x(start),y,x(end),y+25,fill=color)
         self.canvas.configure(scrollregion=self.canvas.bbox('all'))
+
+    def select_transition(self,identity):
+        try:
+            self.transitions.commit()
+            index=next(i for i,item in enumerate(self.transitions.items) if item['id']==identity)
+            self.transitions.refresh(index);self.book.select(self.transition_page)
+        except (ConfigError,ValueError,StopIteration) as exc:self.manager.error(exc)

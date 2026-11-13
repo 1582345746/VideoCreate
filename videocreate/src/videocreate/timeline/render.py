@@ -79,6 +79,8 @@ def auxiliary_hashes(root: Path, timeline: dict) -> dict:
 def render(root: Path, bundle: dict, state: dict, *, output_name: str = "preview.mp4", scope: str = "project-timeline") -> dict:
     if scope not in {"project-timeline", "animation-pilot"}:
         raise ConfigError("Unknown edit scope")
+    timeline = bundle["timeline"]
+    plan = mapping(timeline)
     if bundle.get('generation-plan', {}).get('local_sources'):
         from ..planning.project import validate_plan
         check = validate_plan(bundle, root)
@@ -92,8 +94,6 @@ def render(root: Path, bundle: dict, state: dict, *, output_name: str = "preview
         raise ConfigError("FFmpeg is required; no automatic download was attempted")
     if Path(output_name).name != output_name or not output_name.endswith(".mp4"):
         raise ConfigError("Output must be a plain MP4 filename in deliverables")
-    timeline = bundle["timeline"]
-    plan = mapping(timeline)
     clips = resolve_clips(root, timeline, state)
     auxiliary = auxiliary_hashes(root, timeline)
     local = {s['id']: s for s in bundle.get('generation-plan', {}).get('local_sources', [])}
@@ -153,10 +153,14 @@ def render(root: Path, bundle: dict, state: dict, *, output_name: str = "preview
             fps_notes.append({"segment_id": seg["id"], "source_fps": source["fps"], "playback_rate": rate,
                 "source_frame_samples_per_timeline_second": unique, "output_fps": timeline["fps"],
                 "interpolation": "none", "note": "fps conversion resamples/repeats frames; it does not prove high-frame-rate capture"})
-        concat = folder / "concat.txt"
-        concat.write_text("\n".join("file '" + part.name + "'" for part in parts), encoding="utf-8")
         base = folder / "picture.mp4"
-        run([ffmpeg, "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", str(concat), "-c", "copy", str(base)])
+        if plan.get('transitions'):
+            from .transitions import assemble
+            assemble(ffmpeg, parts, plan, folder, base, run)
+        else:
+            concat = folder / "concat.txt"
+            concat.write_text("\n".join("file '" + part.name + "'" for part in parts), encoding="utf-8")
+            run([ffmpeg, "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", str(concat), "-c", "copy", str(base)])
         final_temp = folder / "output.mp4"
         audio = plan["audio_tracks"]
         if audio:
@@ -179,6 +183,13 @@ def render(root: Path, bundle: dict, state: dict, *, output_name: str = "preview
             composite(root, timeline, final_temp, folder / "composited.mp4", folder, ffmpeg, plan["duration"])
             final_temp = folder / "composited.mp4"
         final_media = probe(final_temp)
+        if plan.get('transitions'):
+            from fractions import Fraction
+            fps=float(Fraction(timeline['fps']))
+            expected=round(plan['duration']*fps)
+            if (abs(final_media['duration']-plan['duration'])>1/fps+.002
+                    or final_media.get('frame_count') not in {None,'N/A',str(expected)}):
+                raise ConfigError('Transition output duration/frame count differs from the authored overlap mapping')
         run([ffmpeg, "-v", "error", "-i", str(final_temp), "-f", "null", "-"])
         final_temp.replace(target)
     subtitle_file(target.with_suffix(".srt"), plan["subtitles"])

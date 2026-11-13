@@ -44,6 +44,22 @@ Save binds the exact proposed value, plan and task state to the preview. Editing
 
 New-project creation claims a new directory exclusively; it rejects existing empty folders, partial projects and populated projects. Layer files are saved before `project.json`. An interrupted/failed creation may leave a partial directory for inspection; it is preserved rather than deleted or overwritten automatically. Choose a new directory or repair that partial project explicitly.
 
+## Adjacent segment transitions
+
+**剪辑时间线与声音 → 片段转场** edits explicit boundaries by stable `left_segment_id` and `right_segment_id`. Omitted boundaries remain hard cuts. Supported picture kinds are `crossfade`, `fade-black` and `wipe-left`. Each entry also chooses source `audio=crossfade|cut`; cut switches at the overlap midpoint, discarding the outgoing tail and incoming head audio without stretching. Independent audio tracks keep their existing absolute positions. This operation can cut dialogue; choose and actually listen to the boundary before approval.
+
+```json
+{"format_version":2,"transitions":[{"id":"transition-001","left_segment_id":"seg-001","right_segment_id":"seg-002","kind":"crossfade","duration":0.5,"audio":"crossfade"}]}
+```
+
+The example is a fragment of `timeline.json`. GUI addition sets format 2; CLI users add it explicitly. Duration must be positive, shorter than either adjacent segment, and a whole number of output frames. Every segment playback duration in a transition timeline must also lie on the output-frame grid; adjust source_out or rate explicitly rather than accepting silent rounding. The sum of incoming/outgoing overlaps cannot exceed the intervening segment duration. Reordering, renaming or removing a boundary segment leaves an error for explicit repair; no transition silently moves to a different shot. The graph marks overlap intervals, and `timeline map` returns their exact placement. Removing transitions restores hard cuts while retaining format 2.
+
+Output duration equals the sum of retained playback durations minus overlaps. Source captions rebase to the new segment placement; absolute captions, independent audio and overlays stay fixed and may now exceed picture bounds. Narrative target duration is still checked against the brief. Metrics keep retained source contributions (both sources count in an overlap) distinct from `output_timeline_duration` and `transition_overlap`; the historical cost-per-reviewed-playback-second denominator remains summed source contributions. Source review does not approve the transition or final edit. Mapped source evidence overlapping any transition is rejected; inspect original footage for those intervals.
+
+Text-card HTML and MP4 previews share overlap timing and remain unverified plans. Animation pilots retain transitions only between selected adjacent segments. Source captions retain their anchors; overlapping absolute events are mapped once when offsets agree. A trim that gives an overlapping event conflicting placements is rejected for an explicit full-timeline edit. Pilot trims must still satisfy the frame grid and cannot cut a spoken line.
+
+Use dev36 or newer for format 2 transition timelines. Older full plan validators reject the new fields, but some old direct timeline commands ignore unknown fields and can render hard cuts. Do not use those commands to validate or render this format. Project schema remains v3; format 2 does not migrate raw media, provider tasks or credentials. This release does not migrate legacy edit-plan files, add free-form FFmpeg filters, normalize loudness or implement all advanced effects.
+
 ## Continue the current project
 
 **项目与任务 → 继续制作** resolves the current `production.status` next step each time. An authoring step shows its exact current inputs, input hash and associated editor; **登记本阶段计划已核对** requires an explanation and rechecks that hash. Another saved edit makes the old inspection stale. Animation sidecar stages keep their original source instead of offering an ordinary story/director/generation editor. Local GIF recipes keep their explicit conversion/rebuild service.

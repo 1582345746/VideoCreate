@@ -31,6 +31,7 @@ def validate_timeline(timeline: dict[str, Any]) -> list[str]:
     clips = {c["id"]: c for c in timeline.get("clips", []) if isinstance(c, dict) and isinstance(c.get("id"), str)}
     ids = set()
     cursor = 0.0
+    durations = {}
     segments = timeline.get("segments")
     if not isinstance(segments, list) or not segments:
         return errors + ["timeline.segments: nonempty array required"]
@@ -55,6 +56,11 @@ def validate_timeline(timeline: dict[str, Any]) -> list[str]:
         if not seg.get("cut_reason"):
             errors.append(sid + ": cut_reason required")
         cursor += (end-start)/rate
+        durations[sid] = (end-start)/rate
+    from .transitions import layout
+    transition_errors, boundaries = layout(timeline, durations)
+    errors.extend(transition_errors)
+    cursor -= sum(record['duration'] for record in boundaries.values())
     track_ids = set()
     for track in timeline.get("audio_tracks", []):
         if not isinstance(track, dict) or not isinstance(track.get("id"), str):
@@ -110,9 +116,16 @@ def mapping(timeline: dict[str, Any]) -> dict[str, Any]:
     errors = validate_timeline(timeline)
     if errors:
         raise ValueError("; ".join(errors))
-    cursor, segments = 0.0, []
+    from .transitions import layout
+    _, boundaries = layout(timeline, {s['id']:(s['source_out']-s['source_in'])/s.get('rate',1)
+                                      for s in timeline['segments']})
+    cursor, segments, transitions = 0.0, [], []
     for segment in timeline["segments"]:
         duration = (segment["source_out"]-segment["source_in"])/segment.get("rate", 1)
+        if segment['id'] in boundaries:
+            record = boundaries[segment['id']]
+            cursor -= record['duration']
+            transitions.append({**record, 'timeline_start':cursor, 'timeline_end':cursor+record['duration']})
         segments.append({**segment, "timeline_start": cursor, "timeline_end": cursor + duration, "duration": duration})
         cursor += duration
     by_id = {s["id"]: s for s in segments}
@@ -123,7 +136,8 @@ def mapping(timeline: dict[str, Any]) -> dict[str, Any]:
             cue = {**cue, "start": source_to_timeline(seg, cue["source_start"]), "end": source_to_timeline(seg, cue["source_end"])}
         cues.append(cue)
     return {"timebase": "seconds; source and timeline intervals are half-open", "fps": timeline["fps"],
-            "duration": cursor, "segments": segments, "subtitles": cues, "audio_tracks": timeline.get("audio_tracks", [])}
+            "duration": cursor, "segments": segments, "subtitles": cues, "audio_tracks": timeline.get("audio_tracks", []),
+            **({'transitions':transitions,'transition_overlap_seconds':sum(r['duration'] for r in transitions)} if transitions else {})}
 
 
 def source_to_timeline(segment: dict[str, Any], source_time: float) -> float:

@@ -318,7 +318,9 @@
         "timeline map",
         "timeline render",
         "production import-image",
-        "manager project panel · render current timeline"
+        "manager project panel · render current timeline",
+        "剪辑时间线与声音 · 片段转场",
+        "timeline map"
       ],
       "work_packages": [
         "H04",
@@ -326,14 +328,15 @@
         "H07"
       ],
       "status": "partial",
-      "limitations": "Native timeline forms edit video/static-image source mappings, segments, audio, captions and overlays. Static holds preserve original image hashes, normalize EXIF/alpha only for rendering and have distinct image versus final-video review. Shared canvas limits match rendering. Saving does not render or regenerate; explicit local rendering runs in a background worker. Waveform/playback/drag trimming, dynamic masking/tracking and speed curves remain pending.",
+      "limitations": "Native timeline forms edit video/static-image source mappings, segments, audio, captions and overlays. Static holds preserve original image hashes, normalize EXIF/alpha only for rendering and have distinct image versus final-video review. Shared canvas limits match rendering. Saving does not render or regenerate; explicit local rendering runs in a background worker. Waveform/playback/drag trimming, dynamic masking/tracking and speed curves remain pending. V3 format 2 adds adjacent crossfade/fade-black/wipe-left with explicit source-audio crossfade/cut, frame-grid validation, overlap-aware captions/metrics, mapped-review exclusion and pilot/animatic timing. Legacy direct timeline commands may ignore these fields; use dev36+. Filters/loudness and advanced effects remain incomplete.",
       "test_evidence": [
         "test_editing_workflow.py",
         "test_v3_pipeline.py",
         "test_timeline_authoring.py",
         "test_manager_project_actions.py",
         "test_static_image_timeline.py",
-        "test_manager_static_images.py"
+        "test_manager_static_images.py",
+        "test_timeline_transitions.py"
       ],
       "online_acceptance": "Not claimed by source implementation; consult binding receipts and the dated acceptance report."
     },
