@@ -624,17 +624,12 @@ def launch(path=None):
             from .cli import skill_root
             from .config.storage import atomic_json
             atomic_json(path, service.migrate(load_json(skill_root() / 'assets/config/videocreate.config.example.json')))
-        record = service.load(path)
-        if not record['editable']:
-            from .config.storage import redact_config
-            root.title('VideoCreate · 配置只读检查')
-            root.geometry('1000x720')
-            ttk.Label(root, text='当前配置版本或字段无法编辑。原文件未改动。', padding=16).pack(anchor='w')
-            ttk.Label(root, text=str(path), padding=8).pack(anchor='w')
-            view = tk.Text(root, wrap='word', font=('Consolas', 10))
-            view.pack(fill='both', expand=True, padx=12, pady=12)
-            view.insert('1.0', '\n'.join(record['errors']) + '\n\n' + json.dumps(redact_config(record['config']),ensure_ascii=False,indent=2))
-            view.configure(state='disabled')
+        from .config import repair
+        if repair.inspect(path)['status']!='valid':
+            from .manager_repair import RepairPanel
+            def recovered(_):
+                panel.dispose();Manager(root,path)
+            panel=RepairPanel(root,path,completed=recovered)
         else:
             Manager(root, path)
         root.mainloop()
@@ -821,6 +816,34 @@ def main():
                 from .manager_legacy_edit import open_form as migration_form
                 dialog=migration_form(manager,source=authored)
                 dialog.withdraw();root.update_idletasks();dialog.destroy()
+                from .config import repair
+                from .manager_repair import RepairPanel
+                broken=Path(temporary)/'damaged.json'
+                broken_raw=b'{"schema_version":4,"damaged":}'
+                broken.write_bytes(broken_raw)
+                recovery=tk.Toplevel(root);recovery.withdraw();recovered=[]
+                def repaired(value):
+                    repair_panel.dispose();recovered.append(Manager(recovery,broken))
+                repair_panel=RepairPanel(recovery,broken,completed=repaired)
+                from .cli import skill_root
+                draft=json.dumps(service.migrate(load_json(skill_root()/'assets/config/videocreate.config.example.json')))
+                repair_panel.editor.insert('1.0',draft);root.update()
+                repair_panel.preview()
+                deadline=time.monotonic()+10
+                while repair_panel.call.busy and time.monotonic()<deadline:root.update();time.sleep(.005)
+                if not repair_panel.pending:raise ConfigError('Configuration repair did not preview')
+                original_backup=Path(repair_panel.pending['original_backup'])
+                repair_panel.apply()
+                deadline=time.monotonic()+10
+                while repair_panel.call.busy and time.monotonic()<deadline:root.update();time.sleep(.005)
+                if not recovered or original_backup.read_bytes()!=broken_raw:
+                    raise ConfigError('Configuration repair did not return to the manager with its exact backup')
+                recovery.destroy()
+                broken.write_text('{"schema_version":99,"damaged":',encoding='utf-8')
+                recovery=tk.Toplevel(root);recovery.withdraw();repair_panel=RepairPanel(recovery,broken)
+                if repair_panel.snapshot['can_repair'] or not all(button.instate(['disabled']) for button in repair_panel.buttons.values()):
+                    raise ConfigError('Newer configuration repair was not read-only')
+                recovery.destroy()
             # Exercise real Tcl teardown in the packaged runtime too.
             owner = ttk.Frame(root)
             probe = ui.StringVar(owner, value='lifecycle smoke')
@@ -846,6 +869,9 @@ def main():
                 'comparison_and_pricing_forms_created': True,
                 'configuration_draft_guards_exercised': draft_guards_exercised,
                 'nested_price_draft_guard_exercised': draft_guards_exercised,
+                'configuration_repair_preview_apply_and_return': True,
+                'configuration_repair_exact_original_backup': True,
+                'configuration_repair_future_version_read_only': True,
                 'quota_module_loaded': True, 'quota_upstreams': len(quota_reports),
                 'edit_only_panel_created': True, 'local_source_module_loaded': callable(import_clip),
                 'image_and_gif_panels_created': True,

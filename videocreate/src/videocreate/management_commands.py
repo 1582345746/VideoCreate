@@ -9,13 +9,15 @@ def providers_command(argv):
     from .cli import print_result
     from .config import management as m
     parser = argparse.ArgumentParser(prog='videocreate providers')
-    parser.add_argument('action', choices=['list', 'compare', 'quotas', 'show', 'migrate', 'save', 'archive', 'restore', 'credential', 'discover', 'pricing', 'import-models'])
+    parser.add_argument('action', choices=['list', 'compare', 'quotas', 'show', 'migrate', 'save', 'archive', 'restore', 'credential', 'discover', 'pricing', 'import-models', 'repair-inspect', 'repair-preview', 'repair-apply'])
     parser.add_argument('--config', type=Path)
     parser.add_argument('--upstream')
     parser.add_argument('--project', type=Path, help='Register an existing v3 project for local quota accounting')
     parser.add_argument('--kind', choices=['video', 'image'])
     parser.add_argument('--file', type=Path)
     parser.add_argument('--token')
+    parser.add_argument('--preview-token')
+    parser.add_argument('--baseline',type=Path)
     parser.add_argument('--apply', action='store_true')
     parser.add_argument('--use-defaults', action='store_true', help='Explicitly retain unattended default selection')
     parser.add_argument('--group', choices=['upstreams', 'models', 'bindings'])
@@ -30,6 +32,21 @@ def providers_command(argv):
     parser.add_argument('--reason', default='explicit catalog edit')
     args = parser.parse_args(argv)
     path = user_config_path(args.config)
+    if args.action.startswith('repair-'):
+        from .config import repair
+        if args.apply:raise ConfigError('Repair uses repair-preview then repair-apply with its preview token')
+        if args.action=='repair-inspect':
+            if args.file or args.token or args.preview_token or args.baseline:raise ConfigError('repair-inspect only needs --config')
+            result=repair.inspect(path)
+        else:
+            if not args.file or not args.token:raise ConfigError('Repair needs --file with the draft and --token from repair-inspect')
+            text=args.file.read_text(encoding='utf-8-sig')
+            if args.action=='repair-preview':
+                if args.preview_token:raise ConfigError('Use --preview-token with repair-apply')
+                result=repair.preview(path,text,source_token=args.token,baseline=args.baseline)
+            else:result=repair.apply(path,text,source_token=args.token,preview_token=args.preview_token,baseline=args.baseline)
+        print_result(result);return 0
+    if args.preview_token or args.baseline:raise ConfigError('--preview-token/--baseline are only consumed by configuration repair')
     record = m.load(path)
     if args.action == 'quotas':
         if not args.upstream:
