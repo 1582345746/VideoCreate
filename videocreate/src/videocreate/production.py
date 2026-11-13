@@ -42,13 +42,16 @@ def script_export(root):
         from .timeline.model import mapping
         mapped = mapping(bundle['timeline'])
         clips = {c['id']:c for c in bundle['timeline']['clips']}
+        sources = {s['id']:s for s in bundle['generation-plan'].get('local_sources', [])}
         lines = ['# ' + value['title'] + ' · 剪辑清单', '',
             '来源：timeline 与已登记本地素材；只读投射。实际内容与音轨仍须播放审查。', '']
         for segment in mapped['segments']:
             clip = clips[segment['clip_id']]
+            still = sources.get(clip['job_id'], {}).get('kind') == 'image'
             lines.extend(['## '+segment['id'], '',
                 f"来源：{clip['job_id']} · {clip.get('path', '')}",
-                f"原片区间：{segment['source_in']}–{segment['source_out']} 秒；速度：{segment.get('rate',1)}",
+                '静态图片停留：'+str(segment['duration'])+' 秒；没有源片采样时长' if still else
+                    f"原片区间：{segment['source_in']}–{segment['source_out']} 秒；速度：{segment.get('rate',1)}",
                 f"成片区间：{segment['timeline_start']}–{segment['timeline_end']} 秒",
                 '声音：'+segment.get('source_audio','mute'), '切点用途：'+segment['cut_reason'], ''])
     if bundle['brief'].get('workflow_profile')!='edit-only':
@@ -77,9 +80,9 @@ def script_export(root):
         lines.extend(['## 剪辑来源映射','','只读投射自 timeline；原素材审核不代表成片通过。',''])
         for segment in mapping(bundle['timeline'])['segments']:
             clip=clips[segment['clip_id']];identity=clip['job_id'];source=imported.get(identity)
-            lines.extend([segment['id']+' · '+('本地素材' if source else '生成任务')+' '+identity,
+            lines.extend([segment['id']+' · '+('本地静态图片' if source and source['kind']=='image' else '本地视频' if source else '生成任务')+' '+identity,
                 '路径：'+(source['path'] if source else clip.get('path','按已选候选解析')),
-                f"原片 {segment['source_in']}–{segment['source_out']} 秒 → 成片 {segment['timeline_start']}–{segment['timeline_end']} 秒",''])
+                ('图片停留' if source and source['kind']=='image' else '原片')+f" {segment['source_in']}–{segment['source_out']} 秒 → 成片 {segment['timeline_start']}–{segment['timeline_end']} 秒",''])
     text = target.with_suffix('.md')
     text.write_text('\n'.join(lines), encoding='utf-8')
     return {'ok': True, 'script': str(target), 'reading_copy': str(text), 'source_hash': value['source_hash'], 'paid_creates': 0}
@@ -224,7 +227,7 @@ def status(root, *, output_name='preview.mp4'):
             source_status, source_error = 'available', ''
         except (ConfigError,OSError,ValueError) as exc:
             source_status, source_error = 'stale', str(exc)
-        local_rows.append({'source_id':source['id'],'kind':'imported-video','status':source_status,
+        local_rows.append({'source_id':source['id'],'kind':'imported-'+source['kind'],'status':source_status,
             'path':source['path'],'sha256':source['sha256'],'content_status':'unverified','error':source_error})
     try:
         from .review.receipts import summary
@@ -245,7 +248,7 @@ def status(root, *, output_name='preview.mp4'):
     if ambiguous:
         next_step = {'id': 'reconcile', 'name': '核对原提交；不重复创建', 'jobs': ambiguous}
     elif bundle['brief'].get('workflow_profile') == 'edit-only' and not bundle['generation-plan'].get('local_sources'):
-        next_step = {'id':'import-local-sources','name':'导入本地视频并选择保留区间','errors':check['errors']}
+        next_step = {'id':'import-local-sources','name':'导入本地视频或静态图片','errors':check['errors']}
     elif bundle['brief'].get('workflow_profile')=='mixed-video' and not planned and not bundle['generation-plan'].get('local_sources'):
         next_step={'id':'author-mixed-sources','name':'导入本地视频或编写需要生成的镜头','errors':check['errors']}
     elif not check['ok']:

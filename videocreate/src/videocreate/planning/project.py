@@ -273,6 +273,12 @@ def validate_plan(bundle: dict[str, Any], root: Path | None = None) -> dict[str,
             if (dep not in jobs and dep not in local_sources) or dep == jid:
                 errors.append(jid + ": invalid dependency")
     for identity, source in local_sources.items():
+        media = source['media']
+        if source['kind'] == 'video' and not (_positive(media.get('duration')) and isinstance(media.get('fps'), str)):
+            errors.append(identity + ': video source requires actual duration and fps')
+        if source['kind'] == 'image' and (set(media) != {'width','height','has_audio','format','frame_count'}
+                or media.get('has_audio') is not False or media.get('frame_count') != '1'):
+            errors.append(identity + ': static image metadata must declare one frame and no audio or intrinsic duration')
         if identity == 'final':
             errors.append('Local source ID final is reserved for the final edit review')
         if set(source['shot_ids']) & assigned or len(set(source['shot_ids'])) != len(source['shot_ids']):
@@ -312,8 +318,15 @@ def validate_plan(bundle: dict[str, Any], root: Path | None = None) -> dict[str,
                 errors.append(cid + ': imported clip must use its registered local source path')
             for segment in timeline['segments']:
                 if segment['clip_id'] == cid and (segment['shot_id'] not in source['shot_ids'] or
-                        segment['source_out'] > source['media']['duration'] + .001):
+                        source['kind'] == 'video' and segment['source_out'] > source['media'].get('duration', 0) + .001):
                     errors.append(segment['id'] + ': imported source shot/window does not match its registered media')
+            if source['kind'] == 'image':
+                for segment in timeline['segments']:
+                    if segment['clip_id'] == cid and (segment['source_in'] != 0 or segment.get('rate', 1) != 1
+                            or segment.get('source_audio', 'mute') != 'mute'):
+                        errors.append(segment['id'] + ': static image holds need source_in=0, rate=1 and muted source audio')
+                if any(track.get('clip_id') == cid for track in timeline.get('audio_tracks', [])):
+                    errors.append(cid + ': static images contain no audio; select a separate audio file or video clip')
     from ..timeline.model import validate_timeline
     errors.extend(validate_timeline(timeline))
     target = brief.get("target_seconds")
@@ -351,7 +364,7 @@ def validate_plan(bundle: dict[str, Any], root: Path | None = None) -> dict[str,
         if sid not in shots or sid not in source.get("shot_ids", []):
             errors.append(seg["id"] + ": segment shot is not covered by its source " + ('import' if imported else 'job'))
         duration = source.get('media', {}).get('duration', 0) if imported else source.get('seconds', 0)
-        if seg.get("source_out", 0) > duration:
+        if source.get('kind') != 'image' and seg.get("source_out", 0) > duration:
             errors.append(seg["id"] + ": source window exceeds " + ('actual imported duration' if imported else 'planned generated seconds'))
         if sid in shots:
             for line in shots[sid].get("audio", {}).get("lines", []):

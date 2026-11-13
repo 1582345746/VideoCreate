@@ -88,7 +88,7 @@ def plan_command(argv: list[str]) -> int:
                 bundle["timeline"][key] = []
         save_bundle(root, bundle)
         print_result({"ok": True, "project": str(root / "project.json"), "status": "draft_plan",
-            "next": "Use production import-clip to register existing footage, then plan validate and timeline render"
+            "next": "Use production import-clip/import-image to register local footage/static holds, then plan validate and timeline render"
                 if args.profile=='edit-only' else 'Import local clips and author generated shots/jobs in the same timeline; generation selection applies only to provider jobs'
                 if args.profile=='mixed-video' else 'Author generation-plan.image_jobs, then plan validate/compile and production images-run'
                 if args.profile in {'image-only','gif-only'} else 'Use production gif-video/gif-frames to create a local GIF without provider configuration'

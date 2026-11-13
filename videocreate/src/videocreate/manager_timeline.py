@@ -96,7 +96,7 @@ class TimelineEditor:
             ('source_in','保留源片开始秒','number'),('source_out','保留源片结束秒','number'),
             ('rate','播放速度（缺省 1）','number'),('source_audio','原片声音',('mute','retime','preserve')),
             ('cut_reason','剪辑理由','multiline')],
-            '按列表顺序连续播放，区间为 [开始,结束)。有台词时保持自然语速；慢放画面应另接独立音轨。')
+            '按列表顺序连续播放，区间为 [开始,结束)。静态图片使用开始 0、结束=停留秒数、速度 1、原片静音；独立音轨另接配音。有台词的视频保持自然语速。')
         self.segments=OrderedItems(manager,self.segment_page,value['segments'],'片段',segment,
             lambda items:{'id':identity(items,'seg'),'shot_id':'','clip_id':'','source_in':0,'source_out':1,'rate':1,'source_audio':'mute','cut_reason':''})
         self.audio=OrderedItems(manager,page('独立音轨'),value.get('audio_tracks',[]),'声音事件',

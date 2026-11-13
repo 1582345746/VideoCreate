@@ -1,12 +1,12 @@
 <!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>VideoCreate 实际审片</title>
 <style>
-:root{font-family:system-ui,"Microsoft YaHei",sans-serif;color:#223247;background:#f2f5f8}body{max-width:1380px;margin:32px auto;padding:0 24px}h1{font-size:30px;margin:0}p{line-height:1.7;color:#5c6c7e}.bar{display:flex;gap:12px;align-items:center;margin:20px 0;flex-wrap:wrap}button,select,input,textarea{font:inherit;padding:9px;border:1px solid #c5cfdb;border-radius:6px}button{background:#fff;cursor:pointer}button.primary{background:#155ca2;color:white;border:0}.grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}.panel{background:white;padding:20px;border-radius:12px;box-shadow:0 3px 18px #1838580b}video{width:100%;max-height:430px;background:#172331;border-radius:8px}textarea{box-sizing:border-box;width:100%;min-height:70px;margin-top:8px}.layer{border-top:1px solid #e1e7ef;padding:14px 0}.layer h3{margin:0 0 8px;font-size:15px}.check{display:block;font-size:13px;margin:10px 0;color:#54677b}label{line-height:1.7}#message{color:#a14623;white-space:pre-wrap}@media(max-width:850px){.grid{grid-template-columns:1fr}}
+:root{font-family:system-ui,"Microsoft YaHei",sans-serif;color:#223247;background:#f2f5f8}body{max-width:1380px;margin:32px auto;padding:0 24px}h1{font-size:30px;margin:0}p{line-height:1.7;color:#5c6c7e}.bar{display:flex;gap:12px;align-items:center;margin:20px 0;flex-wrap:wrap}button,select,input,textarea{font:inherit;padding:9px;border:1px solid #c5cfdb;border-radius:6px}button{background:#fff;cursor:pointer}button.primary{background:#155ca2;color:white;border:0}.grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}.panel{background:white;padding:20px;border-radius:12px;box-shadow:0 3px 18px #1838580b}video,img.media{width:100%;max-height:430px;object-fit:contain;background:#172331;border-radius:8px}textarea{box-sizing:border-box;width:100%;min-height:70px;margin-top:8px}.layer{border-top:1px solid #e1e7ef;padding:14px 0}.layer h3{margin:0 0 8px;font-size:15px}.check{display:block;font-size:13px;margin:10px 0;color:#54677b}label{line-height:1.7}#message{color:#a14623;white-space:pre-wrap}[hidden]{display:none!important}@media(max-width:850px){.grid{grid-template-columns:1fr}}
 </style>
-<h1>实际审片</h1><p>逐段播放、聆听并记录看到的结果。通过只适用于已观看的保留区间。页面不会自动批准媒体，导出的记录还需交给 VideoCreate 校验。</p>
+<h1>实际审片</h1><p>查看原图，逐段播放、聆听视频并记录实际结果。图片审核只适用于该图；成片仍需独立播放与听音。页面不会自动批准媒体，导出的记录还需交给 VideoCreate 校验。</p>
 <div class="bar"><label>审核人 <input id="reviewer" placeholder="姓名或标识"></label><button class="primary" id="export">导出审核记录</button><span id="message"></span></div>
-<div class="grid"><section class="panel"><h2>当前镜头 / 成片</h2><select id="asset"></select><div class="bar" id="windows"></div><video id="player" controls preload="metadata"></video><p id="identity"></p><div id="understanding"></div><div id="layers"></div></section>
-<section class="panel"><h2>前后镜对照</h2><p>可选择相邻镜头核对人物、方向、声音与衔接。此处播放不会自动生成合格记录。</p><select id="compare"></select><video id="comparison" controls preload="metadata"></video><h2>记录说明</h2><p>“未核实”可保留。存在真实缺陷时选择“不通过”，并描述时间点与问题。动作、空间连续性、剪辑必须观看视频，声音必须实际聆听。叙事理解请先看成片再回答。</p></section></div>
+<div class="grid"><section class="panel"><h2>当前来源 / 成片</h2><select id="asset"></select><div class="bar" id="windows"></div><video id="player" controls preload="metadata"></video><img class="media" id="still-player" alt="当前原始静态图片" hidden><p id="identity"></p><div id="understanding"></div><div id="layers"></div></section>
+<section class="panel"><h2>前后镜对照</h2><p>可选择相邻镜头、原图与成片核对人物、方向、声音与衔接。查看或播放不会自动生成合格记录。</p><select id="compare"></select><video id="comparison" controls preload="metadata"></video><img class="media" id="still-comparison" alt="对照原始静态图片" hidden><h2>记录说明</h2><p>“未核实”可保留。存在真实缺陷时选择“不通过”，并描述具体问题。动作、空间连续性、剪辑必须观看视频，声音必须实际聆听。叙事理解请先看成片再回答。</p></section></div>
 <script id="data" type="application/json">__REVIEW_DATA__</script>
 <script>
 'use strict';
@@ -15,10 +15,80 @@ const names={narrative:'叙事理解',performance_motion:'动作与表演',ident
 const answers={goal:'主角目标',obstacle:'遇到的阻碍',product_role:'产品作用（适用时）',choice:'做出的选择',result:'实际结果',payoff:'结尾兑现（适用时）'};
 const $=x=>document.querySelector(x), drafts={};
 function el(tag,text){const n=document.createElement(tag);if(text!==undefined)n.textContent=text;return n}
-Object.keys(packet.assets).forEach(id=>{for(const selector of ['#asset','#compare']){const o=el('option',id==='final'?'完整成片':id);o.value=id;$(selector).append(o)}});
-function save(){const id=$('#asset').dataset.current;if(!id)return;const d={layers:{},answers:{}};for(const row of $('#layers').children)d.layers[row.dataset.layer]={status:row.querySelector('select').value,note:row.querySelector('textarea').value,watched:row.querySelector('input').checked};for(const box of document.querySelectorAll('#understanding textarea'))d.answers[box.dataset.answer]=box.value;drafts[id]=d}
-function show(){save();const id=$('#asset').value,a=packet.assets[id],d=drafts[id]||{layers:{},answers:{}};$('#asset').dataset.current=id;$('#player').src=DATA.media[id];$('#identity').textContent=`${a.path} · ${a.duration.toFixed(2)} 秒`;$('#windows').replaceChildren();for(const [start,end] of a.windows){const b=el('button',`${start.toFixed(2)}–${end.toFixed(2)} 秒`);b.onclick=()=>{$('#player').currentTime=start;$('#player').play()};$('#windows').append(b)}$('#layers').replaceChildren();for(const [key,label] of Object.entries(names)){const row=el('div');row.className='layer';row.dataset.layer=key;row.append(el('h3',label+(a.required_layers.includes(key)?' · 必核':' · 可不适用')));const select=el('select');for(const [v,t] of [['unverified','未核实'],['pass','通过'],['fail','不通过'],...(!a.required_layers.includes(key)?[['not_applicable','不适用']]:[])]){const o=el('option',t);o.value=v;select.append(o)}select.value=d.layers[key]?.status||'unverified';row.append(select);const note=el('textarea');note.placeholder='实际观察、具体时间点和问题';note.value=d.layers[key]?.note||'';row.append(note);const check=el('label',key==='audio'?' 我已实际聆听全部保留区间':' 我已实际观看全部保留区间');check.className='check';const checkbox=el('input');checkbox.type='checkbox';checkbox.checked=!!d.layers[key]?.watched;check.prepend(checkbox);row.append(check);$('#layers').append(row)}$('#understanding').replaceChildren();if(id==='final'&&a.required_layers.includes('narrative')){for(const [key,label] of Object.entries(answers)){const title=el('label',label);const input=el('textarea');input.dataset.answer=key;input.value=d.answers[key]||'';title.append(input);$('#understanding').append(title)}}}
-$('#asset').onchange=show;$('#compare').onchange=()=>{$('#comparison').src=DATA.media[$('#compare').value]};
-$('#export').onclick=()=>{save();try{const result=JSON.parse(JSON.stringify(packet));result.reviewer_id=$('#reviewer').value.trim();if(!result.reviewer_id)throw Error('请填写审核人');for(const [id,a] of Object.entries(result.assets)){const d=drafts[id];if(!d)continue;for(const [layer,v] of Object.entries(d.layers)){if(['pass','fail'].includes(v.status)&&(!v.note.trim()||!v.watched))throw Error(`${id} / ${names[layer]}：请先完整观看或聆听，并填写具体观察`);a.layers[layer]={status:v.status,method:['pass','fail'].includes(v.status)?layer==='audio'?'human-listening':'human-video':'',observations:v.note.trim()?[v.note.trim()]:[],evidence:['pass','fail'].includes(v.status)?a.windows.map(([start,end])=>({path:a.path,sha256:a.sha256,kind:'video',start,end})):[]}}if(id==='final')a.blind_understanding=d.answers}const url=URL.createObjectURL(new Blob([JSON.stringify(result,null,2)],{type:'application/json'}));const link=el('a');link.href=url;link.download='review-observations.json';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);$('#message').textContent='已导出；用 review apply 导入并校验。'}catch(e){$('#message').textContent=e.message}};
+function isStill(asset){return asset.media_kind==='image'}
+function setMedia(videoSelector,imageSelector,id){
+  const still=isStill(packet.assets[id]),video=$(videoSelector),image=$(imageSelector);
+  video.pause();video.hidden=still;image.hidden=!still;
+  if(still){video.removeAttribute('src');image.src=DATA.media[id]}
+  else{image.removeAttribute('src');video.src=DATA.media[id]}
+}
+Object.keys(packet.assets).forEach(id=>{
+  for(const selector of ['#asset','#compare']){
+    const a=packet.assets[id],o=el('option',id==='final'?'完整成片':id+(isStill(a)?' · 静态图片':''));
+    o.value=id;$(selector).append(o);
+  }
+});
+function save(){
+  const id=$('#asset').dataset.current;if(!id)return;
+  const d={layers:{},answers:{}};
+  for(const row of $('#layers').children)d.layers[row.dataset.layer]={status:row.querySelector('select').value,note:row.querySelector('textarea').value,watched:row.querySelector('input').checked};
+  for(const box of document.querySelectorAll('#understanding textarea'))d.answers[box.dataset.answer]=box.value;
+  drafts[id]=d;
+}
+function show(){
+  save();const id=$('#asset').value,a=packet.assets[id],still=isStill(a),d=drafts[id]||{layers:{},answers:{}};
+  $('#asset').dataset.current=id;setMedia('#player','#still-player',id);
+  $('#identity').textContent=a.path+(still?' · 静态图片；停留时长在时间线设置':` · ${a.duration.toFixed(2)} 秒`);
+  $('#windows').replaceChildren();
+  for(const [start,end] of a.windows){
+    const b=el('button',`${start.toFixed(2)}–${end.toFixed(2)} 秒`);
+    b.onclick=()=>{$('#player').currentTime=start;$('#player').play()};$('#windows').append(b);
+  }
+  $('#layers').replaceChildren();
+  for(const [key,label] of Object.entries(names)){
+    if(still&&!['identity','clean_frame'].includes(key))continue;
+    const applicable=a.required_layers.includes(key);
+    const row=el('div');row.className='layer';row.dataset.layer=key;
+    row.append(el('h3',label+(applicable?' · 必核':' · 可不适用')));
+    const select=el('select');
+    const choices=[['unverified','未核实'],['pass','通过'],['fail','不通过'],...(!applicable?[['not_applicable','不适用']]:[])];
+    for(const [v,t] of choices){const o=el('option',t);o.value=v;select.append(o)}
+    select.value=d.layers[key]?.status||'unverified';row.append(select);
+    const note=el('textarea');note.placeholder=still?'整张原图的实际观察和问题':'实际观察、具体时间点和问题';
+    note.value=d.layers[key]?.note||'';row.append(note);
+    const check=el('label',still?' 我已查看整张静态图片':key==='audio'?' 我已实际聆听全部保留区间':' 我已实际观看全部保留区间');
+    check.className='check';const checkbox=el('input');checkbox.type='checkbox';checkbox.checked=!!d.layers[key]?.watched;
+    check.prepend(checkbox);row.append(check);$('#layers').append(row);
+  }
+  $('#understanding').replaceChildren();
+  if(id==='final'&&a.required_layers.includes('narrative')){
+    for(const [key,label] of Object.entries(answers)){
+      const title=el('label',label),input=el('textarea');input.dataset.answer=key;input.value=d.answers[key]||'';
+      title.append(input);$('#understanding').append(title);
+    }
+  }
+}
+$('#asset').onchange=show;
+$('#compare').onchange=()=>setMedia('#comparison','#still-comparison',$('#compare').value);
+$('#export').onclick=()=>{
+  save();try{
+    const result=JSON.parse(JSON.stringify(packet));result.reviewer_id=$('#reviewer').value.trim();
+    if(!result.reviewer_id)throw Error('请填写审核人');
+    for(const [id,a] of Object.entries(result.assets)){
+      const d=drafts[id];if(!d)continue;
+      for(const [layer,v] of Object.entries(d.layers)){
+        const observed=['pass','fail'].includes(v.status),still=isStill(a);
+        if(observed&&(!v.note.trim()||!v.watched))throw Error(`${id} / ${names[layer]}：请先完整查看、观看或聆听，并填写具体观察`);
+        if(observed&&still&&!['identity','clean_frame'].includes(layer))throw Error('静态图片不能审核视频动作或声音');
+        const evidence=observed?(still?[{path:a.path,sha256:a.sha256,kind:'image'}]:a.windows.map(([start,end])=>({path:a.path,sha256:a.sha256,kind:'video',start,end}))):[];
+        a.layers[layer]={status:v.status,method:observed?(still?'human-image':layer==='audio'?'human-listening':'human-video'):'',observations:v.note.trim()?[v.note.trim()]:[],evidence};
+      }
+      if(id==='final')a.blind_understanding=d.answers;
+    }
+    const url=URL.createObjectURL(new Blob([JSON.stringify(result,null,2)],{type:'application/json'}));
+    const link=el('a');link.href=url;link.download='review-observations.json';link.click();
+    setTimeout(()=>URL.revokeObjectURL(url),1000);$('#message').textContent='已导出；用 review apply 导入并校验。';
+  }catch(e){$('#message').textContent=e.message}
+};
 show();$('#compare').selectedIndex=Math.min(1,$('#compare').options.length-1);$('#compare').onchange();
 </script></html>

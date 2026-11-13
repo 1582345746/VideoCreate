@@ -233,7 +233,7 @@
         "F09"
       ],
       "status": "partial",
-      "limitations": "Continue-local resolves authoring/import/local output steps; explicit task execution separately preflights dependencies/routes/budget and dispatches generation or original-task recovery. Neither path approves media. Static-image timelines, drag editing, full workflow policy UI and broader online acceptance remain incomplete.",
+      "limitations": "Continue-local resolves authoring/import/local output steps; explicit task execution separately preflights dependencies/routes/budget and dispatches generation or original-task recovery. Static-image holds use the shared local import/render/review path. Neither path approves media. Drag editing, full workflow policy UI and broader online acceptance remain incomplete.",
       "test_evidence": [
         "test_production_progress.py",
         "test_production_continue.py",
@@ -246,7 +246,9 @@
         "test_project_asset_authoring.py",
         "test_generation_authoring.py",
         "test_timeline_authoring.py",
-        "test_manager_project_actions.py"
+        "test_manager_project_actions.py",
+        "test_static_image_timeline.py",
+        "test_manager_static_images.py"
       ],
       "online_acceptance": "Not claimed by source implementation; consult binding receipts and the dated acceptance report."
     },
@@ -310,6 +312,7 @@
         "authoring show/preview/save --layer timeline",
         "timeline map",
         "timeline render",
+        "production import-image",
         "manager project panel · render current timeline"
       ],
       "work_packages": [
@@ -318,12 +321,14 @@
         "H07"
       ],
       "status": "partial",
-      "limitations": "Native timeline forms and a clickable proportional schematic edit existing video source mappings/segments/audio/captions/overlays. Shared canvas limits match rendering. Saving does not render or regenerate; the manager's explicit render button runs the same local renderer in a background worker. Static-image clips, waveform/playback/drag trimming, dynamic masking/tracking and speed curves remain pending.",
+      "limitations": "Native timeline forms edit video/static-image source mappings, segments, audio, captions and overlays. Static holds preserve original image hashes, normalize EXIF/alpha only for rendering and have distinct image versus final-video review. Shared canvas limits match rendering. Saving does not render or regenerate; explicit local rendering runs in a background worker. Waveform/playback/drag trimming, dynamic masking/tracking and speed curves remain pending.",
       "test_evidence": [
         "test_editing_workflow.py",
         "test_v3_pipeline.py",
         "test_timeline_authoring.py",
-        "test_manager_project_actions.py"
+        "test_manager_project_actions.py",
+        "test_static_image_timeline.py",
+        "test_manager_static_images.py"
       ],
       "online_acceptance": "Not claimed by source implementation; consult binding receipts and the dated acceptance report."
     },
@@ -348,7 +353,8 @@
         "test_v3_media_review.py",
         "test_content_reviews.py",
         "test_production_metrics.py",
-        "test_mixed_video_production.py"
+        "test_mixed_video_production.py",
+        "test_static_image_timeline.py"
       ],
       "online_acceptance": "Not claimed by source implementation; consult binding receipts and the dated acceptance report."
     },

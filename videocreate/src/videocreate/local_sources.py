@@ -1,4 +1,4 @@
-"""Explicit local video sources for edit-only and mixed plans; no provider tasks."""
+"""Explicit local video and static-image sources; no provider tasks."""
 from __future__ import annotations
 
 import copy
@@ -29,6 +29,13 @@ def verify_source(root, source):
     path = within(Path(root).resolve(), source['path'])
     if digest(path) != source['sha256']:
         raise ConfigError('Registered local source bytes changed; restore the original or import a new source ID')
+    if source['kind'] == 'image':
+        from .still_images import inspect
+        if inspect(path) != source['media']:
+            raise ConfigError('Local image metadata differs from actual static media')
+        return path
+    if any(key not in source['media'] for key in ('width', 'height', 'has_audio', 'fps', 'duration')):
+        raise ConfigError('Video source metadata requires dimensions, audio, duration and fps')
     actual = _probe_video(path)
     for key in ('width', 'height', 'has_audio', 'fps'):
         if actual[key] != source['media'][key]:
@@ -62,13 +69,26 @@ def _restore_bytes(path, raw):
 
 
 def import_clip(root, source, *, source_id, start=0, end=None, description='', preserve_audio=True, shot_id=None):
+    return _import(root, source, source_id=source_id, start=start, end=end,
+        description=description, preserve_audio=preserve_audio, shot_id=shot_id, kind='video')
+
+
+def import_image(root, source, *, source_id, seconds=3, description='', shot_id=None):
+    if isinstance(seconds, bool) or not isinstance(seconds, (int, float)) or not math.isfinite(seconds) or seconds <= 0:
+        raise ConfigError('Static image hold seconds must be finite and positive')
+    return _import(root, source, source_id=source_id, start=0, end=seconds,
+        description=description, preserve_audio=False, shot_id=shot_id, kind='image')
+
+
+def _import(root, source, *, source_id, start, end, description, preserve_audio, shot_id, kind):
     root, source = Path(root).resolve(), Path(source).resolve()
     if not isinstance(source_id, str) or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]{0,47}', source_id):
         raise ConfigError('Local source ID needs 1–48 ASCII letters, digits, dots, underscores or hyphens')
     if source_id == 'final':
         raise ConfigError('Local source ID final is reserved for the final edit review')
-    if not source.is_file() or source.suffix.lower() not in {'.mp4', '.mov', '.mkv', '.webm'}:
-        raise ConfigError('Import requires an existing MP4/MOV/MKV/WebM video')
+    extensions = {'.png', '.jpg', '.jpeg', '.webp'} if kind == 'image' else {'.mp4', '.mov', '.mkv', '.webm'}
+    if not source.is_file() or source.suffix.lower() not in extensions:
+        raise ConfigError('Import requires an existing static PNG/JPEG/WebP' if kind == 'image' else 'Import requires an existing MP4/MOV/MKV/WebM video')
     if not isinstance(preserve_audio, bool):
         raise ConfigError('preserve_audio must be boolean')
     if not isinstance(description, str):
@@ -84,7 +104,7 @@ def import_clip(root, source, *, source_id, start=0, end=None, description='', p
         raise ConfigError('description applies to new shots; edit an existing shot in the director layer')
     # Validate real media before the project edit. Keep the original file intact.
     ffmpeg = shutil.which('ffmpeg')
-    if not ffmpeg:
+    if kind == 'video' and not ffmpeg:
         raise ConfigError('FFmpeg is required for source decoding; no automatic download was attempted')
     folder = within(root, 'assets/local-sources', exists=False)
     folder.mkdir(parents=True, exist_ok=True)
@@ -92,20 +112,26 @@ def import_clip(root, source, *, source_id, start=0, end=None, description='', p
         staged = Path(temporary) / ('source' + source.suffix.lower())
         shutil.copyfile(source, staged)
         sha = digest(staged)
-        media = _probe_video(staged)
+        if kind == 'image':
+            from .still_images import inspect
+            media = inspect(staged)
+        else:
+            media = _probe_video(staged)
         if digest(source) != sha:
             raise ConfigError('Source changed during import; no plan was changed')
         selected_end = media['duration'] if end is None else end
         if (any(isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v)
-                for v in (start, selected_end)) or not 0 <= start < selected_end <= media['duration']):
+                for v in (start, selected_end)) or not 0 <= start < selected_end or
+                kind == 'video' and selected_end > media['duration']):
             raise ConfigError('Retained interval must be finite and inside the actual source duration')
-        decoded = subprocess.run([ffmpeg, '-nostdin', '-v', 'error', '-xerror', '-i', str(staged),
-                                  '-f', 'null', '-'], capture_output=True)
-        if decoded.returncode:
-            raise ConfigError('Local source did not fully decode; no plan was changed')
+        if kind == 'video':
+            decoded = subprocess.run([ffmpeg, '-nostdin', '-v', 'error', '-xerror', '-i', str(staged),
+                                      '-f', 'null', '-'], capture_output=True)
+            if decoded.returncode:
+                raise ConfigError('Local source did not fully decode; no plan was changed')
         destination = folder / (sha + source.suffix.lower())
         sid, cid, segment_id = shot_id or 'shot-' + source_id, 'clip-' + source_id, 'seg-' + source_id
-        item = {'id':source_id,'kind':'video','path':destination.relative_to(root).as_posix(),
+        item = {'id':source_id,'kind':kind,'path':destination.relative_to(root).as_posix(),
                 'sha256':sha,'shot_ids':[sid],'media':media}
         with state_lock(root):
             bundle = load_project(root)
@@ -143,16 +169,16 @@ def import_clip(root, source, *, source_id, start=0, end=None, description='', p
                     'axis':'Existing camera axes; continuity must be checked in playback'})
             if shot_id is None:
                 candidate['director']['shots'].append({'id':sid,'scene_id':'local-edit','role':'source',
-                    'information_goal':description.strip() or 'Retain the selected interval from local source ' + source_id,
+                    'information_goal':description.strip() or ('Hold the static image ' if kind == 'image' else 'Retain the selected interval from local source ') + source_id,
                     'framing':'Existing source framing; inspect actual footage',
-                    'actions':[{'kind':'hold','description':'Use existing footage within the chosen source interval; no new generation'}],
-                    'planned_seconds':media['duration'],'cut_motivation':'Cut at the selected source boundary',
+                    'actions':[{'kind':'hold','description':'Hold the static image; no generated motion' if kind == 'image' else 'Use existing footage within the chosen source interval; no new generation'}],
+                    'planned_seconds':selected_end if kind == 'image' else media['duration'],'cut_motivation':'Cut at the selected source boundary',
                     'asset_ids':[],'audio':{'mode':'ambience' if preserve_audio and media['has_audio'] else 'mute'}})
             candidate['timeline']['clips'].append({'id':cid,'job_id':source_id,'path':item['path']})
             candidate['timeline']['segments'].append({'id':segment_id,'shot_id':sid,'clip_id':cid,
                 'source_in':start,'source_out':selected_end,'rate':1,
                 'source_audio':'retime' if preserve_audio and media['has_audio'] else 'mute',
-                'cut_reason':'Retain the explicitly selected interval from imported footage'})
+                'cut_reason':'Hold the static image for the authored interval' if kind == 'image' else 'Retain the explicitly selected interval from imported footage'})
             checked = validate_plan(candidate, root)
             if not checked['ok']:
                 raise ConfigError('; '.join(checked['errors']))
@@ -177,7 +203,7 @@ def import_clip(root, source, *, source_id, start=0, end=None, description='', p
                 raise
     return {'ok':True,'source':item,'segment_id':segment_id,'retained_seconds':selected_end-start,
         'source_unchanged':True,'full_decode_verified':True,'backup':str(backup),'paid_creates':0,
-        'note':'Imported footage remains unreviewed. This creates no task, budget entry or model request.'}
+        'note':'Imported images/footage remain unreviewed. This creates no task, budget entry or model request.'}
 
 
 def import_allowed(bundle):

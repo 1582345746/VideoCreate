@@ -10,7 +10,7 @@ def production_command(argv):
     from .config.storage import user_config_path
     parser = argparse.ArgumentParser(prog='videocreate production')
     parser.add_argument('action', choices=['status', 'next', 'impact', 'script-export', 'script-import',
-        'checkpoint', 'policy', 'track', 'projects', 'deliver', 'metrics', 'import-clip', 'images-run',
+        'checkpoint', 'policy', 'track', 'projects', 'deliver', 'metrics', 'import-clip', 'import-image', 'images-run',
         'gif-video', 'gif-frames', 'gif-rebuild', 'continue-local'])
     parser.add_argument('project', type=Path, nargs='?')
     parser.add_argument('--file', type=Path)
@@ -40,8 +40,8 @@ def production_command(argv):
     args = parser.parse_args(argv)
     if args.action != 'projects' and not args.project:
         raise ConfigError('This action requires a project directory')
-    if args.shot_id is not None and args.action!='import-clip':
-        raise ConfigError('--shot-id is only consumed by import-clip')
+    if args.shot_id is not None and args.action not in {'import-clip', 'import-image'}:
+        raise ConfigError('--shot-id is only consumed by import-clip/import-image')
     if args.action != 'continue-local' and (args.execute or args.token):
         raise ConfigError('--execute/--token are only consumed by continue-local')
     if args.action in {'gif-video','gif-frames','gif-rebuild'}:
@@ -80,6 +80,16 @@ def production_command(argv):
         path=user_config_path(args.config)
         result=image_production.run(args.project.resolve(),bundle,read_config(path),path.parent,
             job_ids=args.job,retry=args.retry,reason=args.reason)
+    elif args.action == 'import-image':
+        if not args.source or not args.source_id:
+            raise ConfigError('Image import requires --source and --source-id')
+        if args.start is not None or args.end is not None or args.mute or args.frame \
+                or any(v is not None for v in (args.fps, args.width, args.loop, args.gif)):
+            raise ConfigError('Image holds use --duration; omit video/GIF window/audio options')
+        from .local_sources import import_image
+        result = import_image(args.project, args.source, source_id=args.source_id,
+            seconds=args.duration if args.duration is not None else 3,
+            description=args.description, shot_id=args.shot_id)
     elif args.action == 'import-clip':
         if not args.source or not args.source_id:
             raise ConfigError('Import requires --source and --source-id')

@@ -135,7 +135,7 @@ class MixedVideoTests(unittest.TestCase):
         self.assertEqual(package['status'],'review_pending');self.assertEqual(len(package['local_sources']),1)
         self.assertEqual(package['budget']['requests'],1)
         reading=Path(package['script']['reading_copy']).read_text(encoding='utf-8')
-        self.assertIn('本地素材 archive',reading);self.assertIn('生成任务 gen-0',reading)
+        self.assertIn('本地视频 archive',reading);self.assertIn('生成任务 gen-0',reading)
         measured=report(self.root)
         self.assertEqual(measured['seconds']['retained_available_playback'],2)
         self.assertEqual(measured['local_sources']['retained_available_playback'],1)

@@ -12,7 +12,7 @@ from ..timeline.model import mapping, validate_timeline
 
 LAYERS = ("narrative", "performance_motion", "identity", "spatial_continuity", "audio", "clean_frame", "editorial")
 TEMPORAL = {"performance_motion", "spatial_continuity", "editorial"}
-METHODS = {"human-video", "model-audio-video", "human-listening", "asr-and-human", "codex-vision", "ocr-and-vision"}
+METHODS = {"human-video", "human-image", "model-audio-video", "human-listening", "asr-and-human", "codex-vision", "ocr-and-vision"}
 
 
 def file_hash(path: Path) -> str:
@@ -74,8 +74,12 @@ def contracts(root: Path, bundle: dict, *, output_name: str = "preview.mp4", inc
         from ..local_sources import verify_source
         path = verify_source(root, source)
         selected_shots = [shots[sid] for sid in source['shot_ids']]
-        result[identity] = make(path, source['media']['duration'], selected_shots,
-            {'local_source':source,'shots':selected_shots}, retained[identity])
+        still = source['kind'] == 'image'
+        result[identity] = make(path, None if still else source['media']['duration'], selected_shots,
+            {'local_source':source,'shots':selected_shots}, [] if still else retained[identity])
+        if still:
+            result[identity].update(media_kind='image', required_layers=[layer for layer in
+                result[identity]['required_layers'] if layer in {'identity', 'clean_frame'}])
     if not include_final:
         return result
     final_path = root / "deliverables" / output_name
@@ -172,6 +176,9 @@ def validate_receipt(root: Path, bundle: dict, receipt: dict, *, actual=None) ->
             continue
         if any(supplied.get(k) != expected[k] for k in ("path", "sha256", "duration", "windows", "contract_hash", "required_layers")):
             errors.append(aid + ": stale asset bytes, scope or retained window")
+        still = expected.get('media_kind') == 'image'
+        if still and supplied.get('media_kind') != 'image':
+            errors.append(aid + ': image review requires its static media kind')
         if not isinstance(supplied.get("layers"), dict):
             errors.append(aid + ": layers must be an object")
             continue
@@ -186,7 +193,14 @@ def validate_receipt(root: Path, bundle: dict, receipt: dict, *, actual=None) ->
                 errors.append(aid + "/" + layer + ": applicable layer cannot be waived")
             if status not in {"pass", "fail"}:
                 continue
+            if still and layer not in {'identity', 'clean_frame'}:
+                errors.append(aid + '/' + layer + ': a static image cannot certify video/audio layers')
+                continue
             method = observation.get("method")
+            if not still and method == 'human-image':
+                errors.append(aid + '/' + layer + ': video layers require their existing video/listening methods')
+            if still and method not in {'human-image', 'codex-vision', 'ocr-and-vision'}:
+                errors.append(aid + '/' + layer + ': static image review needs an image observation method')
             if method not in METHODS:
                 errors.append(aid + "/" + layer + ": actual observation method required")
             if layer in TEMPORAL and method not in {"human-video", "model-audio-video"}:
@@ -203,6 +217,12 @@ def validate_receipt(root: Path, bundle: dict, receipt: dict, *, actual=None) ->
                 try:
                     path = within(root, item["path"])
                     valid = file_hash(path) == item["sha256"]
+                    if still:
+                        valid = valid and item['path'] == expected['path'] and item['sha256'] == expected['sha256'] \
+                            and item['kind'] in {'image', 'frames'} and not any(k in item for k in ('start', 'end', 'mapped_view'))
+                        if not valid:
+                            raise ValueError()
+                        continue
                     start, end = item["start"], item["end"]
                     valid = valid and isinstance(start, (int, float)) and isinstance(end, (int, float)) and 0 <= start < end <= expected["duration"] + 0.001
                     kind = item["kind"]
@@ -217,7 +237,7 @@ def validate_receipt(root: Path, bundle: dict, receipt: dict, *, actual=None) ->
                         raise ValueError()
                 except (ConfigError, KeyError, TypeError, ValueError):
                     errors.append(aid + "/" + layer + ": invalid evidence hash, kind or interval")
-            if status == "pass" and layer in TEMPORAL | {"clean_frame", "audio"}:
+            if not still and status == "pass" and layer in TEMPORAL | {"clean_frame", "audio"}:
                 # A few static frames or a short excerpt cannot certify an
                 # entire performance, spoken sentence or watermark-free clip.
                 allowed_kinds = {"video", "audio"} if layer == "audio" else {"video"}

@@ -198,6 +198,9 @@ def open_panel(manager, root):
             from .manager_authoring import open_editor
             open_editor(manager,root,layer,completed=lambda _:refresh() if win.winfo_exists() else None,assets_only=assets_only)
         except (ConfigError,OSError,ValueError) as exc:manager.error(exc)
+    def import_still():
+        from .manager_stills import open_form
+        return open_form(manager, root, parent=win, completed=lambda _:refresh() if win.winfo_exists() else None)
     def open_tasks():
         from .manager_tasks import open_panel
         return open_panel(manager, root, completed=lambda _:refresh() if win.winfo_exists() else None)
@@ -250,7 +253,7 @@ def open_panel(manager, root):
                     def converted(value):
                         if win.winfo_exists():refresh()
                     open_inspection(manager, root, result['decision'], edit_layer=edit_layer,
-                        completed=converted, import_video=import_local,
+                        completed=converted, import_video=import_local, import_image=import_still,
                         open_tasks=open_tasks,
                         import_gif=lambda frames:open_form(manager,root,frames=frames,parent=win,completed=converted))
                     message.set('当前步骤：' + result['decision']['name'] + '；' + result['decision']['note'])
@@ -303,6 +306,7 @@ def open_panel(manager, root):
         ttk.Button(outline_actions,text='导出主题与大纲',command=outline).pack(side='left',padx=6)
     if production.load_project(root)['brief'].get('workflow_profile') in {'edit-only','mixed-video'}:
         ttk.Button(actions,text='导入本地视频',command=import_local).pack(side='left',padx=6)
+        ttk.Button(actions,text='导入静态图片',command=import_still).pack(side='left',padx=6)
     if production.load_project(root)['brief'].get('workflow_profile') in {'gif-only','gif-local'}:
         from .manager_gifs import open_form
         def gif_complete(result):

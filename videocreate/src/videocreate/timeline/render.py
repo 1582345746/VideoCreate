@@ -96,12 +96,15 @@ def render(root: Path, bundle: dict, state: dict, *, output_name: str = "preview
     plan = mapping(timeline)
     clips = resolve_clips(root, timeline, state)
     auxiliary = auxiliary_hashes(root, timeline)
-    media = {cid: probe(path) for cid, path in clips.items()}
+    local = {s['id']: s for s in bundle.get('generation-plan', {}).get('local_sources', [])}
+    kinds = {clip['id']: local.get(clip['job_id'], {}).get('kind', 'video') for clip in timeline['clips']}
+    from ..still_images import inspect as inspect_image
+    media = {cid: inspect_image(path) if kinds[cid] == 'image' else probe(path) for cid, path in clips.items()}
     width, height = timeline.get("width", 720), timeline.get("height", 1280)
     if not isinstance(width, int) or not isinstance(height, int) or width % 2 or height % 2 or not 64 <= width <= 4096 or not 64 <= height <= 4096:
         raise ConfigError("Timeline canvas must be even integer dimensions from 64 to 4096")
     for seg in plan["segments"]:
-        if seg["source_out"] > media[seg["clip_id"]]["duration"] + 0.04:
+        if kinds[seg['clip_id']] != 'image' and seg["source_out"] > media[seg["clip_id"]]["duration"] + 0.04:
             raise ConfigError(seg["id"] + ": retained source window exceeds actual downloaded duration")
     target_dir = root / "deliverables"
     target_dir.mkdir(parents=True, exist_ok=True)
@@ -111,12 +114,21 @@ def render(root: Path, bundle: dict, state: dict, *, output_name: str = "preview
     fps_notes = []
     with tempfile.TemporaryDirectory(prefix="videocreate-edit-", dir=target_dir) as temp:
         folder, parts = Path(temp), []
+        normalized = {}
+        for index, (cid, path) in enumerate(clips.items()):
+            if kinds[cid] == 'image':
+                normalized[cid] = folder / f'still-{index:03}.png'
+                inspect_image(path, normalized=normalized[cid])
         for i, seg in enumerate(plan["segments"]):
             path, rate = clips[seg["clip_id"]], seg.get("rate", 1)
             source = media[seg["clip_id"]]
             duration = seg["source_out"] - seg["source_in"]
             part = folder / f"segment-{i:03}.mp4"
-            args = [ffmpeg, "-nostdin", "-filter_threads", "1", "-v", "error", "-y", "-ss", str(seg["source_in"]), "-t", str(duration), "-i", str(path)]
+            args = [ffmpeg, "-nostdin", "-filter_threads", "1", "-v", "error", "-y"]
+            if kinds[seg['clip_id']] == 'image':
+                args += ['-loop', '1', '-framerate', timeline['fps'], '-i', str(normalized[seg['clip_id']])]
+            else:
+                args += ["-ss", str(seg["source_in"]), "-t", str(duration), "-i", str(path)]
             filters = f"setpts=(PTS-STARTPTS)/{rate},scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps={timeline['fps']}"
             if source["has_audio"] and seg.get("source_audio", "mute") != "mute":
                 args += ["-af", "asetpts=PTS-STARTPTS," + atempo(rate)
@@ -127,6 +139,12 @@ def render(root: Path, bundle: dict, state: dict, *, output_name: str = "preview
                 "-preset", "veryfast", "-pix_fmt", "yuv420p", "-c:a", "aac", "-ar", "48000", "-ac", "2", str(part)]
             run(args)
             parts.append(part)
+            if kinds[seg['clip_id']] == 'image':
+                fps_notes.append({'segment_id':seg['id'], 'media_kind':'image', 'source_fps':None,
+                    'source_frame_samples_per_timeline_second':None, 'playback_rate':1,
+                    'output_fps':timeline['fps'], 'interpolation':'none',
+                    'note':'One normalized static image is repeated for an authored hold; no generated motion or captured source seconds.'})
+                continue
             from fractions import Fraction
             try:
                 unique = float(Fraction(source["fps"])) * rate
@@ -167,6 +185,7 @@ def render(root: Path, bundle: dict, state: dict, *, output_name: str = "preview
     manifest = {"schema_version": 3, "status": "draft_preview", "scope": scope, "path": str(target), "sha256": hashlib.sha256(target.read_bytes()).hexdigest(),
         "timeline_hash": content_hash(timeline), "mapping": plan, "media": final_media,
         "source_hashes": {cid: hashlib.sha256(path.read_bytes()).hexdigest() for cid, path in clips.items()},
+        "source_kinds": kinds,
         "auxiliary_hashes": auxiliary,
         "fps_report": fps_notes, "technical_decode": "pass", "audio_content": "unverified", "content": "unverified", "paid_creates": 0}
     if "animation" in bundle:

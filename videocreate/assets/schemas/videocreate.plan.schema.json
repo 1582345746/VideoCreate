@@ -1004,7 +1004,8 @@
               "kind": {
                 "type": "string",
                 "enum": [
-                  "video"
+                  "video",
+                  "image"
                 ]
               },
               "path": {
@@ -1053,14 +1054,20 @@
                   },
                   "codec": {
                     "type": "string"
+                  },
+                  "format": {
+                    "type": "string",
+                    "enum": [
+                      "PNG",
+                      "JPEG",
+                      "WEBP"
+                    ]
                   }
                 },
                 "required": [
-                  "duration",
                   "width",
                   "height",
-                  "has_audio",
-                  "fps"
+                  "has_audio"
                 ],
                 "additionalProperties": false
               }

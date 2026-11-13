@@ -702,7 +702,11 @@ def main():
                 verified = ('继续制作' in labels and '导出交付清单' in labels and ('渲染当前时间线' in labels) == expected_render)
                 if not verified:
                     raise ConfigError('Packaged local project controls are incomplete: ' + profile)
-                local_controls[profile] = {'render': expected_render, 'delivery': True, 'continue': True}
+                expected_still = profile in {'edit-only', 'mixed-video'}
+                if ('导入静态图片' in labels) != expected_still:
+                    raise ConfigError('Packaged static import controls do not match the project profile')
+                local_controls[profile] = {'render': expected_render, 'delivery': True, 'continue': True,
+                    'static_image_import': expected_still}
             with tempfile.TemporaryDirectory(prefix='videocreate-manager-smoke-') as temporary:
                 project = Path(temporary) / 'edit-only'
                 save_bundle(project, create('edit-only', title='Offline import panel smoke'))
@@ -711,6 +715,9 @@ def main():
                 panel.withdraw()
                 root.update_idletasks()
                 panel.destroy()
+                from .manager_stills import open_form as still_form
+                dialog = still_form(manager, project, source=Path(temporary)/'synthetic-static.png')
+                dialog.withdraw();root.update_idletasks();dialog.destroy()
                 dialog=open_editor(manager,project,'timeline')
                 dialog.withdraw();root.update_idletasks();dialog.destroy()
                 for profile in ('image-only','gif-only','gif-local','mixed-video'):
@@ -769,6 +776,7 @@ def main():
                 'local_project_action_controls': local_controls,
                 'continuation_inspection_form_created': True,
                 'generation_execution_panel_created': True,
+                'static_image_import_form_created': True,
                 'network_requests': 0, 'saved': False, 'visual_review': 'not-performed'})
         finally:
             root.destroy()

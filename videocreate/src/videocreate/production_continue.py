@@ -51,11 +51,11 @@ def _snapshot(root, output_name):
     elif stage == 'delivery':
         result.update(action='deliver', executable=True, note='导出当前交付清单，保留实际审核状态。')
     elif stage == 'import-local-sources':
-        result.update(action='import-video', note='选择本地视频及保留区间，继续已有项目。')
+        result.update(action='import-video', note='选择本地视频及保留区间，或静态图片及停留时长，继续已有项目。')
     elif stage == 'import-gif-source':
         result.update(action='import-gif', note='选择视频或有序静帧；本地 GIF 转换无需上游配置。')
     elif stage == 'author-mixed-sources':
-        result.update(action='choose-mixed-sources', note='可导入本地视频，也可编写需要生成的镜头和任务。')
+        result.update(action='choose-mixed-sources', note='可导入本地视频/静态图片，也可编写需要生成的镜头和任务。')
     elif stage == 'editing' and image:
         result.update(action='repair-gif', local_gifs=current.get('local_gifs', []),
             note='本地 GIF 配方或源文件已变化；查看具体 GIF 后使用 gif-rebuild，保留已有派生片。')
