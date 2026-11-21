@@ -1,0 +1,52 @@
+{
+  "date": "2026-11-20",
+  "ok": true,
+  "validation_scope": "planning-structure-only",
+  "tasks": 84,
+  "module_tasks": 75,
+  "engineering_tasks": 9,
+  "by_module": {
+    "M01": 6,
+    "M02": 7,
+    "M03": 6,
+    "M04": 6,
+    "M05": 4,
+    "M06": 8,
+    "M07": 6,
+    "M08": 6,
+    "M09": 7,
+    "M10": 7,
+    "M11": 7,
+    "M12": 5,
+    "Q": 9
+  },
+  "by_phase": {
+    "S0": 7,
+    "S1": 37,
+    "S3": 17,
+    "S2": 12,
+    "OPTIONAL": 3,
+    "S4": 5,
+    "S5": 3
+  },
+  "by_lane": {
+    "main": 79,
+    "conditional": 2,
+    "optional-extension": 3
+  },
+  "legacy_packages_mapped": 73,
+  "reference_items_mapped": 14,
+  "web_subitems_carried": 22,
+  "acceptance_cases": 17,
+  "unique_ids": true,
+  "acyclic_dependencies": true,
+  "core_tasks_covered_by_regression_gate": true,
+  "source_paths_exist": true,
+  "source_snapshots_match": true,
+  "product_tests_run": 0,
+  "provider_calls": 0,
+  "paid_generations": 0,
+  "plan_sha256": "728dcaaff2d9c3eedd23a57c435cfffbcb74767f88281ef7d91cb25ae2343bf6",
+  "markdown_sha256": "7092055409b27932bcb64caaef13ff45d0fdaf074a1d045934e4d028d0802235",
+  "note": "No implementation, media quality, live acceptance or release claim."
+}

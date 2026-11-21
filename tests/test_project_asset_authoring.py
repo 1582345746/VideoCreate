@@ -280,8 +280,11 @@ class ProjectAssetFormTests(unittest.TestCase):
             try:return original(*args,**kwargs)
             finally:finished.set()
         with mock.patch.object(project_assets,'stage_reference',side_effect=delayed):
+            existing=set(self.window.tk.call('after','info'))
             progress=refs.import_file(image);progress.withdraw();self.assertTrue(started.wait(1))
-            timers=set(self.window.tk.call('after','info'));win.destroy();self.assertFalse(timers & set(self.window.tk.call('after','info')))
+            timers=set(self.window.tk.call('after','info'))-existing;self.assertTrue(timers)
+            win.destroy();self.assertFalse(timers & set(self.window.tk.call('after','info')))
+            self.assertIn(self.manager.recovery.timer,self.window.tk.call('after','info'))
             release.set();deadline=time.monotonic()+4
             def check():
                 if finished.is_set() or time.monotonic()>=deadline:self.window.quit()

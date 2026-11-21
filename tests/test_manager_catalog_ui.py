@@ -61,6 +61,18 @@ class ManagerCatalogUITests(unittest.TestCase):
         for rates in ({'per_request':'nan'},{'per_second':'-1'},{'per_request':'1','minimum_seconds':'10','maximum_seconds':'5'},{}):
             with self.assertRaises(ConfigError):Prices.tier(rates)
 
+    def test_image_prices_survive_common_fields_and_tier_editor_reopen(self):
+        value={'pricing':{'currency':'USD','per_request':.01,'per_image':.04,
+            'tiers':[{'when':{'operation':'image-edit'},'per_image':.06}]}}
+        form=Prices(self.book,value)
+        self.assertEqual(form.read(),value)
+        self.assertIn('.06/张',form.table.item('0','values')[1])
+        win=form.edit(0);win.withdraw()
+        for button in win.winfo_children()[0].winfo_children():
+            if isinstance(button,ttk.Button) and button.cget('text')=='应用档位':button.invoke();break
+        else:self.fail('Missing tier apply button')
+        self.assertEqual(form.read(),value)
+
     def test_manager_displays_tier_price_and_filters_without_changing_config(self):
         self.config['bindings']['grok-on-sub2api']['pricing']={'currency':'USD','tiers':[
             {'when':{'operation':'text-to-video','resolution':'720p'},'per_request':4.9}]}

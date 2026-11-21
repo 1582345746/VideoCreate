@@ -13,8 +13,14 @@ def _path(store_root: Path, binding) -> Path:
 
 
 def cooling_down(store_root: Path, binding) -> bool:
+    path = _path(store_root, binding)
     try:
-        return load_json(_path(store_root, binding)).get("retry_after_epoch", 0) > time.time()
+        if not path.is_file():
+            return False
+        # Windows readers opened without delete sharing can prevent an atomic
+        # replace. Use the writer's lock while holding the read handle too.
+        with state_lock(path.parent):
+            return load_json(path).get("retry_after_epoch", 0) > time.time()
     except (ConfigError, OSError, ValueError):
         return False
 

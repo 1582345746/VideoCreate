@@ -53,8 +53,29 @@ def reconcile(root: Path, config: dict, receipt: dict, *, store_root: Path) -> d
             raise ConfigError("查不到 is inconclusive; not-received requires explicit upstream confirmation of no received submission and no created task")
         if task_id:
             raise ConfigError("Not-received receipt must not include a task ID")
+    elif outcome == 'rejected-before-task':
+        from .failures import (REFERENCE_FETCH_CONTRACT, reference_fetch_rejection,
+                               PUBLIC_REFERENCE_CONTRACT, public_reference_rejection)
+        trace = record.get('submission_receipt', {}).get('trace_ids', {}).get('request_id')
+        contract = receipt.get('contract_id')
+        documented = (contract == REFERENCE_FETCH_CONTRACT
+                      and receipt.get('method') == 'documented-create-response'
+                      and reference_fetch_rejection(400, record.get('error', ''), pinned))
+        explicit = (contract == PUBLIC_REFERENCE_CONTRACT
+                    and receipt.get('method') == 'explicit-create-validation-rejection'
+                    and public_reference_rejection(400, record.get('error', ''), pinned))
+        if (not (documented or explicit)
+                or not trace or receipt.get('request_id') != trace
+                or record.get('task_id') or task_id):
+            raise ConfigError('Saved create response does not establish this documented pre-task rejection')
+        # Preserve the actual received-and-rejected response. This is not an
+        # upstream audit claiming the request never arrived, or a billing receipt.
+        if not any(item.get('kind') == 'provider-contract' for item in evidence):
+            raise ConfigError('Documented rejection needs the hashed provider contract')
+        if explicit and not any(item.get('kind') == 'create-response' for item in evidence):
+            raise ConfigError('Explicit validation rejection needs the hashed create response')
     else:
-        raise ConfigError("Resolution outcome must be accepted/not-received/unknown")
+        raise ConfigError("Resolution outcome must be accepted/not-received/rejected-before-task/unknown")
     with state_lock(root):
         state = read_state(root)
         current = state["jobs"][jid]
@@ -62,6 +83,8 @@ def reconcile(root: Path, config: dict, receipt: dict, *, store_root: Path) -> d
             raise ConfigError("Attempt changed during verification; reread before resolving")
         atomic_json(root / "jobs" / jid / attempt_id / "resolution.json", receipt)
         current.update(status=status, task_id=task_id, reconciliation=receipt)
-        next(e for e in state["ledger"] if e["attempt_id"] == attempt_id)["status"] = "submitted" if task_id else "confirmed-not-received"
+        next(e for e in state["ledger"] if e["attempt_id"] == attempt_id)["status"] = (
+            'submitted' if task_id else 'confirmed-pre-task-rejection'
+            if outcome == 'rejected-before-task' else 'confirmed-not-received')
         save_state(root, state)
     return {"ok": True, "job_id": jid, "status": status, "task_id": task_id, "paid_creates": 0}

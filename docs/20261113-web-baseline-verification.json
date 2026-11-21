@@ -1,0 +1,121 @@
+{
+  "type": "current_tree_offline_baseline",
+  "date": "2026-11-13",
+  "workspace": "F:/VideoCreate",
+  "head": "aed9f160ed8d07007ab5b2ef3950706ce0d3a207",
+  "branch": "codex/provider-manager",
+  "installed_version": "3.0.0.dev43",
+  "source_version": "3.0.0.dev44",
+  "full_regression_run": false,
+  "test_groups": [
+    {
+      "modules": [
+        "test_provider_management",
+        "test_catalog_observations",
+        "test_config_repair",
+        "test_provider_diagnostics",
+        "test_submission_unknown"
+      ],
+      "tests": 103,
+      "failures": [],
+      "errors": [],
+      "skipped": [],
+      "unexpected_successes": [],
+      "network_connect_attempts": 0,
+      "seconds": 9.375,
+      "exit_code": 0,
+      "log": "_local/web-baseline-20261113/test_provider_management.log",
+      "tk_theme_warning_present": false
+    },
+    {
+      "modules": [
+        "test_config_drafts",
+        "test_manager_recovery"
+      ],
+      "tests": 23,
+      "failures": [],
+      "errors": [],
+      "skipped": [],
+      "unexpected_successes": [],
+      "network_connect_attempts": 0,
+      "seconds": 6.75,
+      "exit_code": 0,
+      "log": "_local/web-baseline-20261113/test_config_drafts.log",
+      "tk_theme_warning_present": false
+    },
+    {
+      "modules": [
+        "test_manager_lifecycle"
+      ],
+      "tests": 10,
+      "failures": [
+        "test_manager_lifecycle.ManagerLifecycleTests.test_clip_import_close_removes_pending_poll_and_keeps_one_started_transaction",
+        "test_manager_lifecycle.ManagerLifecycleTests.test_gif_window_close_removes_its_pending_poll_while_conversion_finishes"
+      ],
+      "errors": [],
+      "skipped": [],
+      "unexpected_successes": [],
+      "network_connect_attempts": 0,
+      "seconds": 2.078,
+      "exit_code": 1,
+      "log": "_local/web-baseline-20261113/test_manager_lifecycle.log",
+      "tk_theme_warning_present": false
+    }
+  ],
+  "preservation": {
+    "product_unchanged": true,
+    "external_unchanged": true,
+    "all_preexisting_dirty_files_unchanged": true,
+    "dirty_files_checked": 37,
+    "protected_product_files_checked": 11,
+    "product_matches_handoff": true,
+    "config_matches_handoff": true
+  },
+  "config_path": "C:/Users/FBX/AppData/Local/Packages/OpenAI.Codex_2p2nqsd0c76g0/LocalCache/Local/VideoCreate/videocreate.config.json",
+  "resolved_default_path": "C:/Users/FBX/AppData/Local/Packages/OpenAI.Codex_2p2nqsd0c76g0/LocalCache/Local/VideoCreate/videocreate.config.json",
+  "same_resolved_config": true,
+  "config_schema": 4,
+  "config_validation_errors": 0,
+  "config_counts": {
+    "upstreams": 5,
+    "models": 14,
+    "bindings": 25,
+    "routes": 14
+  },
+  "enabled_bindings": 19,
+  "draft_bindings": 5,
+  "web_source_exists": false,
+  "frontend_source_exists": false,
+  "provider_requests": 0,
+  "paid_generation_requests": 0,
+  "existing_sample_regenerated": false,
+  "service_operations": [],
+  "verification_scope": "136 focused offline tests; not a full regression or production Web acceptance",
+  "tests_total": 136,
+  "tests_passed": 134,
+  "port_observations": {
+    "before_and_after": [
+      {
+        "address": "127.0.0.1",
+        "port": 8765,
+        "pid": 2176
+      }
+    ],
+    "port_8787_listening": false,
+    "public_tunnel_reverified": false
+  },
+  "runtime": {
+    "python": "3.9.12",
+    "node": "24.18.0",
+    "project_minimum_python": "3.9",
+    "web_dependencies_declared": false
+  },
+  "runner": "_local/web-baseline-20261113/run_checks.py",
+  "materials_read": [
+    "docs/20261113-f-drive-migration.zh-CN.md",
+    "docs/20261113-new-chat-handoff.zh-CN.md",
+    "docs/20261113-complete-development-checklist.zh-CN.md",
+    "docs/20261113-web-provider-config-design.zh-CN.md",
+    "docs/prototypes/provider-config-web.html"
+  ]
+}

@@ -8,6 +8,17 @@ from ..catalog.bindings import validate_request
 from ..config.storage import ConfigError
 
 
+DEFAULT_REQUEST_FIELDS = ("n", "size", "quality", "response_format", "output_format")
+REQUESTED_IMAGE_COUNT = 1
+
+
+def requested_image_count(binding) -> int | None:
+    """Only a count explicitly transmitted by this adapter proves the budget unit."""
+    if binding.adapter == "openai-images-v1" and "n" in binding.options.get("image_request_fields", DEFAULT_REQUEST_FIELDS):
+        return REQUESTED_IMAGE_COUNT
+    return None
+
+
 class BindingImageClient:
     def __init__(self, binding):
         self.binding = binding
@@ -23,7 +34,7 @@ class BindingImageClient:
             raise ConfigError("Image size is not configured for this binding")
         if quality not in binding.capabilities.get("image_quality_values", []):
             raise ConfigError("Image quality is not configured for this binding")
-        fields = set(binding.options.get("image_request_fields", ["n", "size", "quality", "response_format", "output_format"]))
+        fields = set(binding.options.get("image_request_fields", DEFAULT_REQUEST_FIELDS))
         if "quality" not in fields and quality != "auto":
             raise ConfigError("This image binding does not transmit a quality override")
         if "size" not in fields and size != "auto":
@@ -64,9 +75,9 @@ class BindingImageClient:
         legacy_engine()
         import media_client as wire
         binding = self.binding
-        optional = {"n": 1, "size": size, "quality": quality,
+        optional = {"n": REQUESTED_IMAGE_COUNT, "size": size, "quality": quality,
                     "response_format": binding.options.get("image_response_format", "b64_json"), "output_format": output_format}
-        allowed = binding.options.get("image_request_fields", list(optional))
+        allowed = binding.options.get("image_request_fields", DEFAULT_REQUEST_FIELDS)
         fields = {"model": binding.remote_model, "prompt": prompt, **{k: optional[k] for k in allowed}}
         options = {"key": binding.key, "timeout": binding.options.get("request_timeout_seconds", 120)}
         if references:

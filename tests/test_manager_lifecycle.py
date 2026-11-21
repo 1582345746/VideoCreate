@@ -21,6 +21,28 @@ from test_v3_config import config
 
 
 class ManagerLifecycleTests(unittest.TestCase):
+    def test_theme_events_do_not_outlive_an_immediately_destroyed_manager(self):
+        script = '''
+import tempfile
+import tkinter as tk
+from pathlib import Path
+from videocreate.config.management import migrate
+from videocreate.config.storage import atomic_json
+from videocreate.manager import Manager
+from test_v3_config import config
+with tempfile.TemporaryDirectory() as folder:
+    path=Path(folder)/'config.json';atomic_json(path,migrate(config()))
+    for _ in range(3):
+        root=tk.Tk();root.withdraw();manager=Manager(root,path)
+        root.destroy()
+    last=tk.Tk();last.withdraw();last.update_idletasks();last.destroy()
+print('immediate teardown passed')
+'''
+        result=subprocess.run([sys.executable,'-B','-X','utf8','-c',script],capture_output=True,text=True,timeout=30)
+        self.assertEqual(result.returncode,0,result.stderr)
+        self.assertEqual(result.stderr,'')
+        self.assertIn('immediate teardown passed',result.stdout)
+
     def setUp(self):
         self.root = tk.Tk(); self.root.withdraw()
         self.errors = []
@@ -212,10 +234,12 @@ print('worker GC and UI interpreter release passed')
         with patch('videocreate.local_gifs.build', side_effect=build):
             window = open_form(manager, manager.path.parent, paths=[manager.path.parent/'fixture.mp4'])
             try:
+                existing = set(self.root.tk.call('after', 'info'))
                 self.button(window, '本地转换并登记到项目').invoke(); self.wait(entered.is_set)
-                pending = set(self.root.tk.call('after', 'info'))
+                pending = set(self.root.tk.call('after', 'info')) - existing
                 self.assertTrue(pending); window.destroy()
                 self.assertFalse(pending & set(self.root.tk.call('after', 'info')))
+                self.assertIn(manager.recovery.timer, self.root.tk.call('after', 'info'))
             finally: release.set()
             self.wait(done.is_set); self.root.update()
         self.assertEqual(calls, ['gif-001'])
@@ -238,10 +262,12 @@ print('worker GC and UI interpreter release passed')
             window = next(w for w in self.root.winfo_children() if isinstance(w, tk.Toplevel)
                           and w.title() == '导入本地视频（仅剪辑 / 混合项目）')
             try:
+                existing = set(self.root.tk.call('after', 'info'))
                 self.button(window, '导入并加入时间线').invoke(); self.wait(entered.is_set)
-                pending = set(self.root.tk.call('after', 'info'))
+                pending = set(self.root.tk.call('after', 'info')) - existing
                 self.assertTrue(pending); window.destroy()
                 self.assertFalse(pending & set(self.root.tk.call('after', 'info')))
+                self.assertIn(manager.recovery.timer, self.root.tk.call('after', 'info'))
             finally: release.set()
             self.wait(done.is_set); self.root.update()
         self.assertEqual(calls, ['source-001']); parent.destroy()

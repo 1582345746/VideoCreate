@@ -2,6 +2,8 @@
 
 配置格式 v4 与项目格式 v3 独立。旧 v3 配置可读；新建配置默认在缺少明确型号时询问。统一文件仍是 `%LOCALAPPDATA%/VideoCreate/videocreate.config.json`，不另建 providers 数据库。`manager` 与 CLI 调用相同的配置事务、校验与选型服务。
 
+dev44 候选增加本机 `config-web`：用户主要填写 URL/Key，名称、备注可选；Codex 根据已知合同整理模型和协议。Web 与 CLI 共享配置事务、备份、原账户凭据版本和独立图片/视频默认，页面不生成或恢复媒体。详见[Web 使用与恢复边界](config-web.md)。旧 Tk 表单的“应用后主窗口保存”行为保留为历史兼容；Web 实体只有一次面向用户的保存动作。
+
 ## 管理与迁移
 
 ```text
@@ -91,7 +93,15 @@ videocreate providers compare --binding BINDING_A --binding BINDING_B --seconds 
 
 提示词上限支持 Unicode 码点、UTF-16 单元或 UTF-8 字节。`prompt_limit` 配置必须指定计数规则；不能把未知的“15000 字符”假设成 15000 字节。现有图片 adapter 仍有 4096 字节硬上限。图片/视频/音频可通过 [本机素材服务](media-hosting.md) 建立 HTTPS 传输绑定，`xingapi-video-v2` 在明确 media_reference_limits 后可传三类数组，不接受把视频/音频塞进图片字段。
 
-价格可记录按次、按秒、最小秒数、取整步长、有效期和条件档位。档位须唯一匹配；未知报价不能满足硬金额上限。`listed_pricing` 不用于预算。报价和实际账单分开；不同币种分别汇总，不自动折算。共享账户的多个入口可填相同 `capacity_group`，共用最严格的提交并发上限；远端在途与 RPM 的本机范围见下方共享账户配额说明。
+价格可记录每请求、每秒、最小秒数、取整步长、有效期和条件档位。图片另支持 `per_image`，按请求明确发送的出图张数计价，可与每请求费相加；省略 `n` 时张数未知，不推定供应商默认值，不使用参考图数量、GIF 帧数或返回数量。按张仅用于图片，不能与秒费或时长规则/条件混用。选中档位的费率替代基础费率，档位须唯一匹配；未知报价不能满足硬金额上限。`listed_pricing` 不用于预算。报价和实际账单分开；不同币种分别汇总，不自动折算。旧 dev43 必须拒绝含新费率的配置，不静默删字段。共享账户的多个入口可填相同 `capacity_group`，共用最严格的提交并发上限；远端在途与 RPM 的本机范围见下方共享账户配额说明。
+
+## 异常退出后的加密配置草稿（dev44+）
+
+Windows 管理器每 1.5 秒将尚未保存的配置，以及有修改的上游、型号/参数/备注、条件价格档位和素材域名/端口表单暂存到当前配置目录 `runtime/manager-drafts/`。每个会话独立使用 DPAPI 文件，写临时文件前已经加密，仅原 Windows 账户可解密；不新增明文配置或密钥备份，不写入 `secrets.dpapi`。未点击“加密保存”的凭据输入窗口不在暂存范围。配置中本来存在的明文凭据随配置加密保存，不会出现在草稿文件原始字节中。
+
+强制退出后，重新打开同版本管理器，点击“恢复配置草稿”查看时间、表单数和状态。原进程仍运行、无法确认已退出、配置已改变、版本不符或无法解密时不能恢复；原文件保留，不自动合并。恢复成功只放回待保存配置和原始表单输入，未完成的 JSON、无效数字、未应用子档位也原样保留。须核对、应用表单并点击“保存配置”，继续走正常校验、差异确认和并发保护。恢复不生成、不联网、不启动素材服务或发布链接。
+
+每次已完成的快照通过原子替换保留，暂存失败时窗口提示且保留先前快照。强制退出前不足一个暂存周期的最新输入可能丢失，长时间 UI 阻塞会推迟暂存。正常关闭并确认放弃会移除本会话草稿；取消关闭保持；其他会话、已恢复的来源草稿不会自动删除，可明确选择“丢弃所选”。进程号复用或权限不足时保守阻止，不假定原进程死亡。跨版本自动迁移、断电后磁盘持久性保证、创作/项目/任务/选择与修复表单的异常退出恢复仍不包含。其他系统保留正常编辑与关闭检查，暂存提示不支持 DPAPI，不降级为明文。
 
 ## 脱敏诊断预览与导出（dev43+）
 
@@ -109,6 +119,24 @@ videocreate providers diagnostics-export --config CONFIG_JSON --file LOCAL_PREVI
 导出重新核对源配置字节和当前摘要；配置、缓存观察、证据或依赖摘要变化后需重新预览。目标必须为新的 JSON 文件，使用同目录临时文件和原子“不替换”发布，已有文件保持；需支持硬链接的本机文件系统。导出期间用户关闭被阻止，预览期间关闭仅分离 UI 回调。报告不会自动上传或发送。
 
 读取现有证据现在也使用录入时的结构/结果/布尔检查与方法校验；未知结果、缺失审阅者、矛盾的通过检查等回执保留为失效，不能生成通过摘要。原始证据不改写。
+
+## 从保存名称查询身份
+
+用户用名称描述新请求时，Codex 先提取媒体类型及实际出现的上游/型号词，再使用离线查询。不要把整句自然语言传入名称参数：
+
+```text
+videocreate providers identify --kind video --upstream-name "保存的上游名称" --model-name "保存的型号名称或精确远端 ID"
+videocreate providers identify --kind image --model-name "精确远端 ID"
+videocreate providers identify --kind video --upstream-name "保存的上游名称"
+videocreate providers identify --kind video
+videocreate providers identify --kind video --upstream UPSTREAM_ID --model-name "精确远端 ID"
+```
+
+`--config CONFIG_JSON` 可指定同一份配置。上游词按稳定 ID 优先，否则精确匹配保存名称或 platform；型号词按已知稳定 model ID 优先，否则精确匹配 remote_model、binding 显示名称、model 显示名称或已配置 family。大小写、空格均保留，不作子串、同义词或任意别名推断；家族名通常仍需选择具体型号。只给一个词就只限制该维度，两个都不给就列该媒体的全部接入，不自动套用默认。
+
+结果包含规范 ID、匹配字段、配置 token 和接入状态。`identified` 只表示查到唯一身份，`readiness=not-checked` 明确没有检查凭据、请求、预算或可用性。`ambiguous` 的 `needs_choice` 指出上游、型号或同组合下的 binding 歧义；禁用、草稿及归档项参与歧义，不用“唯一启用项”猜用户账户。名称未知或上游暂无相符接入返回 `no_matches`，不能扩展到其他账户。`identifiers_redacted=true` 的结果不能作为可执行 ID，须核对误填到身份/标签中的凭据后重新查询。
+
+对未遮蔽的唯一结果，把规范 `model_id`、`upstream_id`、必要时 `binding_id` 交给现有选择与完整请求预检；多结果先澄清 `needs_choice` 中的维度，再用稳定 ID 限定。需要编号时调用下面的正式 selection 菜单并保留它返回的编号，查询结果自身没有可选序号。配置改变后重新查询/列菜单。查询不写配置、项目选择或任务状态，不解密凭据、不联网。旧任务恢复仍以原快照或已有身份解析器为准，不能用显示名、当前默认或该查询重新分配旧任务账户。
 
 ## 编号选择
 
@@ -169,3 +197,6 @@ videocreate production deliver PROJECT --output-name preview.mp4
 星光接口文档已由用户提供，专用 `xingapi-video-v1` 支持文生视频，`xingapi-video-v2` 增加类型化多媒体 URL 数组；原任务保持创建时协议。参见 [接口合同与限制](xingapi-contract.md)；各 binding 只开放核对的参数组合，其余型号仍保留草稿。Grok 的不同上游也可能返回不同型号，必须记录 `provider_reported_model` 并独立判断。
 
 `library add/list/show/import/impact` 与管理器的“角色与素材库”共用本机配置目录下的素材库，项目保存独立快照。详见 [跨项目素材与统计](asset-library.md)。
+
+
+算力AI Flash 720p 的视频参考使用新增 `newapi-json-v2` 合同与独立 reference binding，保留原图片路线。参数、至少一张图片要求、本机保守范围及操作步骤见 [NewAPI 视频参考](newapi-media-contract.md)。接入测试不记为线上生成证据。

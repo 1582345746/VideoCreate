@@ -20,7 +20,7 @@ from . import quotas
 
 def request_error(error, binding):
     message = safe_error(error, [binding.key])
-    if binding.adapter == 'xingapi-video-v2':
+    if binding.adapter in {'xingapi-video-v2', 'newapi-json-v2'}:
         import re
         message = re.sub(r'https?://[^\s<>"\']+', '[REMOTE_URL_REDACTED]', message)
         message = re.sub(r'(?<=/m/)[A-Za-z0-9_-]{43}', '[TOKEN_REDACTED]', message)
@@ -30,6 +30,9 @@ def request_error(error, binding):
 def client(binding: Binding):
     from ..cli import legacy_engine
     engine = legacy_engine()
+    if binding.adapter == 'newapi-json-v2':
+        from ..adapters.newapi_references import NewAPIReferenceVideoClient
+        return NewAPIReferenceVideoClient(binding)
     if binding.adapter == 'xingapi-video-v2':
         from ..adapters.xingapi_references import XingAPIReferenceVideoClient
         return XingAPIReferenceVideoClient(binding)
@@ -173,7 +176,7 @@ def _prepare_job(root, bundle, job, config, store_root, prior, *, retry, explici
             require_quality(store_root, candidate, job)
             compilation = compile_job(bundle, job, max_bytes=candidate.capabilities["max_prompt_bytes"], root=root)
             candidate_kwargs = dict(kwargs)
-            if candidate.adapter == 'xingapi-video-v2':
+            if candidate.adapter in {'xingapi-video-v2', 'newapi-json-v2'}:
                 if reference_entries and not typed:
                     raise ConfigError('Version two requires explicit reference kinds; register or attach typed references')
                 candidate_kwargs.pop('primary_reference')
@@ -189,10 +192,14 @@ def _prepare_job(root, bundle, job, config, store_root, prior, *, retry, explici
             video_client = client(candidate)
             prepared = video_client.prepare(compilation["prompt"], **candidate_kwargs)
             if typed:
-                from ..media_references import resolve_transports
-                transports = resolve_transports(root, reference_entries, upstream_id=candidate.upstream_id,
-                    account_id=candidate.identity.get('account_id', candidate.upstream_id), store_root=store_root,
-                    minimum_validity=candidate.capabilities['media_reference_limits']['minimum_url_validity_seconds'])
+                if candidate.adapter == 'newapi-json-v2' and candidate.options.get('reference_transport') == 'data-uri':
+                    from ..adapters.inline_media import prepare_inline
+                    transports = prepare_inline(root, reference_entries)
+                else:
+                    from ..media_references import resolve_transports
+                    transports = resolve_transports(root, reference_entries, upstream_id=candidate.upstream_id,
+                        account_id=candidate.identity.get('account_id', candidate.upstream_id), store_root=store_root,
+                        minimum_validity=candidate.capabilities['media_reference_limits']['minimum_url_validity_seconds'])
                 candidate_kwargs['media_references'] = transports
                 # Validate the actual wire mapping, without performing a POST.
                 video_client.fields(compilation['prompt'], candidate_kwargs)

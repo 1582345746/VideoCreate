@@ -193,6 +193,36 @@ class HostingTests(unittest.TestCase):
 
 
 class ServiceLifecycleTests(unittest.TestCase):
+    def test_start_matches_invocation_when_windows_launcher_pid_differs(self):
+        for matching in (True, False):
+            with self.subTest(matching=matching), tempfile.TemporaryDirectory() as folder:
+                path = Path(folder)/'config.json'
+                value = migrate(config())
+                value['local_media_server'] = {'port': 18765, 'public_base_url':'https://media.example.test'}
+                atomic_json(path, value)
+                process = mock.Mock(pid=111)
+                process.poll.return_value = None
+                spawned = {}
+                def spawn(*args, **kwargs):
+                    spawned.update(kwargs)
+                    return process
+                def observed(*args):
+                    if not spawned:
+                        return {'running': False}
+                    nonce = spawned['env']['VIDEOCREATE_MEDIA_STARTUP_NONCE']
+                    return {'running': True, 'port': 18765, 'pid': 222,
+                            'startup_id': hashlib.sha256(nonce.encode()).hexdigest() if matching else 'other-invocation'}
+                with mock.patch('subprocess.Popen', side_effect=spawn), \
+                        mock.patch.object(host, 'status', side_effect=observed), \
+                        mock.patch.object(host.time, 'sleep'):
+                    if matching:
+                        result = host.start(path)
+                        self.assertEqual(result['pid'], 222)
+                        self.assertFalse(result['reused'])
+                    else:
+                        with self.assertRaisesRegex(ConfigError, 'not been confirmed'):
+                            host.start(path)
+
     def test_unrelated_service_cannot_be_reused_or_stopped(self):
         from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
         class OtherHandler(BaseHTTPRequestHandler):

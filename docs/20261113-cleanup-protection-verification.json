@@ -1,0 +1,10 @@
+{
+  "ok": true,
+  "project_files": 5466,
+  "projects_bytes_and_paths_unchanged": true,
+  "installed_skill_bytes_and_paths_unchanged": true,
+  "configuration_and_credential_files_bytes_unchanged": true,
+  "production_source_reverted_to_pre_cleanup_state": true,
+  "paid_creates": 0,
+  "services_stopped": false
+}

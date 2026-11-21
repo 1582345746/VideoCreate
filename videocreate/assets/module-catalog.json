@@ -53,11 +53,12 @@
         "E05"
       ],
       "status": "partial",
-      "limitations": "Character counting, pricing and typed per-kind/combined bytes/duration/roles/combination constraints implemented. Model-specific live boundaries, refunds and general conditional rules remain incomplete.",
+      "limitations": "Character counting, pricing and typed per-kind/combined bytes/duration/roles/combination constraints implemented. Model-specific live boundaries, refunds and general conditional rules remain incomplete. Image per_image budgets count explicitly transmitted requested outputs, add per-request fees and replace parent rates on tier selection; omitted n stays unknown. Image rates cannot mix video/duration semantics. Old dev43 rejects the new field; actual payment remains unknown.",
       "test_evidence": [
         "test_provider_management.py",
         "test_v3_config.py",
-        "test_catalog_presentation.py"
+        "test_catalog_presentation.py",
+        "test_image_pricing.py"
       ],
       "online_acceptance": "Not claimed by source implementation; consult binding receipts and the dated acceptance report."
     },
@@ -69,6 +70,7 @@
         "selection choose",
         "selection impact",
         "jobs run --binding",
+        "providers identify",
         "providers filter"
       ],
       "work_packages": [
@@ -80,10 +82,12 @@
         "B07"
       ],
       "status": "partial",
-      "limitations": "Numbered choices are config/version-bound; existing tasks stay pinned. Natural-language aliases and all entry points need further audit. Task filters expose parameter/count matches, exclusions and unknown contracts without replacing stable numbered selection.",
+      "limitations": "Numbered choices are config/version-bound; existing tasks stay pinned. Offline providers identify matches exact saved names, model/remote IDs, platforms and families with canonical-ID priority, preserving disabled/archived ambiguity. It does not parse arbitrary natural language, decrypt credentials, certify readiness or assign existing tasks. Codex extracts terms and passes unredacted canonical IDs through normal selection/request preflight. Arbitrary aliases and all creation entry points still need further audit. Task filters expose parameter/count matches, exclusions and unknown contracts without replacing stable numbered selection.",
       "test_evidence": [
         "test_provider_management.py",
-        "test_catalog_task_filter.py"
+        "test_catalog_task_filter.py",
+        "test_catalog_identity.py",
+        "test_config_web_compatibility.py"
       ],
       "online_acceptance": "Not claimed by source implementation; consult binding receipts and the dated acceptance report."
     },
@@ -111,7 +115,7 @@
         "C07"
       ],
       "status": "partial",
-      "limitations": "Native catalog, authoring and local render/delivery forms share core services. The explicit task panel adds token-bound route/budget previews, numbered once/project choices, generation/recovery/retry and existing reconciliation/settlement receipt import. Portable EXE verified locally; clean-machine, human visual review, temporal-slice form and broader task controls remain pending. Widget-owned variables remove Tcl traces on UI teardown; catalog/media workers carry service data only and detach callbacks on closure. CPython interpreter lifetime is guarded across later worker GC; this does not establish human or clean-machine acceptance. Close/reload checks preserve unapplied config, price, credential, authoring, local-import and policy drafts on cancellation; local transactions block user closure while remote task panels remain detachable. Invalid JSON now opens an offline repair editor with byte-bound preview/apply, exact original backups, protected known identities and read-only newer formats. Unparseable originals cannot prove all historical identities. Forced-exit draft persistence and broader task/selection drafts remain open. Task-oriented catalog filters share scalar/count validators, explain exclusions and unknown contracts, and change the view only; they do not establish credentials, complete references or request readiness. Catalog changes have a native cached/live viewer with configuration/source checks before unsaved draft import.",
+      "limitations": "Native catalog, authoring and local render/delivery forms share core services. The explicit task panel adds token-bound route/budget previews, numbered once/project choices, generation/recovery/retry and existing reconciliation/settlement receipt import. Portable EXE verified locally; clean-machine, human visual review, temporal-slice form and broader task controls remain pending. Widget-owned variables remove Tcl traces on UI teardown; catalog/media workers carry service data only and detach callbacks on closure. CPython interpreter lifetime is guarded across later worker GC; this does not establish human or clean-machine acceptance. Close/reload checks preserve unapplied config, price, credential, authoring, local-import and policy drafts on cancellation; local transactions block user closure while remote task panels remain detachable. Invalid JSON now opens an offline repair editor with byte-bound preview/apply, exact original backups, protected known identities and read-only newer formats. Unparseable originals cannot prove all historical identities. Windows pending configuration and upstream/model/price/media-settings forms have DPAPI checkpoints every 1.5 seconds and explicit same-version, stopped-owner recovery against unchanged configuration. Credential input and project/task/selection forms are excluded; no plaintext fallback or automatic configuration save. Broader draft recovery remains open. Task-oriented catalog filters share scalar/count validators, explain exclusions and unknown contracts, and change the view only; they do not establish credentials, complete references or request readiness. Catalog changes have a native cached/live viewer with configuration/source checks before unsaved draft import.",
       "test_evidence": [
         "test_catalog_presentation.py",
         "test_manager_catalog_ui.py",
@@ -124,7 +128,9 @@
         "test_manager_repair.py",
         "test_catalog_task_filter.py",
         "test_manager_task_filter.py",
-        "test_manager_catalog_observations.py"
+        "test_manager_catalog_observations.py",
+        "test_config_drafts.py",
+        "test_manager_recovery.py"
       ],
       "online_acceptance": "No generation or provider connection is performed by filtering/comparison. Current live bindings and reference failures remain recorded independently; UI readiness does not certify model quality."
     },
@@ -516,6 +522,78 @@
         "test_manager_diagnostics.py"
       ],
       "online_acceptance": "Offline feature; no provider request or generation is made."
+    },
+    {
+      "id": "configuration-draft-recovery",
+      "name": "配置草稿加密暂存与异常退出恢复",
+      "entry_points": [
+        "manager",
+        "恢复配置草稿"
+      ],
+      "work_packages": [
+        "C05",
+        "J01",
+        "J07"
+      ],
+      "status": "implemented-offline",
+      "limitations": "Windows DPAPI only; 1.5-second UI-loop checkpoints of pending configuration and upstream/model/price/media-settings forms. Explicit recovery requires a proven stopped original process, same manager version and unchanged saved configuration. Invalid raw form text is retained for editing; recovered data still requires normal apply/save. Unsubmitted credential input, project/task/selection/repair forms, cross-version migration and power-loss durability are excluded. No generation, network or credential-store writes.",
+      "test_evidence": [
+        "test_config_drafts.py",
+        "test_manager_recovery.py"
+      ],
+      "online_acceptance": "Local feature; stopped-process recovery requires actual process-termination acceptance in the dated release record."
+    },
+    {
+      "id": "config-web",
+      "name": "本机上游配置 Web（候选）",
+      "entry_points": [
+        "config-web",
+        "scripts/Start-ConfigWeb.cmd"
+      ],
+      "work_packages": [
+        "C01",
+        "C02",
+        "C03",
+        "C04",
+        "C05",
+        "C06",
+        "C07",
+        "J01",
+        "J07"
+      ],
+      "status": "partial",
+      "limitations": "Local Vue/FastAPI upstream configuration only; URL/Key encrypted save, immutable previews, conflict/replay protection, backups and byte-preserving repair, exact catalog drafts, explicit XingAPI V text recipe, independent defaults, structured common/typed image-video-audio limits, combinations, conditional duration, quote/budget/tier editing plus JSON, offline fit/compare, per-operation evidence and anonymous diagnostics. No generation/project/media-job API. Known recipe covers exact seedance2.5-V text-to-video on the explicit XingAPI address; additional exact model/operation contracts remain pending; hard budgets support additive per-request/per-second only and other units remain display quotes. Seven-day source/form-bound recovery covers upstream metadata, model forms, defaults and controlled backup IDs, tested across eight real forced server exits and actual isolated Chrome termination with lost sessionStorage identifiers. Explicit config-scoped metadata discovery supports recovery and version-checked disposal of expired/unsupported/corrupt drafts. Exact byte-version checks protect save/claim/discard across shared-cookie tabs and real competing processes; conflicts retain input and permit an explicit fork. Advisory draft cleanup cannot reverse successful configuration save. Keys, raw configuration, arbitrary paths and invalid/unknown advanced JSON fields are excluded. Inputs not yet acknowledged by debounce/network/disk may be lost on forced exit. Optional price removal restores unknown rather than zero. Tk idle-theme teardown warning is fixed with an unsilenced regression and full core run. Candidate remains unreleased dev44; installed dev43 and live 8765 are retained. Real Chrome 100/125/150/175/200 percent zoom, five pages, keyboard/focus, long labels and hit-tested dialog actions are verified; high-zoom action clipping is fixed by scrolling only the form body. Damaged-config startup loads local backup metadata before repair-draft recovery. Duplicate labels/exact remote case, concurrent filtered menus, independent media/project choices and ambiguous legacy platform aliases are tested after Web changes. Human screen-reader/clean-machine acceptance and live media-service switch are not claimed. Budget calculations and explanations share one function, distinguishing missing/unverified/future/expired/currency/time/tier-context/no-match/overlap reasons and displaying additive rates after minimum/ceiling seconds; nonfinite estimates stay unknown. Image comparisons omit video duration. Scenario/selection/config changes invalidate prior results and delayed responses. Actual local history audit resolves 130 v3 snapshots unchanged after synthetic Web edits; 170 old records retain preexisting platform-alias ambiguity and are not claimed recovered. Records include saved revisions. No real credential decryption or provider request in history audit. Full regression additionally exposed a Windows cooldown reader blocking atomic replacement; reader and writer now share the same lock, with deterministic held-handle regression. Minimal Web venv lacks Pillow; core regression preflights the established complete runtime. Image per_image budgets count explicitly transmitted requested outputs, add per-request fees and replace parent rates on tier selection; omitted n stays unknown. Image rates cannot mix video/duration semantics. Old dev43 rejects the new field; actual payment remains unknown.",
+      "test_evidence": [
+        "test_config_web.py",
+        "test_config_web_changes.py",
+        "test_config_web_management.py",
+        "test_config_web_inspections.py",
+        "test_config_web_launcher.py",
+        "tools/verify_config_web.cjs",
+        "tools/verify_config_web_m2.cjs",
+        "tools/verify_config_web_m3.cjs",
+        "test_config_web_compatibility.py",
+        "tools/verify_config_web_acceptance.cjs",
+        "tools/verify_web_candidate.py",
+        "tools/verify_web_preservation.py",
+        "test_config_web_drafts.py",
+        "tools/verify_config_web_recovery.cjs",
+        "tools/verify_config_web_contracts.cjs",
+        "test_config_web_draft_concurrency.py",
+        "tools/verify_config_web_browser_crash.cjs",
+        "tools/verify_config_web_browser_suite.py",
+        "tools/verify_config_web_references.cjs",
+        "tools/verify_config_web_zoom.cjs",
+        "test_budget_explanation.py",
+        "test_catalog_presentation.py",
+        "tools/verify_config_web_billing.cjs",
+        "tools/verify_config_web_history.py",
+        "test_runtime_health.py",
+        "tools/verify_config_web_accessibility.cjs",
+        "test_config_web_build.py",
+        "test_image_pricing.py"
+      ],
+      "online_acceptance": "Synthetic configuration and local fake servers only; zero paid probes. This module does not certify provider availability, billing or media quality."
     }
   ],
   "work_packages": [

@@ -2,7 +2,14 @@ include README.md
 include videocreate/SKILL.md
 recursive-include videocreate/scripts *.py *.ps1
 recursive-include videocreate/assets *.json *.Dockerfile
+recursive-include videocreate/assets *.txt
+recursive-include videocreate/scripts *.cmd
+recursive-include requirements *.txt
 recursive-include videocreate/references *.md
 recursive-include videocreate/agents *.yaml
 global-exclude *.pyc
 global-exclude *.pyo
+prune _local
+recursive-include videocreate/src/videocreate/config_web/static *.html *.js *.css *.svg
+recursive-include web/provider-config *.json *.ts *.vue *.css *.html
+prune web/provider-config/node_modules

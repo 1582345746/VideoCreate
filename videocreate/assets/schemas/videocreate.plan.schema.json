@@ -43,6 +43,13 @@
           "required": [],
           "additionalProperties": false
         },
+        "prompt_semantics": {
+          "type": "integer",
+          "enum": [
+            1,
+            2
+          ]
+        },
         "status": {
           "type": "string"
         }
@@ -602,6 +609,27 @@
                   "additionalProperties": false
                 }
               },
+              "mouth_performance": {
+                "type": "object",
+                "properties": {
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "natural",
+                      "closed",
+                      "silent-performance",
+                      "speech"
+                    ]
+                  },
+                  "direction": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "mode"
+                ],
+                "additionalProperties": false
+              },
               "audio": {
                 "type": "object",
                 "properties": {
@@ -617,6 +645,13 @@
                   },
                   "ambience": {
                     "type": "string"
+                  },
+                  "music": {
+                    "type": "string",
+                    "enum": [
+                      "none",
+                      "allowed"
+                    ]
                   },
                   "lines": {
                     "type": "array",
@@ -2506,6 +2541,27 @@
                           "additionalProperties": false
                         }
                       },
+                      "mouth_performance": {
+                        "type": "object",
+                        "properties": {
+                          "mode": {
+                            "type": "string",
+                            "enum": [
+                              "natural",
+                              "closed",
+                              "silent-performance",
+                              "speech"
+                            ]
+                          },
+                          "direction": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "mode"
+                        ],
+                        "additionalProperties": false
+                      },
                       "audio": {
                         "type": "object",
                         "properties": {
@@ -2521,6 +2577,13 @@
                           },
                           "ambience": {
                             "type": "string"
+                          },
+                          "music": {
+                            "type": "string",
+                            "enum": [
+                              "none",
+                              "allowed"
+                            ]
                           },
                           "lines": {
                             "type": "array",

@@ -1,5 +1,4 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "properties": {
     "schema_version": {
@@ -529,6 +528,12 @@
             "pace_profile": {
               "type": "string"
             },
+            "topic": {
+              "type": "string"
+            },
+            "viewer_goal": {
+              "type": "string"
+            },
             "audience": {
               "type": "string"
             },
@@ -565,7 +570,12 @@
                 "scenic",
                 "explainer",
                 "series-episode",
-                "animation-story"
+                "animation-story",
+                "edit-only",
+                "mixed-video",
+                "image-only",
+                "gif-only",
+                "gif-local"
               ]
             },
             "audio_policy": {
@@ -746,6 +756,41 @@
                       "type": "string"
                     },
                     "uniqueItems": true
+                  },
+                  "visual_design": {
+                    "type": "object",
+                    "properties": {
+                      "identity": {
+                        "type": "string"
+                      },
+                      "wardrobe": {
+                        "type": "string"
+                      },
+                      "expression_range": {
+                        "type": "string"
+                      },
+                      "visual_style": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [],
+                    "additionalProperties": false
+                  },
+                  "physical_design": {
+                    "type": "object",
+                    "properties": {
+                      "scale": {
+                        "type": "string"
+                      },
+                      "placement": {
+                        "type": "string"
+                      },
+                      "contact_constraints": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [],
+                    "additionalProperties": false
                   }
                 },
                 "required": [
@@ -1013,6 +1058,27 @@
                       "additionalProperties": false
                     }
                   },
+                  "mouth_performance": {
+                    "type": "object",
+                    "properties": {
+                      "mode": {
+                        "type": "string",
+                        "enum": [
+                          "natural",
+                          "closed",
+                          "silent-performance",
+                          "speech"
+                        ]
+                      },
+                      "direction": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "mode"
+                    ],
+                    "additionalProperties": false
+                  },
                   "audio": {
                     "type": "object",
                     "properties": {
@@ -1028,6 +1094,13 @@
                       },
                       "ambience": {
                         "type": "string"
+                      },
+                      "music": {
+                        "type": "string",
+                        "enum": [
+                          "none",
+                          "allowed"
+                        ]
                       },
                       "lines": {
                         "type": "array",

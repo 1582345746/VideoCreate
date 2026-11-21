@@ -1,0 +1,24 @@
+{
+  "ok": true,
+  "date": "2026-11-13",
+  "scope": "docs-and-fixture-prototype-only",
+  "original_work_packages": 73,
+  "baseline_status_counts": {
+    "partial": 60,
+    "implemented-offline": 11,
+    "planned": 2
+  },
+  "web_subitems": 22,
+  "markdown_local_links_checked": 347,
+  "prototype_browser_flow_groups": 10,
+  "prototype_browser_errors": 0,
+  "prototype_external_requests": 0,
+  "prototype_javascript_syntax": "pass",
+  "preexisting_product_files_unchanged": 11,
+  "production_config_bytes_unchanged": true,
+  "cleanup_protection_verified": true,
+  "protected_project_files": 5466,
+  "production_web_implemented": false,
+  "paid_creates": 0,
+  "errors": []
+}

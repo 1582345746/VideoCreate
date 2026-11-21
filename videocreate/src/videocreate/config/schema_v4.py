@@ -58,6 +58,7 @@ def extend(schema):
         ('image', 'video', 'audio', 'maximum_total_count', 'maximum_total_bytes', 'allowed_combinations',
          'audio_reference_with_generated_audio', 'minimum_url_validity_seconds'))
     b['pricing']['properties'].update({
+        'per_image': {'type': 'number', 'minimum': 0},
         'status': enum('confirmed', 'unverified'), 'version': STR, 'effective_at': STR,
         'valid_until': STR, 'account_group': STR, 'billing_event': STR,
         'minimum_seconds': {'type': 'number', 'minimum': 0},
@@ -68,7 +69,8 @@ def extend(schema):
                 'minimum_seconds': {'type': 'number', 'minimum': 0},
                 'maximum_seconds': {'type': 'number', 'minimum': 0}}),
             'per_request': {'type': 'number', 'minimum': 0},
-            'per_second': {'type': 'number', 'minimum': 0}}, ('when',))},
+            'per_second': {'type': 'number', 'minimum': 0},
+            'per_image': {'type': 'number', 'minimum': 0}}, ('when',))},
     })
     selection = obj({'when_unspecified': enum('ask', 'use-default'),
                      'remember_scope': enum('project', 'once')}, ('when_unspecified',))
@@ -106,21 +108,33 @@ def semantic_errors(config):
         if limits is not None:
             from ..catalog.media_constraints import limits_errors
             errors.extend(path + '.media_reference_limits: ' + error for error in limits_errors(limits))
-            if binding['adapter'] != 'xingapi-video-v2':
-                errors.append(path + ': typed media limits require xingapi-video-v2')
-        if 'reference-to-video' in binding['operations'] and binding['adapter'] not in {'xingapi-video-v2', 'unconfigured'}:
+            if binding['adapter'] not in {'xingapi-video-v2', 'newapi-json-v2'}:
+                errors.append(path + ': typed media limits require xingapi-video-v2 or newapi-json-v2')
+        if 'reference-to-video' in binding['operations'] and binding['adapter'] not in {'xingapi-video-v2', 'newapi-json-v2', 'unconfigured'}:
             errors.append(path + ': reference-to-video requires a typed reference adapter')
-        if (binding.get('enabled') and binding['adapter'] == 'xingapi-video-v2' and
+        if (binding.get('enabled') and binding['adapter'] in {'xingapi-video-v2', 'newapi-json-v2'} and
                 set(binding['operations']) & {'reference-to-video', 'image-to-video'} and
                 (not limits or not limits['maximum_total_count'] or not limits['allowed_combinations'])):
             errors.append(path + ': enabled reference operations require explicit media limits and combinations')
         if declared.get('minimum') and declared.get('maximum') and declared['minimum'] > declared['maximum']:
             errors.append(path + '.declared_capabilities.duration: minimum exceeds maximum')
         pricing = binding.get('pricing', {})
-        if pricing and not any(k in pricing for k in ('per_request', 'per_second', 'tiers')):
+        if pricing and not any(k in pricing for k in ('per_request', 'per_second', 'per_image', 'tiers')):
             errors.append(path + '.pricing: specify a rate; record unconfirmed prices in listed_pricing')
+        definitions = [pricing, *pricing.get('tiers', [])]
+        if any('per_image' in item for item in definitions):
+            if model.get('kind') != 'image':
+                errors.append(path + '.pricing: per_image requires an image model')
+            if any('per_second' in item or 'minimum_seconds' in item or 'round_seconds' in item
+                   or any(k in item.get('when', {}) for k in ('minimum_seconds', 'maximum_seconds'))
+                   for item in definitions):
+                errors.append(path + '.pricing: per_image cannot mix with duration rates, rules or tier conditions')
+            for item in definitions:
+                if ('per_image' in item and item.get('when', {}).get('operation', 'text-to-image')
+                        not in {'text-to-image', 'image-edit'}):
+                    errors.append(path + '.pricing: per_image requires an image operation')
         for tier in pricing.get('tiers', []):
-            if not any(k in tier for k in ('per_request', 'per_second')):
+            if not any(k in tier for k in ('per_request', 'per_second', 'per_image')):
                 errors.append(path + '.pricing.tiers: each tier needs a rate')
             when = tier['when']
             if when.get('minimum_seconds', 0) > when.get('maximum_seconds', float('inf')):

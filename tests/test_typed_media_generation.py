@@ -41,6 +41,14 @@ def media_limits():
 
 
 class TypedMediaGenerationTests(unittest.TestCase):
+    adapter = "xingapi-video-v2"
+    legacy_adapter = "xingapi-video-v1"
+    client_class = XingAPIReferenceVideoClient
+    remote_model = "seedance2.5-V"
+    duration_field = "duration"
+    ratio_field = "ratio"
+    create_endpoint = "/v1/videos/generations"
+
     @classmethod
     def setUpClass(cls):
         cls.temp = tempfile.TemporaryDirectory()
@@ -68,7 +76,7 @@ class TypedMediaGenerationTests(unittest.TestCase):
         self.config = migrate(config())
         self.bid = 'grok-on-sub2api'
         binding = self.config['bindings'][self.bid]
-        binding.update(adapter='xingapi-video-v2',remote_model='seedance2.5-V',
+        binding.update(adapter=self.adapter,remote_model=self.remote_model,
             operations=['text-to-video','image-to-video','reference-to-video'],
             capability_overrides={'duration':{'minimum':1,'maximum':30,'step':1},
                 'resolutions':['720p'], 'aspect_ratios':['16:9','9:16'],
@@ -110,8 +118,8 @@ class TypedMediaGenerationTests(unittest.TestCase):
         import media_client
         send=mock.patch.object(media_client,'request_json',return_value={'id':'videoprep_fixture','status':'queued',
             'echo':{'images':list(self.urls.values())}}).start()
-        mock.patch.object(XingAPIReferenceVideoClient,'poll',return_value=poll or {'status':'completed'}).start()
-        mock.patch.object(XingAPIReferenceVideoClient,'download',
+        mock.patch.object(self.client_class,'poll',return_value=poll or {'status':'completed'}).start()
+        mock.patch.object(self.client_class,'download',
             side_effect=lambda task,payload,path:shutil.copyfile(self.fixture/'video.mp4',path)).start()
         return send
 
@@ -120,11 +128,15 @@ class TypedMediaGenerationTests(unittest.TestCase):
         self.assertTrue(self.run_job()['ok'])
         send.assert_called_once()
         body=send.call_args.kwargs['value']
-        self.assertEqual(body['model'],'seedance2.5-V')
+        self.assertEqual(body['model'],self.remote_model)
+        self.assertTrue(send.call_args.args[1].endswith(self.create_endpoint))
         for kind,field in [('image','images'),('video','videos'),('audio','audios')]:
             self.assertEqual(body[field],[self.urls[r['sha256']] for r in self.references if r['kind']==kind])
         self.assertNotIn('generate_audio',body)
-        self.assertNotIn('seconds',body); self.assertNotIn('aspect_ratio',body)
+        self.assertEqual(body[self.duration_field],self.job['seconds'])
+        self.assertEqual(body[self.ratio_field],self.bundle['brief']['aspect_ratio'])
+        self.assertNotIn('seconds' if self.duration_field == 'duration' else 'duration',body)
+        self.assertNotIn('aspect_ratio' if self.ratio_field == 'ratio' else 'ratio',body)
         for path in [self.root/'state.json',*self.root.glob('jobs/*/*/request.json')]:
             text=path.read_text('utf-8')
             self.assertNotIn('private-signature',text)
@@ -170,19 +182,19 @@ class TypedMediaGenerationTests(unittest.TestCase):
 
     def test_read_recovery_needs_no_live_links_and_keeps_original_adapter(self):
         send=self.mock_generation()
-        with mock.patch.object(XingAPIReferenceVideoClient,'poll',side_effect=TimeoutError('poll timeout')):
+        with mock.patch.object(self.client_class,'poll',side_effect=TimeoutError('poll timeout')):
             with self.assertRaises(ConfigError): self.run_job()
         self.assertEqual(read_state(self.root)['jobs']['job-001']['task_id'],'videoprep_fixture')
         registry=load_json(self.root/'references/transports.json')
         for record in registry['links'].values(): record['expires_at']=time.time()-1
         atomic_json(self.root/'references/transports.json',registry)
-        self.config['bindings'][self.bid].update(adapter='xingapi-video-v1',enabled=False)
+        self.config['bindings'][self.bid].update(adapter=self.legacy_adapter,enabled=False)
         with mock.patch.object(refs,'resolve_transports',side_effect=AssertionError('Recovery fetched inputs')), \
-                mock.patch.object(XingAPIReferenceVideoClient,'poll',return_value={'status':'completed'}) as poll:
+                mock.patch.object(self.client_class,'poll',return_value={'status':'completed'}) as poll:
             self.assertTrue(self.run_job(retry='network',reason='Resume original task')['ok'])
         poll.assert_called_once()
         send.assert_called_once()
-        self.assertEqual(read_state(self.root)['jobs']['job-001']['binding_snapshot']['adapter'],'xingapi-video-v2')
+        self.assertEqual(read_state(self.root)['jobs']['job-001']['binding_snapshot']['adapter'],self.adapter)
 
     def test_unknown_submission_is_held_and_error_has_no_transport_url(self):
         send=self.mock_generation()
@@ -224,7 +236,7 @@ class TypedMediaGenerationTests(unittest.TestCase):
 
     def test_local_failure_after_reservation_is_proven_not_submitted(self):
         send=self.mock_generation()
-        with mock.patch.object(XingAPIReferenceVideoClient,'create',side_effect=LocalRequestError('Expired before POST')):
+        with mock.patch.object(self.client_class,'create',side_effect=LocalRequestError('Expired before POST')):
             with self.assertRaises(ConfigError): self.run_job()
         send.assert_not_called()
         state=read_state(self.root)
@@ -271,7 +283,7 @@ class TypedMediaGenerationTests(unittest.TestCase):
         b['capability_overrides']['media_reference_limits']['video'].pop('maximum_duration_seconds')
         self.assertTrue(validate_config(self.config))
         b['capability_overrides']['media_reference_limits']=media_limits()
-        b['adapter']='xingapi-video-v1'
+        b['adapter']=self.legacy_adapter
         self.assertTrue(validate_config(self.config))
 
 

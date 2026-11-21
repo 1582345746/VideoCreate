@@ -13,7 +13,7 @@ def check(entries):
     for name, data in entries:
         count += 1
         parts = PurePosixPath(name.replace("\\", "/")).parts
-        if any(p in {"projects", "analysis-frames", "__pycache__", ".git", ".env"} or p.endswith(".egg-info") for p in parts):
+        if any(p in {"projects", "analysis-frames", "__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache", "node_modules", ".git", ".env"} or p.endswith(".egg-info") for p in parts):
             errors.append({"file": name, "reason": "private project or build/cache directory"})
         if name.endswith((".pyc", ".pyo", ".dpapi")) or parts[-1] in {"config.json", "videocreate.config.json", "secrets.json"}:
             errors.append({"file": name, "reason": "private/runtime file"})

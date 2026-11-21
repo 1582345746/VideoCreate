@@ -76,6 +76,23 @@ class ImageProductionTests(unittest.TestCase):
             send.assert_not_called()
         self.assertEqual(read_state(self.root)['ledger'],[])
 
+    def test_unresolved_price_tier_blocks_image_create_without_budget_or_attempt(self):
+        from videocreate.config.management import migrate
+        self.config=migrate(self.config,ask=False)
+        self.config['budget'].update(currency='USD',max_total=2,unknown_price_policy='block')
+        self.config['bindings']['image-primary']['pricing']={'currency':'USD','tiers':[
+            {'when':{},'per_request':2},{'when':{'resolution':'720p'},'per_request':3}]}
+        with mock.patch('videocreate.adapters.image.BindingImageClient.create_payload') as send:
+            preview=images.compile_plan(self.root,self.bundle(),self.config,self.store)
+            self.assertIsNone(preview['jobs'][0]['estimate'])
+            result=images.run(self.root,self.bundle(),self.config,self.store)
+            self.assertFalse(result['ok'])
+            self.assertIn('Price is unknown',result['images'][0]['error'])
+            send.assert_not_called()
+        state=read_state(self.root)
+        self.assertEqual(state['ledger'],[])
+        self.assertEqual(state['jobs'],{})
+
     def test_create_once_resume_pins_original_image_and_delivery_requires_review(self):
         result,created=self.run_images();self.assertTrue(result['ok']);created.assert_called_once()
         self.config['defaults']['image_model']='nonexistent-new-default'

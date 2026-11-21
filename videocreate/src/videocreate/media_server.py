@@ -254,6 +254,10 @@ class MediaHandler(BaseHTTPRequestHandler):
 
 
 def serve(store_root, *, port=8765):
+    # Windows venv launchers may start a different serving PID. Match this
+    # invocation through a parent-generated nonce instead of assuming one PID.
+    startup_nonce = os.environ.pop('VIDEOCREATE_MEDIA_STARTUP_NONCE', '')
+    startup_id = hashlib.sha256(startup_nonce.encode()).hexdigest() if re.fullmatch(r'[0-9a-f]{64}', startup_nonce) else None
     root = Path(store_root) / 'local-media'
     with state_lock(root / 'server-lock', timeout=.2):
         try:
@@ -262,6 +266,8 @@ def serve(store_root, *, port=8765):
             raise ConfigError('Local media port is unavailable; choose a free port') from None
         record = {'status': 'serving', 'pid': os.getpid(), 'host': '127.0.0.1', 'port': server.server_port,
                   'instance_id': server.instance_id, 'started_at': time.time()}
+        if startup_id:
+            record['startup_id'] = startup_id
         atomic_json(root / 'server.json', record)
         server.timeout = .25
         try:
@@ -324,14 +330,17 @@ def start(config_path):
             code = 'import sys; sys.path.insert(0,' + repr(str(Path(__file__).resolve().parents[1])) + '); from videocreate.cli import main; raise SystemExit(main())'
             args = [sys.executable, '-c', code, 'media-server', 'run', '--config', str(path)]
         creation = {'creationflags': subprocess.CREATE_NO_WINDOW} if os.name == 'nt' else {'start_new_session': True}
+        startup_nonce = secrets.token_hex(32)
+        startup_id = hashlib.sha256(startup_nonce.encode()).hexdigest()
+        environment = dict(os.environ, VIDEOCREATE_MEDIA_STARTUP_NONCE=startup_nonce)
         process = subprocess.Popen(args, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                                   stderr=subprocess.DEVNULL, **creation)
+                                   stderr=subprocess.DEVNULL, env=environment, **creation)
         threading.Thread(target=process.wait, daemon=True).start()
         for _ in range(60):
+            current = status(path.parent)
+            if current['running'] and current.get('startup_id') == startup_id and current.get('port') == options['port']:
+                return {'ok': True, 'reused': False, **current}
             if process.poll() is not None:
                 raise ConfigError('Media service exited during startup; check the configured port')
-            current = status(path.parent)
-            if current['running'] and current.get('pid') == process.pid:
-                return {'ok': True, 'reused': False, **current}
             time.sleep(.1)
         raise ConfigError('Service startup has not been confirmed; check media-server status before starting again')

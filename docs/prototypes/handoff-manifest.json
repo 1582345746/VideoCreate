@@ -1,0 +1,125 @@
+{
+  "date": "2026-11-13",
+  "kind": "documentation-and-demo-only",
+  "workspace_source_required": true,
+  "contains_runtime_config": false,
+  "contains_credentials": false,
+  "contains_real_media_or_task_receipts": false,
+  "files": [
+    {
+      "path": "docs/20261112-development-progress.zh-CN.md",
+      "bytes": 27030,
+      "sha256": "943ec8ef4ecde5eb74c7b6dd393c0d52b07878c9f4ac07463538711ca1a539b1"
+    },
+    {
+      "path": "docs/20261112-provider-management-and-production-roadmap.zh-CN.md",
+      "bytes": 46822,
+      "sha256": "3916b1f1ff3b16b8e37107c8c1dc90d8a7144ebf737abbca4b5837396d585b40"
+    },
+    {
+      "path": "docs/20261113-cleanup-protection-verification.json",
+      "bytes": 322,
+      "sha256": "b563d396c27ec171befddb0d7c641dcbb55eae88320c63363966c74c9bbcd1a6"
+    },
+    {
+      "path": "docs/20261113-cleanup-record.zh-CN.md",
+      "bytes": 3483,
+      "sha256": "03c667ed77088cb569d5c49bd6afa73ff56e1e969bc4a37c20ed2887d5cfa0dc"
+    },
+    {
+      "path": "docs/20261113-cleanup-summary.json",
+      "bytes": 1062,
+      "sha256": "803e6e5523b8837074812c73f5d565c106cad1eeb3b2b0e557fa59436d884a0e"
+    },
+    {
+      "path": "docs/20261113-complete-development-checklist.zh-CN.md",
+      "bytes": 83345,
+      "sha256": "2359354837483521248e9e63d29cb87cd93336173dd82f6bb8377d1b6f85fe21"
+    },
+    {
+      "path": "docs/20261113-dev43-acceptance.zh-CN.md",
+      "bytes": 6243,
+      "sha256": "da6a22bb191c9f6a56560bc8e35fe08ca899ad26a9718e5d21570788af389dae"
+    },
+    {
+      "path": "docs/20261113-development-checklist.json",
+      "bytes": 90071,
+      "sha256": "92afac429976dbfc53fe8e440cbeb4ee5119a9e218072e86a3aad636c97ad461"
+    },
+    {
+      "path": "docs/20261113-f-drive-migration.zh-CN.md",
+      "bytes": 7264,
+      "sha256": "f142798be98e135cd66ede2d9f3afead7280bc4435cdc788f61d5dd93e7729c1"
+    },
+    {
+      "path": "docs/20261113-new-chat-handoff.zh-CN.md",
+      "bytes": 31076,
+      "sha256": "6d7948b83e7cf783f68d9c85effb27a631943ad589f4fb38a62dc1c45eb289f5"
+    },
+    {
+      "path": "docs/20261113-new-chat-start.zh-CN.md",
+      "bytes": 2638,
+      "sha256": "63bcec4c4de6c858fcf50dd65c593512d9b2977aeb6bc8923056463ec51087d9"
+    },
+    {
+      "path": "docs/20261113-web-provider-config-design.zh-CN.md",
+      "bytes": 20054,
+      "sha256": "df486575178b12476ffa6b9e3da8355607806ca6f62523b24dd623fca059e897"
+    },
+    {
+      "path": "docs/prototypes/build-development-checklist.py",
+      "bytes": 36639,
+      "sha256": "93ae5028faf573649cbb2360231d88a8104cd57208fb3991eca00bb7370ac8cb"
+    },
+    {
+      "path": "docs/prototypes/handoff-preservation-baseline.json",
+      "bytes": 2367,
+      "sha256": "7622371354764e5e1a2719dc4d5ec9e36eb31a1bb2bc93b30125e2934c2835c0"
+    },
+    {
+      "path": "docs/prototypes/handoff-verification.json",
+      "bytes": 695,
+      "sha256": "fad62133b40105d4454f1f07a181ee85b2b1b684f127e9db4d9ca2e08f18ab04"
+    },
+    {
+      "path": "docs/prototypes/provider-config-desktop.png",
+      "bytes": 129812,
+      "sha256": "514084b2291e1570b8955a3dbb9ae9f0d178a78a317590bc8bbe00b3891f8b05"
+    },
+    {
+      "path": "docs/prototypes/provider-config-editor.png",
+      "bytes": 225931,
+      "sha256": "41d1edbb52638b052bfbd58482c8c4bf7ea76328a764b99096346caa9e7d5b6f"
+    },
+    {
+      "path": "docs/prototypes/provider-config-mobile.png",
+      "bytes": 103607,
+      "sha256": "b9fcc0baf7967ef79b5bd46c832c9e42b33999e2e753c79bfae0d749ad27ddea"
+    },
+    {
+      "path": "docs/prototypes/provider-config-prototype-verification.json",
+      "bytes": 919,
+      "sha256": "56c8fcbd240eff1a85d0ee22730ba9337f39d0d13c1fbc34559dd80c84747268"
+    },
+    {
+      "path": "docs/prototypes/provider-config-simple-entry.png",
+      "bytes": 157131,
+      "sha256": "2b3cb1fa22a7cd25e3f03812618efde991f05e7dbbeb325f399d1fcabe053e7c"
+    },
+    {
+      "path": "docs/prototypes/provider-config-web.html",
+      "bytes": 47902,
+      "sha256": "7d1e6d15f8b9dd748d698297890d1b6245ac1f25c9a2aa0037354b14556271d4"
+    },
+    {
+      "path": "docs/prototypes/verify-handoff.py",
+      "bytes": 8302,
+      "sha256": "f353973e6f6a09406b77b2cd574816f90fdea37463e7f1b10dd62bac9a0a4d18"
+    },
+    {
+      "path": "docs/prototypes/verify-provider-config.cjs",
+      "bytes": 7740,
+      "sha256": "0c95aa2a892ec6768ba8da323c184eaa5597f55d3657bb68a53d586248fd53fd"
+    }
+  ]
+}

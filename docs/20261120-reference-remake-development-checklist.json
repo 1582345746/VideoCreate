@@ -1,0 +1,190 @@
+{
+  "schema_version": 1,
+  "date": "2026-11-20",
+  "timezone": "Asia/Shanghai",
+  "scope": "Reference-video recasting workflow; supplements existing 73-item roadmap",
+  "status": "analysis_and_plan_only",
+  "paid_generations_this_audit": 0,
+  "provider_calls_this_audit": 0,
+  "product_source_modified": false,
+  "existing_projects_modified": false,
+  "installed_version_label": "3.0.0.dev43",
+  "repository_version_label": "3.0.0.dev44",
+  "phases": [
+    {
+      "id": "A",
+      "tasks": [
+        "R01",
+        "R02",
+        "R03",
+        "R04"
+      ],
+      "goal": "Correct deterministic conflicts and unify remake/review workflow"
+    },
+    {
+      "id": "B",
+      "tasks": [
+        "R05",
+        "R06",
+        "R07",
+        "R08",
+        "R09"
+      ],
+      "goal": "Versioned identities, source events, cast/contact and timing"
+    },
+    {
+      "id": "C",
+      "tasks": [
+        "R10",
+        "R11"
+      ],
+      "goal": "Synchronized review and maintainable transport/batch execution"
+    },
+    {
+      "id": "D",
+      "tasks": [
+        "R12",
+        "R13"
+      ],
+      "goal": "Task-specific quality/cost evidence and compatible distribution"
+    },
+    {
+      "id": "optional",
+      "tasks": [
+        "R14"
+      ],
+      "goal": "Evaluate stronger motion controls only with an evidenced API contract"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "R01",
+      "priority": "P0",
+      "title": "声音与嘴部表演分离",
+      "acceptance": "修改Schema/编译/校验；静音可保留表演口型，明确闭嘴才闭嘴；冲突夹具被拦截，旧任务快照不变",
+      "status": "proposed_not_implemented_in_this_audit"
+    },
+    {
+      "id": "R02",
+      "priority": "P0",
+      "title": "提示词矛盾与来源追踪",
+      "acceptance": "显式结构规则优先；发现闭嘴/说唱、固定人数/变人数、禁止切镜/指定切镜、遮头饰/必须露头饰等冲突；显示哪条字段生成了哪句指令，不声称理解所有自然语言矛盾",
+      "status": "proposed_not_implemented_in_this_audit"
+    },
+    {
+      "id": "R03",
+      "priority": "P0",
+      "title": "参考改编正式入口",
+      "acceptance": "模式、保留/替换矩阵、用户优先级、一个输出一次请求；角色图＋动作视频直接可用，首帧模式独立；不强制添加付费小样或生图",
+      "status": "proposed_not_implemented_in_this_audit"
+    },
+    {
+      "id": "R04",
+      "priority": "P0",
+      "title": "统一选版、剪辑和审核数据",
+      "acceptance": "临时观察可作为带证据的部分失败导入，未看运动仍未核实；解决6.5/11秒元数据差异；生成完成不能冒充交付通过",
+      "status": "proposed_not_implemented_in_this_audit"
+    },
+    {
+      "id": "R05",
+      "priority": "P1",
+      "title": "噜噜/噜妹角色版本与变体",
+      "acceptance": "复用资产库，正/侧/背视图按需选取；脸与身形固定、衣服可换；避免猫爪/新增尾巴/妆容/头饰消失；原图标准不被失败候选覆盖",
+      "status": "proposed_not_implemented_in_this_audit"
+    },
+    {
+      "id": "R06",
+      "priority": "P1",
+      "title": "原片事件与目标时间映射",
+      "acceptance": "源文件哈希、原片区间、关键动作/表情/切镜、目标秒数、允许误差、证据方法；缺失钩子或结尾反转能在生成前被发现",
+      "status": "proposed_not_implemented_in_this_audit"
+    },
+    {
+      "id": "R07",
+      "priority": "P1",
+      "title": "人物对应与群体连续性",
+      "acceptance": "每名演员独立ID、外观区分、阶段站位/遮挡/进出；三噜噜与五人群舞固定关系，配角不能随意复制主角",
+      "status": "proposed_not_implemented_in_this_audit"
+    },
+    {
+      "id": "R08",
+      "priority": "P1",
+      "title": "道具/视线/接触因果",
+      "acceptance": "复用状态与contacts；洗澡、荷叶、摩托车、炒饭用具体状态链表达；禁止已发现却恢复不知情的显式计划矛盾",
+      "status": "proposed_not_implemented_in_this_audit"
+    },
+    {
+      "id": "R09",
+      "priority": "P1",
+      "title": "参考分段语义和节奏检查",
+      "acceptance": "输入分段保留完整时间映射；两个参考文件不等于两次输出；30秒一次提交保持；压缩时长需明确重排，不能静默拉慢",
+      "status": "proposed_not_implemented_in_this_audit"
+    },
+    {
+      "id": "R10",
+      "priority": "P1",
+      "title": "同步审片与风险定位",
+      "acceptance": "独立本地审片产物，原片/成片同步播放、时间标记、原图对照；闪帧/冻结/切点/重复动作候选仅作提示，不能自动认证通过",
+      "status": "proposed_not_implemented_in_this_audit"
+    },
+    {
+      "id": "R11",
+      "priority": "P2",
+      "title": "传输与批次脚本产品化",
+      "acceptance": "复用验证过的安全分块下载/引用验证；保留URL过期恢复与不重POST规则；去掉跨旧项目脚本链和运行时替换，保留并发/顺序偏好",
+      "status": "proposed_not_implemented_in_this_audit"
+    },
+    {
+      "id": "R12",
+      "priority": "P2",
+      "title": "可用片段成本与模型经验",
+      "acceptance": "按具体上游/型号/任务类别记录质量、请求数、耗时、报价/实付；使用相同来源和要求比较；不能把目录报价当实付或把未知当零",
+      "status": "proposed_not_implemented_in_this_audit"
+    },
+    {
+      "id": "R13",
+      "priority": "P2",
+      "title": "旧任务与安装一致性",
+      "acceptance": "发布Schema/技能/代码/命令一起验证；旧合同原样恢复；不借dev43测试认证新开发，也不让配置Web扩展代替视频主线",
+      "status": "proposed_not_implemented_in_this_audit"
+    },
+    {
+      "id": "R14",
+      "priority": "后续",
+      "title": "严格动作控制路线评估",
+      "acceptance": "仅有真实协议与合适工具时评估姿态/运动控制、遮罩或视频编辑；不默认下载大型模型、不保证能做动物动作精准重定向",
+      "status": "proposed_not_implemented_in_this_audit"
+    }
+  ],
+  "validation": {
+    "offline_existing_tests": [
+      {
+        "module": "test_reference_analysis.py",
+        "passed": 8
+      },
+      {
+        "module": "test_animation_rhythm.py",
+        "passed": 4
+      },
+      {
+        "module": "test_v3_media_review.py",
+        "passed": 9
+      }
+    ],
+    "total_existing_tests_passed": 21,
+    "full_suite_run": false,
+    "compile_audit_per_version": {
+      "plans": 8,
+      "valid": 7,
+      "saved_prompts_reproduced": 8,
+      "invalid_plan": "reveal-r2",
+      "invalid_reason": "timeline: retained duration differs from brief.target_seconds"
+    },
+    "limitation": "No new motion playback acceptance or provider quality benchmark in this audit"
+  },
+  "report": "F:\\VideoCreate\\docs\\20261120-reference-remake-skill-audit.zh-CN.md",
+  "evidence": [
+    "F:\\VideoCreate\\research\\20261120-reference-remake-skill-audit\\installed-evidence.json",
+    "F:\\VideoCreate\\research\\20261120-reference-remake-skill-audit\\source-evidence.json"
+  ]
+}

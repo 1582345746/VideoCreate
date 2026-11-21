@@ -244,6 +244,7 @@
             "enum": [
               "sub2api-json-v1",
               "newapi-json-v1",
+              "newapi-json-v2",
               "newapi-multipart-v1",
               "openai-images-v1",
               "xingapi-video-v1",
@@ -748,6 +749,13 @@
                 "uniqueItems": true,
                 "minItems": 1
               },
+              "reference_transport": {
+                "type": "string",
+                "enum": [
+                  "https-url",
+                  "data-uri"
+                ]
+              },
               "include_generate_audio_field": {
                 "type": "boolean"
               },
@@ -803,6 +811,10 @@
                 "minimum": 0
               },
               "per_second": {
+                "type": "number",
+                "minimum": 0
+              },
+              "per_image": {
                 "type": "number",
                 "minimum": 0
               },
@@ -902,6 +914,10 @@
                       "minimum": 0
                     },
                     "per_second": {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "per_image": {
                       "type": "number",
                       "minimum": 0
                     }

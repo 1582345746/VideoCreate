@@ -14,7 +14,7 @@ from pathlib import Path
 from .catalog.bindings import route_bindings, validate_request
 from .config.storage import ConfigError, atomic_json, load_json, safe_error
 from .planning.project import content_hash, load_project, within
-from .runtime.budget import estimate, reserve, summary
+from .runtime.budget import estimate, image_parameters, reserve, summary
 from .runtime.state import read_state, save_state, state_lock
 from .runtime.limits import submission_slot
 from .runtime import quotas
@@ -243,7 +243,7 @@ def generate_image(root: Path, config: dict, *, store_root: Path, job_id: str, p
             with quotas.admission(store_root, config, binding.upstream_id):
                 reserve(state, config.get("budget", {}), attempt_id=attempt, job_id=job_id, kind="image",
                     estimated=estimate(binding, 0, config.get("budget", {}).get("currency", "CNY"),
-                        parameters={'operation': 'image-edit' if refs else 'text-to-image'}))
+                        parameters=image_parameters(binding, 'image-edit' if refs else 'text-to-image')))
                 state["jobs"][job_id] = current
                 save_state(root, state)
         provider_response = None

@@ -10,7 +10,7 @@ from typing import Any
 from ..config.storage import ConfigError, resolve_key
 
 
-ADAPTER_ALIASES = {"sub2api-json-v1": "sub2api-json", "newapi-json-v1": "newapi-json",
+ADAPTER_ALIASES = {"sub2api-json-v1": "sub2api-json", "newapi-json-v1": "newapi-json", "newapi-json-v2": "newapi-json",
                    "newapi-multipart-v1": "newapi-multipart", "openai-images-v1": "openai-images",
                    "xingapi-video-v1": "xingapi-json", "xingapi-video-v2": "xingapi-json"}
 MUSE_VIDEO_MAX_SECONDS = 10
@@ -37,7 +37,7 @@ class Binding:
     def snapshot(self) -> dict[str, Any]:
         public = {"binding_id": self.id, "model": self.model, "remote_model": self.remote_model,
                   "upstream_id": self.upstream_id, "base_url": self.base_url.rstrip("/"),
-                  "adapter": self.adapter, "adapter_version": 2 if self.adapter == 'xingapi-video-v2' else 1, "capabilities": self.capabilities,
+                  "adapter": self.adapter, "adapter_version": 2 if self.adapter in {'xingapi-video-v2', 'newapi-json-v2'} else 1, "capabilities": self.capabilities,
                   "adapter_options": self.options}
         hashed = public
         if self.identity:

@@ -1,8 +1,12 @@
 # VideoCreate
 
+> 工作目录已于 2026-11-13 复制迁移到 `F:/VideoCreate`，包含 Git 历史、未提交文件与本机项目；原 E 盘目录保留。后续开发请使用 F 盘副本。备份和迁移校验记录统一存放在主项目的 `_local/` 内，F 盘只保留一个项目文件夹。见[迁移说明与新对话入口](docs/20261113-f-drive-migration.zh-CN.md)。已安装技能与本机配置仍在 C 盘；当前源码为未完成的 dev44，不能混用已安装 dev43 的验收结果。
+
+> 当前开发方向（2026-11-13）：本机 Web 配置上游，新增默认只填 URL/Key，复杂信息由 Codex 根据已知合同维护；视频创作与生成继续在 Codex。正式 Web 已进入 dev44 本机候选验证，已安装 dev43 保持原样。启动与范围见 [Web 使用说明](videocreate/references/config-web.md)，执行状态见 [Web 开发验证记录](docs/20261113-web-development-progress.zh-CN.md)。[最新设计与原型](docs/20261113-web-provider-config-design.zh-CN.md)、[完整清单](docs/20261113-complete-development-checklist.zh-CN.md)、[新对话交接](docs/20261113-new-chat-handoff.zh-CN.md)、[产物清理记录](docs/20261113-cleanup-record.zh-CN.md)。下文 EXE/Tk 和旧发行内容为历史实现，后续不再作为主界面扩展。
+
 [![VideoCreate CI](https://github.com/1582345746/VideoCreate/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/1582345746/VideoCreate/actions/workflows/ci.yml)
 
-面向 Codex 的可恢复、多模型、多上游 AI 视频制作技能。产品名、技能入口和 Python 包统一为 **VideoCreate**。当前开发版为 `3.0.0.dev43`；这不是生产质量认证。
+面向 Codex 的可恢复、多模型、多上游 AI 视频制作技能。产品名、技能入口和 Python 包统一为 **VideoCreate**。已安装版本为 `3.0.0.dev43`，当前源码及未发行 Web 候选为 `3.0.0.dev44`；这不是生产质量认证。
 
 本轮增加单 JSON 上游管理、Windows 原生管理器、编号选型、配置 v4 迁移、制作步骤和剧本阅读稿。`providers`、`selection`、`production`、`modules` 共用现有任务与审核底座；`review page` 导出可播放的本地审片页。启动管理器可用 `python videocreate/scripts/videocreate_manager.py`，便携 EXE 的构建入口是 `tools/build_manager.py`。管理器不需要单独的模型数据库。
 
@@ -34,6 +38,8 @@ Muse 路线新增同一 JSON 中的 `browser_services/workflows`，支持描述 
 
 ## 安装与首次配置
 
+dev44 Web 候选请先看 [独立安装、升级、回滚与卸载](videocreate/references/config-web-installation.md)：使用 F 盘独立环境/解压目录，保留已安装 dev43 和原 C 盘数据。下面的根目录安装器属于原技能安装流程，会初始化/迁移配置和设置组件档案，不作为当前候选试用步骤。
+
 Windows PowerShell：
 
 ```powershell
@@ -44,7 +50,7 @@ python .\videocreate\scripts\videocreate.py config validate --ready
 
 安装仅复制技能和配置，不执行模型生成，不下载可选 TTS/口型模型。已有 v2 配置会保留原文件并复制 DPAPI 密文，新配置引用其本机凭据；旧技能在成功安装后归档到 skills 之外。升级使用 `-Force`，卸载 `-Uninstall` 只移除技能，保留凭据、项目与缓存。首次用户在返回的单一 JSON 里填写 URL、auth、remote_model 并启用 binding。
 
-无需安装 Python 包可直接运行薄入口；源码仓库中也可 `pip install .`，或安装提供的 wheel，之后运行 `videocreate` 或 `python -m videocreate`。ZIP 用户直接使用 install.ps1 或薄入口。Python 支持范围为 3.9 及以上；核心无额外依赖，媒体编辑需本机 FFmpeg/FFprobe，文字卡片 MP4 与角色图裁剪/合并另需 Pillow，HTML 预演不需要。
+无需安装 Python 包可直接运行薄入口；源码仓库中也可 `pip install .`，或安装提供的 wheel，之后运行 `videocreate` 或 `python -m videocreate`。dev44 技能候选 ZIP 直接使用其中的薄入口和 Web 启动脚本；它不含仓库根目录的 install.ps1。Python 支持范围为 3.9 及以上；核心无额外依赖，Web 需可选依赖，媒体编辑需本机 FFmpeg/FFprobe，文字卡片 MP4 与角色图裁剪/合并另需 Pillow，HTML 预演不需要。
 
 ## 新流程
 

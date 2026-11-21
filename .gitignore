@@ -11,3 +11,12 @@ dist/
 analysis-frames/
 build/
 *.egg-info/
+
+# Machine-local recovery archives and migration receipts.
+/_local/
+web/provider-config/node_modules/
+
+# Local production references, generated media and handoff archives.
+/research/
+/output/
+/docs/VideoCreate-WebConfig-Handoff-20261113.zip

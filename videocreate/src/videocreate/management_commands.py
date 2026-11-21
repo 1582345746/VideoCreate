@@ -9,9 +9,11 @@ def providers_command(argv):
     from .cli import print_result
     from .config import management as m
     parser = argparse.ArgumentParser(prog='videocreate providers')
-    parser.add_argument('action', choices=['list', 'filter', 'compare', 'quotas', 'show', 'migrate', 'save', 'archive', 'restore', 'credential', 'discover', 'catalog-show', 'pricing', 'import-models', 'diagnostics', 'diagnostics-export', 'repair-inspect', 'repair-preview', 'repair-apply'])
+    parser.add_argument('action', choices=['list', 'identify', 'filter', 'compare', 'quotas', 'show', 'migrate', 'save', 'archive', 'restore', 'credential', 'discover', 'catalog-show', 'pricing', 'import-models', 'diagnostics', 'diagnostics-export', 'repair-inspect', 'repair-preview', 'repair-apply'])
     parser.add_argument('--config', type=Path)
     parser.add_argument('--upstream')
+    parser.add_argument('--upstream-name',help='Exact saved upstream name/platform for offline identity lookup')
+    parser.add_argument('--model-name',help='Exact saved model/binding name, model ID, remote ID or family for offline identity lookup')
     parser.add_argument('--project', type=Path, help='Register an existing v3 project for local quota accounting')
     parser.add_argument('--kind', choices=['video', 'image'])
     parser.add_argument('--file', type=Path)
@@ -30,15 +32,28 @@ def providers_command(argv):
     parser.add_argument('--favorites',action='store_true')
     parser.add_argument('--order',choices=['configured','name','upstream','family'],default='configured')
     parser.add_argument('--binding', action='append', help='Two to four binding IDs for offline comparison')
-    parser.add_argument('--seconds', type=float, default=5)
+    parser.add_argument('--seconds', type=float)
     parser.add_argument('--operation', default='text-to-video')
-    parser.add_argument('--resolution', default='720p')
-    parser.add_argument('--aspect-ratio', default='16:9')
+    parser.add_argument('--resolution')
+    parser.add_argument('--aspect-ratio')
     parser.add_argument('--reason', default='explicit catalog edit')
     parser.add_argument('--include-identifiers',action='store_true')
     parser.add_argument('--output',type=Path)
     args = parser.parse_args(argv)
     path = user_config_path(args.config)
+    if args.action!='identify' and (args.upstream_name is not None or args.model_name is not None):
+        raise ConfigError('Name terms require providers identify; execution and saved task recovery use stable IDs')
+    if args.action=='identify':
+        permitted={'config','kind','upstream','upstream-name','model-name'}
+        if any(arg.startswith('--') and arg[2:].split('=',1)[0] not in permitted for arg in argv):
+            raise ConfigError('Identity lookup only accepts --config, --kind, --upstream, --upstream-name and --model-name')
+        if not args.kind:raise ConfigError('Identity lookup requires an explicit --kind image or video')
+        record=m.load(path)
+        if record['errors']:raise ConfigError('Configuration needs validation before catalog identity lookup')
+        from .catalog.identity import identify
+        print_result(identify(record['config'],kind=args.kind,model_name=args.model_name,
+            upstream_name=args.upstream_name,upstream=args.upstream))
+        return 0
     if args.action!='filter' and (args.scenario_file or args.include_excluded or args.query or args.favorites or args.order!='configured'):
         raise ConfigError('Task scenario and catalog view flags require providers filter')
     if args.action in {'diagnostics','diagnostics-export'}:
@@ -87,8 +102,16 @@ def providers_command(argv):
         result = quotas.status(path.parent, record['config'], args.upstream)
     elif args.action == 'compare':
         from .catalog.presentation import compare
+        scenario={'operation':args.operation}
+        if args.operation in {'text-to-image','image-edit'}:
+            if any(value is not None for value in (args.seconds,args.resolution,args.aspect_ratio)):
+                raise ConfigError('Video duration, resolution and aspect ratio do not apply to image comparisons')
+        else:
+            scenario.update(seconds=5 if args.seconds is None else args.seconds,
+                resolution='720p' if args.resolution is None else args.resolution,
+                aspect_ratio='16:9' if args.aspect_ratio is None else args.aspect_ratio)
         result = compare(record['config'], args.binding or [], store_root=path.parent,
-            scenario={'operation':args.operation,'seconds':args.seconds,'resolution':args.resolution,'aspect_ratio':args.aspect_ratio})
+            scenario=scenario)
     elif args.action == 'pricing':
         if not args.upstream:
             raise ConfigError('Pricing discovery requires --upstream')

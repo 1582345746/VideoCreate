@@ -85,7 +85,7 @@ def compile_plan(root,bundle,config,store_root,job_ids=None,binding_override=Non
     from .selection import resolve
     from .runtime.state import read_state
     from .adapters.image import BindingImageClient
-    from .runtime.budget import estimate
+    from .runtime.budget import estimate, image_parameters
     rows=[]
     state=read_state(root)
     for item in items(root,bundle,job_ids):
@@ -106,8 +106,8 @@ def compile_plan(root,bundle,config,store_root,job_ids=None,binding_override=Non
         prepared=BindingImageClient(binding).prepare(item['prompt'],item['references'],size=item['size'],
             quality=item['quality'],output_format=item['output_format'])
         rows.append({'job_id':item['job_id'],'model':model,'binding':binding.id,'prepared':prepared,
-            'estimate':estimate(binding,0,config.get('budget',{}).get('currency','CNY'),parameters={
-                'operation':'image-edit' if item['references'] else 'text-to-image'}),'selection':selection})
+            'estimate':estimate(binding,0,config.get('budget',{}).get('currency','CNY'),parameters=image_parameters(
+                binding,'image-edit' if item['references'] else 'text-to-image')),'selection':selection})
     from . import local_gifs
     return {'ok':True,'kind':bundle['brief']['workflow_profile'],'jobs':rows,'local_gifs':local_gifs.rows(root,bundle),'paid_creates':0,
         'provider_configuration_required':bool(bundle['generation-plan'].get('image_jobs')),

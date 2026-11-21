@@ -4,9 +4,9 @@ import math
 
 from .bindings import configured_binding, validate_parameters
 from .media_constraints import count_errors
-from .presentation import OPERATIONS, rows
+from .presentation import OPERATIONS, rows, estimate_text
 from ..config.storage import ConfigError
-from ..runtime.budget import estimate
+from ..runtime.budget import estimate_details, image_parameters
 
 
 def scenario(value):
@@ -64,10 +64,10 @@ def assess(config,row,request):
             elif operation=='reference-to-video' and not total:
                 reasons.append('Reference-to-video needs reference media')
             elif total:
-                typed=kind=='video' and (binding.adapter=='xingapi-video-v2' or operation=='reference-to-video'
+                typed=kind=='video' and (binding.adapter in {'xingapi-video-v2', 'newapi-json-v2'} or operation=='reference-to-video'
                     or counts['video'] or counts['audio'])
                 if typed:
-                    if binding.adapter=='xingapi-video-v2' and not caps.get('media_reference_limits'):
+                    if binding.adapter in {'xingapi-video-v2', 'newapi-json-v2'} and not caps.get('media_reference_limits'):
                         unknown.append('Typed media reference limits are unknown')
                     else:reasons.extend(count_errors(binding,operation,counts,generate_audio=request.get('generate_audio',False)))
                     if operation=='image-to-video' and caps.get('media_reference_limits'):
@@ -80,13 +80,15 @@ def assess(config,row,request):
         if operation=='reference-to-video' and counts is None:
             unknown.append('Reference types and counts have not been specified')
     currency=(item.get('pricing') or {}).get('currency')
-    amount=None
-    if binding and currency and (kind=='image' or 'seconds' in request):
-        amount=estimate(binding,request.get('seconds',0),currency,parameters=request)
+    details={'amount':None,'reason':'protocol_unconfigured' if not binding else 'duration_missing'}
+    if binding and (kind=='image' or 'seconds' in request):
+        parameters=image_parameters(binding,operation) if kind=='image' else request
+        details=estimate_details(binding,request.get('seconds',0),currency,parameters=parameters)
     status='excluded' if reasons else 'unverified' if unknown else 'parameters-match'
     return {'status':status,'matches':status=='parameters-match','reasons':list(dict.fromkeys(reasons)),
         'unknowns':list(dict.fromkeys(unknown)),'warnings':list(dict.fromkeys(warnings)),
-        'quote':{'currency':currency,'amount':amount,'actual_payment':'unknown'},
+        'quote':{'currency':currency,'amount':details['amount'],'actual_payment':'unknown',
+                 'calculation':details,'explanation':estimate_text(details)},
         'ready_to_create':False}
 
 

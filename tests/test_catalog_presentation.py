@@ -59,6 +59,45 @@ class CatalogPresentationTests(unittest.TestCase):
             self.assertIsNone(result['cards'][0]['quote']['amount'])
             self.assertIn('未知',result['cards'][0]['fields']['本次估算（非实付）'])
 
+    def test_comparison_explains_missing_tiers_and_exact_billing_arithmetic(self):
+        result=compare(self.config,[self.a,self.b],scenario={'operation':'text-to-video','seconds':6})
+        self.assertIn('缺少',result['cards'][0]['fields']['本次计费说明'])
+        self.assertIn('分辨率',result['cards'][0]['fields']['本次计费说明'])
+        detail=result['cards'][1]['quote']['calculation']
+        self.assertEqual(detail['billed_seconds'],10)
+        self.assertIn('0.2/秒 × 10 计费秒',result['cards'][1]['fields']['本次计费说明'])
+
+    def test_image_comparison_needs_no_video_duration_and_preserves_fixed_rate(self):
+        ids=[bid for bid,b in self.config['bindings'].items() if self.config['models'][b['model']]['kind']=='image'][:2]
+        self.assertEqual(len(ids),2)
+        self.config['bindings'][ids[0]]['pricing']={'currency':'USD','per_request':.04}
+        result=compare(self.config,ids,scenario={'operation':'text-to-image'})
+        self.assertEqual(result['cards'][0]['quote']['amount'],.04)
+        self.assertNotIn('计费秒',result['cards'][0]['fields']['本次计费说明'])
+        with self.assertRaisesRegex(ConfigError,'do not apply to image'):
+            compare(self.config,ids,scenario={'operation':'text-to-image','seconds':5})
+
+    def test_comparison_and_filter_keep_possible_overlap_unknown_until_parameters_resolve_it(self):
+        from videocreate.catalog.suitability import query
+        self.config['bindings'][self.a]['pricing']={'currency':'USD','tiers':[
+            {'when':{},'per_request':2},{'when':{'resolution':'720p'},'per_request':3}]}
+        scenarios=[({'operation':'text-to-video','seconds':6},'tier_parameters_missing',None),
+                   ({'operation':'text-to-video','seconds':6,'resolution':'1080p'},'estimated',2),
+                   ({'operation':'text-to-video','seconds':6,'resolution':'720p'},'tier_ambiguous',None)]
+        before=copy.deepcopy(self.config)
+        with mock.patch('videocreate.config.storage.resolve_key',side_effect=AssertionError('No credentials')), \
+             mock.patch('urllib.request.urlopen',side_effect=AssertionError('No network')):
+            for scenario,reason,amount in scenarios:
+                comparison=compare(self.config,[self.a,self.b],scenario=scenario)['cards'][0]
+                fit=next(row['task_fit'] for row in query(self.config,scenario)['bindings'] if row['id']==self.a)
+                for quote in (comparison['quote'],fit['quote']):
+                    self.assertEqual(quote['calculation']['reason'],reason)
+                    self.assertEqual(quote['amount'],amount)
+                if reason=='tier_parameters_missing':
+                    self.assertIn('分辨率',comparison['fields']['本次计费说明'])
+                    self.assertIn('分辨率',fit['quote']['explanation'])
+        self.assertEqual(self.config,before)
+
     def test_parameter_preview_is_not_a_ready_check_and_reference_operation_needs_real_inputs(self):
         result=compare(self.config,[self.a,self.b],scenario=self.scenario)
         preview=result['cards'][0]['parameter_preview']

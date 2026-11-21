@@ -36,7 +36,7 @@ def create(profile: str, *, title: str = "", seconds: float | None = None, topic
         if seconds is not None:
             raise ConfigError('Image/GIF profiles use per-image requests or local conversion intervals; omit --seconds')
         animated = profile in {'gif-only','gif-local'}
-        bundle = {'project':{'schema_version':3,'product':'VideoCreate','title':title or PROFILES[profile]['title']},
+        bundle = {'project':{'schema_version':3,'prompt_semantics':2,'product':'VideoCreate','title':title or PROFILES[profile]['title']},
             'brief':{'intent':'montage','pace_profile':'slow-cinema','workflow_profile':profile,
                 'audience':topic,'aspect_ratio':aspect_ratio,'resolution':'720p','audio_policy':'silent'},
             'story':{'initial_state':{},'beats':[]}, 'director':{'assets':[],'scenes':[],'shots':[]},
@@ -56,7 +56,7 @@ def create(profile: str, *, title: str = "", seconds: float | None = None, topic
             import math
             if isinstance(seconds,bool) or not isinstance(seconds,(float,int)) or not math.isfinite(seconds) or seconds<=0:
                 raise ConfigError('Mixed-video target duration must be positive and finite')
-        bundle={'project':{'schema_version':3,'product':'VideoCreate','title':title or PROFILES[profile]['title']},
+        bundle={'project':{'schema_version':3,'prompt_semantics':2,'product':'VideoCreate','title':title or PROFILES[profile]['title']},
             'brief':{'intent':'montage','pace_profile':'slow-cinema','workflow_profile':profile,
                 'aspect_ratio':aspect_ratio,'resolution':'720p','audience':topic,
                 'visual_style':'Retain existing source imagery; edit locally without model generation' if profile=='edit-only' else 'Author generated shots to fit the existing source imagery; review actual continuity'},
@@ -76,7 +76,7 @@ def create(profile: str, *, title: str = "", seconds: float | None = None, topic
     if aspect_ratio not in {"16:9", "9:16"}:
         raise ConfigError("Profile canvas must be 16:9 or 9:16")
     bundle = {
-        "project": {"schema_version": 3, "product": "VideoCreate", "title": title or p["title"],
+        "project": {"schema_version": 3, "prompt_semantics": 2, "product": "VideoCreate", "title": title or p["title"],
                     "files": {k: k + ".json" for k in LAYERS}, "status": "draft_plan"},
         "brief": {"intent": p["intent"], "genre": profile, "workflow_profile": profile,
                   "pace_profile": p["pace"], "audio_policy": p["audio"], "target_seconds": seconds,

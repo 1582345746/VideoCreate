@@ -160,7 +160,7 @@ def preview(path, text, *, source_token, baseline=None):
     return _preview(path,text,source_token=source_token,baseline=baseline)[0]
 
 
-def apply(path, text, *, source_token, preview_token, baseline=None):
+def apply(path, text, *, source_token, preview_token, baseline=None, on_prepared=None):
     path=Path(path).resolve()
     with state_lock(path.parent/'config-lock'):
         report,candidate,raw,current,old=_preview(path,text,source_token=source_token,baseline=baseline)
@@ -177,6 +177,7 @@ def apply(path, text, *, source_token, preview_token, baseline=None):
         candidate.update(revision=max([0,*revisions])+1,updated_at=m.stamp())
         # Recheck after the exact backup, too. Cooperating writers hold config-lock.
         if path.read_bytes()!=raw:raise ConfigError('Configuration changed while backing up; inspect again')
+        if on_prepared is not None:on_prepared(m.fingerprint(candidate))
         atomic_json(path,candidate)
         audit={**report,'repaired_at':candidate['updated_at'],'revision':candidate['revision'],
             'after':m.fingerprint(candidate),'operation':'configuration-repair'}

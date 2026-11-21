@@ -1,0 +1,60 @@
+{
+  "snapshot_type": "documentation_prototype_preservation_baseline",
+  "date": "2026-11-13",
+  "source_root": "E:/MyFiles/ToolSkills/VideoCreate",
+  "branch": "codex/provider-manager",
+  "head": "aed9f160ed8d07007ab5b2ef3950706ce0d3a207",
+  "installed_version": "3.0.0.dev43",
+  "unfinished_source_version": "3.0.0.dev44",
+  "preexisting_product_changes": [
+    {
+      "path": "videocreate/SKILL.md",
+      "sha256": "16b1ea1de04e822a87cec7847eb3835bdc1e03db405ed4ecc527d225af92dc33"
+    },
+    {
+      "path": "videocreate/assets/module-catalog.json",
+      "sha256": "e781be6eb7ed9e174fac836e1f667a92f4479a49866dfa1cff7e81d060fe6882"
+    },
+    {
+      "path": "videocreate/references/provider-management.md",
+      "sha256": "6bae91d2bb75a64402c2bf11c215a4b6922401aa232fbaa20cfe9b5040222fbf"
+    },
+    {
+      "path": "videocreate/src/videocreate/__init__.py",
+      "sha256": "db0978f2dc98ab4384a400686fc1aedc64999d62dee16e6dd38034d027a3a379"
+    },
+    {
+      "path": "videocreate/src/videocreate/manager.py",
+      "sha256": "0ebd75b57962d3652cfbfd69dbe29a0f3129335a3887d4a31cb5ea7b1c43efd5"
+    },
+    {
+      "path": "videocreate/src/videocreate/manager_media.py",
+      "sha256": "3f78f6afe0de6064002b17673e9831fe7d078856bc0460528ad87c34a8ee6caa"
+    },
+    {
+      "path": "videocreate/src/videocreate/manager_pricing.py",
+      "sha256": "187f84b4b52fb6523ed60713f54bc40a93e75af60e55a04be4a77c241533d86e"
+    },
+    {
+      "path": "tests/test_config_drafts.py",
+      "sha256": "73fe12f7bd6b8e57e4b052b5df277e7a0e9b7e5adbb06060c2d4bca3d15da5f5"
+    },
+    {
+      "path": "tests/test_manager_recovery.py",
+      "sha256": "e84723d3a94790253d0da1aa0beff20516b6c65a6727ac569312e881b92c1b7f"
+    },
+    {
+      "path": "videocreate/src/videocreate/config/drafts.py",
+      "sha256": "fc3ff059c4bffa1811c873ec51bcc49042f43a3c0d0264aaec0763bc3b4a9a58"
+    },
+    {
+      "path": "videocreate/src/videocreate/manager_recovery.py",
+      "sha256": "8abc2bf417b82b891057e5f64c1cfa7a3a4ed5226a8d90bc6d037c755e537341"
+    }
+  ],
+  "production_config": {
+    "path": "C:/Users/FBX/AppData/Local/Packages/OpenAI.Codex_2p2nqsd0c76g0/LocalCache/Local/VideoCreate/videocreate.config.json",
+    "sha256": "addae54f02037099bd25e3dba577f03d26cef79717b31d0e6e0df3220d43e059"
+  },
+  "contains_secrets": false
+}

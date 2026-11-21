@@ -1,0 +1,29 @@
+{
+  "ok": true,
+  "direction": "local-web; default input URL and Key; advanced fields optional",
+  "generated_directories_removed": [
+    "build",
+    "dist",
+    "acceptance",
+    ".pytest_cache",
+    ".tmp-reference-frames",
+    "analysis-frames",
+    "UNKNOWN.egg-info"
+  ],
+  "generated_files_removed": 39526,
+  "generated_uncompressed_bytes_removed": 1342994318,
+  "archive": "E:/MyFiles/ToolSkills/VideoCreate-archive/json-only-20261113-171206/retired-ui-and-generated-files.zip",
+  "archive_sha256": "57168ff191118b739518e2fc50d507f053b0a8bc0540d50b980676ce25867f59",
+  "archived_files": 39693,
+  "source_and_gui_tests_restored_after_user_direction_change": true,
+  "json_only_attempt_files_remaining": 0,
+  "projects_unchanged": {
+    "files": 5466,
+    "sha256": "a1189e6af65c990fc0414212ccce7287fc5d00b0964203236e549bbd1c436666"
+  },
+  "production_configuration_and_credentials_unchanged": true,
+  "installed_skill_unchanged": true,
+  "services_stopped": false,
+  "paid_creates": 0,
+  "production_web_implemented": false
+}

@@ -6,13 +6,44 @@ import math
 
 from ..config.management import catalog
 from ..config.storage import ConfigError
-from ..runtime.budget import estimate
+from ..runtime.budget import estimate_details, image_parameters
 from .bindings import configured_binding, validate_request
 
 OPERATIONS = {'text-to-video': '文生视频', 'image-to-video': '图生视频',
     'reference-to-video': '多媒体参考视频', 'text-to-image': '文生图', 'image-edit': '图片编辑'}
 KINDS = {'video': '视频', 'image': '图片'}
 STAGES = {'catalog':'目录', 'contract':'合同', 'smoke':'生成小样', 'quality':'内容质量'}
+PRICE_REASONS = {
+    'price_missing':'未配置预算价格；展示报价不参与预算',
+    'currency_mismatch':'预算价格与请求币种不一致，不自动换算',
+    'price_unverified':'预算价格尚未核实', 'rate_missing':'尚未配置每请求、每秒或每张费率',
+    'image_operation_required':'按张价格仅适用于图片操作',
+    'image_count_unknown':'请求未明确发送出图张数，不能按供应商默认值估价',
+    'image_count_invalid':'请求出图张数必须是正整数',
+    'duration_invalid':'计费时长必须是有限非负数', 'duration_missing':'缺少任务秒数',
+    'price_time_invalid':'价格时间无效或缺少时区', 'price_expired':'预算价格已过期',
+    'price_not_effective':'预算价格尚未生效', 'tier_parameters_missing':'缺少匹配档位所需参数',
+    'tier_no_match':'没有匹配本次参数和时长的价格档位',
+    'tier_ambiguous':'多个价格档位同时匹配，不能任取较低价',
+    'estimate_not_finite':'计算结果超出可表示的金额范围',
+    'protocol_unconfigured':'协议尚未配置，无法按接入估算',
+}
+
+
+def estimate_text(details):
+    if details['amount'] is None:
+        text = PRICE_REASONS.get(details['reason'], '预算价格未知')
+        names = {'operation':'操作', 'resolution':'分辨率', 'aspect_ratio':'画幅'}
+        if details.get('missing_parameters'):
+            text += '：' + '、'.join(names[k] for k in details['missing_parameters'])
+        return text
+    tier = ('使用第 ' + '、'.join(str(i) for i in details['matched_tiers']) + ' 档；') if details['matched_tiers'] else ''
+    formula = number(details['per_request']) + '/次'
+    if details['per_second']:
+        formula += ' + ' + number(details['per_second']) + '/秒 × ' + number(details['billed_seconds']) + ' 计费秒'
+    if details.get('per_image') is not None:
+        formula += ' + ' + number(details['per_image']) + '/张 × ' + number(details['billed_images']) + ' 请求出图张数'
+    return tier + details['currency'] + ' ' + formula + '；估算不代表实际扣款'
 
 
 def number(value):
@@ -20,7 +51,7 @@ def number(value):
 
 
 def rates(value):
-    parts = [number(value[key]) + '/' + unit for key, unit in [('per_request','次'),('per_second','秒')]
+    parts = [number(value[key]) + '/' + unit for key, unit in [('per_request','次'),('per_second','秒'),('per_image','张')]
              if key in value]
     return ' + '.join(parts) or '未设置费率'
 
@@ -182,8 +213,14 @@ def compare(config, identities, *, store_root=None, scenario=None):
             raise ConfigError('Comparison scenario supports operation, seconds, resolution and aspect_ratio')
         if scenario.get('operation') not in OPERATIONS:
             raise ConfigError('Choose a known operation for comparison')
+        for key in ('resolution','aspect_ratio'):
+            if key in scenario and (not isinstance(scenario[key],str) or not scenario[key].strip()):
+                raise ConfigError('Comparison '+key+' must be a nonempty string')
+        image = scenario['operation'] in {'text-to-image','image-edit'}
+        if image and set(scenario) & {'seconds','resolution','aspect_ratio'}:
+            raise ConfigError('Video duration, resolution and aspect ratio do not apply to image comparisons')
         seconds = scenario.get('seconds', 0)
-        if isinstance(seconds,bool) or not isinstance(seconds,(int,float)) or not math.isfinite(seconds) or seconds <= 0:
+        if not image and (isinstance(seconds,bool) or not isinstance(seconds,(int,float)) or not math.isfinite(seconds) or seconds <= 0):
             raise ConfigError('Comparison duration must be finite and positive')
     cards = [card(config, identity, store_root=store_root) for identity in identities]
     for result in cards:
@@ -197,16 +234,20 @@ def compare(config, identities, *, store_root=None, scenario=None):
                 request = {'operation':scenario['operation'], 'prompt':''}
                 if result['kind']=='video': request.update({k:v for k,v in scenario.items() if k!='operation'})
                 preview['errors'] = validate_request(binding, request)['errors']
-                if quote['currency']:
-                    quote['amount'] = estimate(binding,scenario['seconds'],quote['currency'],parameters=scenario)
+                parameters = image_parameters(binding, scenario['operation']) if result['kind']=='image' else scenario
+                details = estimate_details(binding,scenario.get('seconds',0),quote['currency'],parameters=parameters)
+                quote['amount'] = details['amount']
             else:
                 preview['errors'].append('Protocol is not configured')
+                details = {'amount':None, 'reason':'protocol_unconfigured'}
             if not item['enabled'] or item.get('archived') or config['upstreams'][item['upstream']].get('archived') or config['models'][item['model']].get('archived'):
                 preview['errors'].append('Binding is disabled or archived')
             # A quote is still a quote for invalid parameters, never approval.
             preview['status'] = 'incompatible' if preview['errors'] else 'parameters-only'
             result['fields']['本次参数预览'] = '；'.join(preview['errors']) or '参数范围相符；尚未检查素材、凭据与完整请求'
             result['fields']['本次估算（非实付）'] = (quote['currency'] + ' ' + number(quote['amount'])) if quote['amount'] is not None else '未知，不能用于硬预算'
+            result['fields']['本次计费说明'] = estimate_text(details)
+            quote['calculation'] = details
         result.update(quote=quote, parameter_preview=preview)
     return {'ok':True, 'cards':cards, 'scenario':scenario, 'paid_creates':0,
         'note':'报价按各自币种展示；未兑换或按价格排名。参数预览不批准请求，参考和完整运行预检仍须通过。'}

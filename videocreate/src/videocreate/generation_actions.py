@@ -8,7 +8,7 @@ from .config.management import fingerprint
 from .config.storage import ConfigError
 from .planning.project import content_hash, load_project, validate_plan, within
 from .runtime import jobs
-from .runtime.budget import estimate, reserve, summary
+from .runtime.budget import estimate, image_parameters, reserve, summary
 from .runtime.state import read_state
 
 MODES = ('run', 'resume', 'content', 'replan')
@@ -49,6 +49,8 @@ def _row(binding, job, *, action, input_hash, prepared, seconds, kind, config, o
     parameters = {'operation': operation}
     if kind == 'video':
         parameters.update(resolution=config['_brief']['resolution'], aspect_ratio=config['_brief']['aspect_ratio'])
+    else:
+        parameters = image_parameters(binding, operation)
     return {'job_id': job['id'], 'kind': kind, 'action': action,
         'binding': binding.id, 'model': binding.model, 'remote_model': binding.remote_model,
         'upstream': binding.upstream_id, 'operation': operation, 'generated_seconds': seconds,

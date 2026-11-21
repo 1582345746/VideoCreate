@@ -24,7 +24,7 @@ STRING_LIST = {"type": "array", "items": STR, "uniqueItems": True}
 OPEN_OBJECT = {"type": "object"}
 OPERATIONS = ("text-to-video", "image-to-video", "reference-to-video", "text-to-image", "image-edit", "video-edit", "video-extend")
 WORKFLOW_OPERATIONS = ("text-to-video", "image-to-video", "text-to-image", "image-edit")
-ADAPTERS = ("sub2api-json-v1", "newapi-json-v1", "newapi-multipart-v1", "openai-images-v1", "xingapi-video-v1", "xingapi-video-v2")
+ADAPTERS = ("sub2api-json-v1", "newapi-json-v1", "newapi-json-v2", "newapi-multipart-v1", "openai-images-v1", "xingapi-video-v1", "xingapi-video-v2")
 
 
 def capability_schema() -> dict[str, Any]:
@@ -72,6 +72,7 @@ def configuration_schema(version: int = 4) -> dict[str, Any]:
         "operations": {"type": "array", "items": enum(*OPERATIONS), "minItems": 1, "uniqueItems": True},
         "capability_profile": STR, "capability_overrides": capability_schema(),
         "adapter_options": obj({"task_id_fields": {**STRING_LIST, "minItems": 1},
+            "reference_transport": enum("https-url", "data-uri"),
             "include_generate_audio_field": BOOL,
             "primary_image_field": enum("images", "first_frame"),
             "image_request_fields": {"type": "array", "items": enum("n", "size", "quality", "response_format", "output_format"), "uniqueItems": True},
@@ -230,10 +231,12 @@ def validate_config(config: dict[str, Any], *, ready: bool = False, store_root=N
         if duration and duration["minimum"] > duration["maximum"]:
             errors.append(path + ".capability_overrides.duration: minimum exceeds maximum")
         options = binding.get("adapter_options", {})
+        if 'reference_transport' in options and binding.get('adapter') != 'newapi-json-v2':
+            errors.append(path + '.adapter_options: reference transport requires newapi-json-v2')
         if options.get("include_generate_audio_field") is False and overrides.get("audio_control") == "explicit":
             errors.append(path + ": explicit audio control conflicts with omitted audio field")
-        if "include_generate_audio_field" in options and binding["adapter"] != "newapi-json-v1":
-            errors.append(path + ".adapter_options: audio field option requires newapi-json-v1")
+        if "include_generate_audio_field" in options and binding["adapter"] not in {"newapi-json-v1", "newapi-json-v2"}:
+            errors.append(path + ".adapter_options: audio field option requires a newapi-json adapter")
         if any(key in options for key in ("image_request_fields", "image_response_format")) and binding_kind != "image":
             errors.append(path + ".adapter_options: image options require an image model")
     for mid, route in config["routes"].items():

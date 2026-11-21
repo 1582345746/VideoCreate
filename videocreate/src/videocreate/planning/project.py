@@ -73,6 +73,8 @@ def validate_plan(bundle: dict[str, Any], root: Path | None = None) -> dict[str,
             "errors": errors, "warnings": [], "coverage": [], "paid_creates": 0}
     brief, story, director = (bundle[name] for name in ("brief", "story", "director"))
     generation, timeline = (bundle[name] for name in ("generation-plan", "timeline"))
+    from .performance import validation_errors as performance_errors
+    errors.extend(performance_errors(bundle))
     if brief.get('workflow_profile') in {'image-only','gif-only','gif-local'}:
         from ..image_production import validate
         return validate(bundle, root)
@@ -471,8 +473,8 @@ def compile_job(bundle: dict[str, Any], job: dict[str, Any], *, max_bytes: int, 
         else:
             for line in audio.get("lines", []):
                 sections.append("Speech: " + json.dumps(line, ensure_ascii=False, separators=(",", ":")))
-        if not audio.get("lines") or audio.get("mode") in {"mute", "ambience"}:
-            sections.append("No speech; visible mouths stay closed. " + str(audio.get("ambience", "")))
+        from .performance import directions
+        sections.extend(directions(bundle, shot))
         sections.append("Cut motivation: " + shot["cut_motivation"])
         retained += [sid + ".actions", sid + ".performance", sid + ".contacts", sid + ".audio"]
     allowed = bundle["brief"].get("allowed_elements", [])

@@ -26,7 +26,7 @@ def limits_errors(limits):
 def count_errors(binding, operation, counts, *, generate_audio=False):
     """Shared count/combination bounds for catalog queries and actual references."""
     errors = []
-    if binding.adapter != 'xingapi-video-v2':
+    if binding.adapter not in {'xingapi-video-v2', 'newapi-json-v2'}:
         return ['This adapter does not transmit typed image/video/audio references']
     limits = binding.capabilities.get('media_reference_limits')
     if not limits:
@@ -57,7 +57,7 @@ def request_errors(binding, request):
     errors.extend(count_errors(binding,request['operation'],{k:len(v) for k,v in groups.items()},
         generate_audio=request.get('generate_audio',False)))
     limits=binding.capabilities.get('media_reference_limits')
-    if binding.adapter!='xingapi-video-v2' or not limits:return errors
+    if binding.adapter not in {'xingapi-video-v2', 'newapi-json-v2'} or not limits:return errors
     total_bytes = 0
     for kind, items in groups.items():
         bound = limits[kind]

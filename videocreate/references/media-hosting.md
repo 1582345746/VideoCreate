@@ -42,9 +42,9 @@ videocreate media-ref host PROJECT --reference DERIVED_REFERENCE_JSON --upstream
 
 `attach` 在保存计划备份后，将带 kind/role/path/sha256 的引用加入指定 job，操作设为 `reference-to-video`。重复添加相同引用不重复写入。它不改变当前任务或自动执行生成；已提交任务输入改变仍需显式 replan。旧图生视频未注明 kind 的图片保持原样，不自动迁移为多媒体请求；要使用 v2，应明确所有引用的 kind。已有 `image-to-video` 仍要求恰好一张 opening-frame，且为图片数组中的第一张。通用 `reference-to-video` 可按模型合同使用没有首帧的身份、动作或声音参考。
 
-使用 `xingapi-video-v2` 的 binding 必须显式配置 `media_reference_limits`。管理器型号页新增“多媒体限制”：每类数量、单文件/总字节、MIME、角色，视频和音频还需要单文件/总时长；合计数量、合计字节和链接剩余有效秒数。高级字段 `allowed_combinations` 用类型数组列出允许组合，例如 `[["image"],["image","video"]]`；`audio_reference_with_generated_audio` 是是否允许参考音频与声音生成同时使用的布尔值。未知限制不可当作无限；未使用类型的数量填 0。可另设 maximum_width/height/sample_rate/channels 等边界。供应商备注不会自动生成这些执行约束。
+使用 `xingapi-video-v2` 或 `newapi-json-v2` 的 binding 必须显式配置 `media_reference_limits`。管理器型号页新增“多媒体限制”：每类数量、单文件/总字节、MIME、角色，视频和音频还需要单文件/总时长；合计数量、合计字节和链接剩余有效秒数。高级字段 `allowed_combinations` 用类型数组列出允许组合，例如 `[["image"],["image","video"]]`；`audio_reference_with_generated_audio` 是是否允许参考音频与声音生成同时使用的布尔值。未知限制不可当作无限；未使用类型的数量填 0。可另设 maximum_width/height/sample_rate/channels 等边界。供应商备注不会自动生成这些执行约束。
 
-整批待执行任务在首个预算预留/POST 前检查本地源和全部参数，解析对应上游/账户的链接并完整核对公网文件。编译器在提示词与 reference_map 中保留用途及每类从 1 开始的序号；请求发送独立的 `images`、`videos`、`audios` 字符串数组，不把视频转首帧，不丢弃音频。只在 binding 声音开关为 explicit 时发送 `generate_audio`。持久化请求仅保存媒体元数据，v2 响应中的文件 URL 被脱敏，下载使用原任务的认证 content 端点。
+整批待执行任务在首个预算预留/POST 前检查本地源和全部参数，解析对应上游/账户的链接并完整核对公网文件。编译器在提示词与 reference_map 中保留用途及每类从 1 开始的序号；请求发送独立的 `images`、`videos`、`audios` 字符串数组，不把视频转首帧，不丢弃音频。只在 binding 声音开关为 explicit 时发送 `generate_audio`。持久化请求仅保存媒体元数据，XingAPI v2 响应中的文件 URL 被脱敏，下载使用原任务的认证 content 端点。NewAPI v2 脱敏输入链接和请求回显，保留结果 URL 用于 content 端点不可用时的下载恢复，见 [NewAPI 合同](newapi-media-contract.md)。
 
 `slice` 从已注册的视频或音频按源时间的 `[start,end)` 区间生成真实片段：视频解码后重编码为 H.264/AAC MP4（有原音轨时保留），音频输出 PCM WAV 并保留采样率/声道。单独记录请求区间和实际输出时长，视频按帧、音频按采样边界量化；不是无损码流裁切。使用 FFmpeg/FFprobe，原文件与原计划不改写，不发模型请求。
 

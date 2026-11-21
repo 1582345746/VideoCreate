@@ -181,13 +181,16 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if not argv or argv in (["--help"], ["-h"]):
             print("VideoCreate " + __version__ + "\n\n"
-                  "Commands: config, providers, selection, manager, authoring, production, library, media-ref, media-server, modules, doctor, models, capabilities, workflow, plan, assets, media, jobs, timeline, review, reference, education, series, animation, version\n"
+                  "Commands: config, config-web, providers, selection, manager, authoring, production, library, media-ref, media-server, modules, doctor, models, capabilities, workflow, plan, assets, media, jobs, timeline, review, reference, education, series, animation, version\n"
                   "Start: config init; config open; config validate --ready\n"
                   "Offline preview: plan init PROJECT --example smart-car; plan preview PROJECT --video\n"
                   "Each command accepts --help. Existing project commands remain available; use legacy COMMAND to select the retained engine explicitly.")
             return 0
         if argv[0] == "legacy":
             return legacy_engine().main(argv[1:])
+        if argv[0] == 'config-web':
+            from .config_web.launcher import main as config_web
+            return config_web(argv[1:])
         if argv[0] in {'providers', 'selection'}:
             from . import management_commands
             return getattr(management_commands, argv[0] + '_command')(argv[1:])

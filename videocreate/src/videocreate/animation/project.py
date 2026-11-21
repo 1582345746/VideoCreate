@@ -244,7 +244,7 @@ def project_bundle(document, *, model=None, binding=None):
     total = sum(s["planned_seconds"] for s in director["shots"])
     brief["target_seconds"] = total
     width, height = {"9:16": (720, 1280), "16:9": (1280, 720), "1:1": (1024, 1024)}.get(brief["aspect_ratio"], (720, 1280))
-    bundle = {"project": {"schema_version": 3, "product": "VideoCreate", "title": document["title"],
+    bundle = {"project": {"schema_version": 3, "prompt_semantics": 2, "product": "VideoCreate", "title": document["title"],
         "files": {**{n: n + ".json" for n in LAYERS}, "animation": "animation.json"}, "status": "draft_plan"},
         "brief": brief, "story": copy.deepcopy(adaptation["story"]), "director": director,
         "generation-plan": {"jobs": []}, "timeline": {"fps": "30/1", "width": width, "height": height,

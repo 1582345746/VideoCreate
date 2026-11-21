@@ -15,7 +15,7 @@ class Prices(Fields):
         initial = copy.deepcopy(value)
         self.tiers = initial.get('pricing', {}).pop('tiers', [])
         super().__init__(book, '价格', initial, PRICES,
-            '展示价与预算价分开，币种需明确；按次与按秒同时填写会相加。条件档位单独编辑，重叠报价不会任意取值。')
+            '展示价与预算价分开，币种需明确；每请求费与每秒费或每张费相加。按张仅用于图片，张数必须在请求中明确发送，不能推定供应商默认值。条件档位单独编辑。')
         page = ttk.Frame(self.section, padding=12)
         self.section.add(page, text='条件档位')
         ttk.Label(page,text='档位按操作、分辨率、画幅和时长匹配；同时匹配多档时估算保持未知。',wraplength=650).pack(anchor='w',pady=(0,10))
@@ -47,13 +47,13 @@ class Prices(Fields):
         original=self.tiers[index] if index is not None else {}
         win=tk.Toplevel(self.table)
         win.title('编辑价格档位' if index is not None else '新增价格档位')
-        win.geometry('630x535');win.transient(self.table.winfo_toplevel());win.grab_set()
+        win.geometry('630x590');win.transient(self.table.winfo_toplevel());win.grab_set()
         frame=ttk.Frame(win,padding=18);frame.pack(fill='both',expand=True)
         variables={}
         spec=[('operation','操作（空白表示不限定）','text'),('resolution','分辨率（空白表示不限定）','text'),
             ('aspect_ratio','画幅（空白表示不限定）','text'),('minimum_seconds','最少秒数（可空）','number'),
-            ('maximum_seconds','最多秒数（可空）','number'),('per_request','每次 / 每张金额（可为 0）','number'),
-            ('per_second','每秒金额（可为 0）','number')]
+            ('maximum_seconds','最多秒数（可空）','number'),('per_request','每请求金额（可为 0）','number'),
+            ('per_second','每秒金额（可为 0）','number'),('per_image','每张金额（仅图片，可为 0）','number')]
         for row,(key,label,kind) in enumerate(spec):
             raw=original.get(key, '') if key.startswith('per_') else original.get('when',{}).get(key,'')
             var=ui.StringVar(frame,value=str(raw));variables[key]=var
@@ -72,19 +72,20 @@ class Prices(Fields):
         ttk.Button(frame,text='应用档位',command=apply).grid(row=len(spec)+1,column=0,columnspan=2,pady=12)
         from .manager_drafts import DraftGuard
         DraftGuard(win,label='价格档位（尚未应用到型号表单）',scope='configuration')
+        win.recovery_descriptor={'kind':'price','index':index}
         return win
 
     @staticmethod
     def tier(values):
         tier={'when':{}}
         for key,raw in values.items():
-            value=converted(raw,'number' if key in {'minimum_seconds','maximum_seconds','per_request','per_second'} else 'text')
+            value=converted(raw,'number' if key in {'minimum_seconds','maximum_seconds','per_request','per_second','per_image'} else 'text')
             if value=='':continue
             if isinstance(value,(int,float)) and (not math.isfinite(value) or value<0):
                 raise ConfigError('秒数和金额必须是有限的非负数')
             (tier if key.startswith('per_') else tier['when'])[key]=value
-        if not any(k in tier for k in ('per_request','per_second')):
-            raise ConfigError('至少填写每次或每秒费率；允许明确的 0')
+        if not any(k in tier for k in ('per_request','per_second','per_image')):
+            raise ConfigError('至少填写每请求、每秒或每张费率；允许明确的 0')
         when=tier['when']
         if when.get('minimum_seconds',0)>when.get('maximum_seconds',float('inf')):
             raise ConfigError('最少秒数不能超过最多秒数')

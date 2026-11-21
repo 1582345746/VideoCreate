@@ -75,7 +75,7 @@ def _protect_recovery(before, after):
                 raise ConfigError('A different address/account needs a new upstream ID; preserve the old instance for recovery')
 
 
-def save(path, value, *, expected_token, reason='configuration edit'):
+def save(path, value, *, expected_token, reason='configuration edit', on_prepared=None):
     path = Path(path).resolve()
     if not expected_token:
         raise ConfigError('Saving requires the token returned by config management load')
@@ -96,6 +96,11 @@ def save(path, value, *, expected_token, reason='configuration edit'):
             return {'ok': True, 'changed': False, 'token': expected_token, 'paid_creates': 0}
         result['revision'] = current.get('revision', 0) + 1
         result['updated_at'] = stamp()
+        # Optional callers can durably record this exact proposed hash before
+        # replacement, allowing a lost response to be reconciled without replay.
+        # Failure here must leave the authoritative configuration untouched.
+        if on_prepared is not None:
+            on_prepared(fingerprint(result))
         backup = path.parent / 'backups' / (path.stem + '-' + expected_token + '.json')
         if not backup.exists():
             atomic_json(backup, current)
@@ -129,9 +134,15 @@ def restore(path, backup, *, expected_token):
     record = load(path)
     if record['token'] != expected_token:
         raise ConfigError('Configuration changed; reload before restoring')
-    old = migrate(load_json(Path(backup)), ask=True)
+    old = restore_candidate(record['config'], load_json(Path(backup)))
+    return save(path, old, expected_token=expected_token, reason='restore configuration; retain later identities')
+
+
+def restore_candidate(current, previous):
+    """Build a restore without erasing identities referenced by later tasks."""
+    old = migrate(previous, ask=True)
     for group in ('upstreams', 'models', 'bindings', 'routes'):
-        for key, value in record['config'][group].items():
+        for key, value in current[group].items():
             if key not in old[group]:
                 kept = copy.deepcopy(value)
                 if group in {'upstreams', 'models', 'bindings'}:
@@ -139,7 +150,7 @@ def restore(path, backup, *, expected_token):
                 if group == 'bindings':
                     kept['enabled'] = False
                 old[group][key] = kept
-    return save(path, old, expected_token=expected_token, reason='restore configuration; retain later identities')
+    return old
 
 
 def upsert(value, group, identity, item):

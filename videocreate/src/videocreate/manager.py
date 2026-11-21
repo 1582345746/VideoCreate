@@ -27,6 +27,10 @@ class Manager:
         style.configure('Title.TLabel', font=('Microsoft YaHei UI', 19, 'bold'))
         style.configure('Muted.TLabel', foreground='#64748b')
         style.configure('Accent.TButton', padding=(14, 7))
+        # theme_use schedules Tcl idle notifications. Drain them while this
+        # application is live, even if a recovery/embedded host tears it down
+        # before ever entering mainloop. They must not reach a later Tk root.
+        self.window.update_idletasks()
         self.dirty = False
         self.record = service.load(self.path)
         if not self.record['editable']:
@@ -46,6 +50,9 @@ class Manager:
         self.build()
         self.refresh()
         self.window.protocol('WM_DELETE_WINDOW', self.close)
+        from .manager_recovery import Recovery
+        self.recovery = Recovery(self)
+        ttk.Label(self.window, textvariable=self.recovery.note, style='Muted.TLabel').pack(anchor='w', padx=20, pady=(0,8))
 
     def build(self):
         outer = ttk.Frame(self.window, padding=20)
@@ -56,6 +63,7 @@ class Manager:
         ttk.Button(top, text='保存配置', style='Accent.TButton', command=self.save).pack(side='right')
         ttk.Button(top, text='重新载入', command=self.reload).pack(side='right', padx=8)
         ttk.Button(top, text='恢复备份', command=self.restore).pack(side='right')
+        ttk.Button(top, text='恢复配置草稿', command=lambda:self.recovery.panel()).pack(side='right', padx=8)
         ttk.Label(outer, text=str(self.path), style='Muted.TLabel').pack(anchor='w', pady=(5, 16))
         main = ttk.Panedwindow(outer, orient='horizontal')
         main.pack(fill='both', expand=True)
@@ -307,8 +315,8 @@ class Manager:
         if self.current_upstream:
             self.edit_upstream(self.current_upstream)
 
-    def edit_upstream(self, uid=None, copy_from=None):
-        original = copy.deepcopy(self.value['upstreams'].get(uid or copy_from, {}))
+    def edit_upstream(self, uid=None, copy_from=None, *, recovery_original=None):
+        original = copy.deepcopy(self.value['upstreams'].get(uid or copy_from, {}) if recovery_original is None else recovery_original)
         if copy_from:
             original.pop('archived', None)
         win, book, basic = self.dialog('编辑上游' if uid else '新增上游')
@@ -368,14 +376,16 @@ class Manager:
         ttk.Button(win, text='应用到待保存配置', command=apply).pack(pady=(0, 15))
         from .manager_drafts import DraftGuard
         DraftGuard(win, label='上游设置（尚未应用到待保存配置）', scope='configuration')
+        win.recovery_descriptor={'kind':'upstream','uid':uid,'copy_from':copy_from,'original':copy.deepcopy(original)}
+        return win
 
     def edit_selected_binding(self):
         bid = self.selected_binding()
         if bid:
             self.edit_binding(bid)
 
-    def edit_binding(self, bid=None):
-        original = copy.deepcopy(self.value['bindings'].get(bid, {}))
+    def edit_binding(self, bid=None, *, recovery_original=None):
+        original = copy.deepcopy(self.value['bindings'].get(bid, {}) if recovery_original is None else recovery_original)
         win, book, basic = self.dialog('编辑型号' if bid else '新增型号')
         fields = {}
         entries = [
@@ -444,6 +454,13 @@ class Manager:
         ttk.Button(win, text='应用到待保存配置', command=apply).pack(pady=(0, 15))
         from .manager_drafts import DraftGuard
         DraftGuard(win, label='型号、参数与价格（尚未应用到待保存配置）', scope='configuration')
+        win.recovery_descriptor={'kind':'binding','bid':bid,'original':copy.deepcopy(original)}
+        win.recovery_get=lambda:copy.deepcopy(prices.tiers)
+        def restore_tiers(value):
+            prices.tiers=copy.deepcopy(value);prices.refresh()
+        win.recovery_put=restore_tiers
+        win.recovery_price=prices.edit
+        return win
 
     def credential(self):
         uid = self.current_upstream
@@ -607,6 +624,9 @@ class Manager:
             answer = messagebox.askyesnocancel('未保存修改', '保存配置后关闭？', parent=self.window)
             if answer is None or answer and not self.save():
                 return
+        try:self.recovery.store.discard()
+        except OSError as exc:
+            self.error(exc);return
         self.window.destroy()
 
 
@@ -920,6 +940,31 @@ def main():
                 if repair_panel.snapshot['can_repair'] or not all(button.instate(['disabled']) for button in repair_panel.buttons.values()):
                     raise ConfigError('Newer configuration repair was not read-only')
                 recovery.destroy()
+            # Private checkpoint on a synthetic configuration only. Never make
+            # a recovery snapshot of the smoke user's saved or pending values.
+            with tempfile.TemporaryDirectory(prefix='videocreate-recovery-smoke-') as temporary:
+                from .manager_recovery import controls as raw_controls, apply_controls
+                fixture=Path(temporary)/'config.json'
+                from .cli import skill_root
+                atomic_json(fixture,service.migrate(load_json(skill_root()/'assets/config/videocreate.config.example.json')))
+                recovery_window=tk.Toplevel(root);recovery_window.withdraw()
+                recovery_manager=Manager(recovery_window,fixture);unchanged=fixture.read_bytes()
+                upstream_id=next(iter(recovery_manager.value['upstreams']))
+                recovery_form=recovery_manager.edit_upstream(upstream_id)
+                raw=raw_controls(recovery_form)
+                raw[1]=(raw[1][0],raw[1][1],'temporary recovery fixture')
+                apply_controls(recovery_form,raw)
+                if not recovery_form.draft_guard.dirty():raise ConfigError('Recovery form did not retain raw edits')
+                recovery_manager.recovery.checkpoint()
+                store=recovery_manager.recovery.store;packet=store.read(store.session)
+                if packet['forms'][0]['controls']!=[list(row) for row in raw] or fixture.read_bytes()!=unchanged:
+                    raise ConfigError('Encrypted configuration draft did not preserve exact raw fields')
+                try:store.recover(store.session)
+                except ConfigError:pass
+                else:raise ConfigError('Active recovery session was not protected')
+                recovery_form.destroy();recovery_manager.recovery.checkpoint()
+                if store.target.exists():raise ConfigError('Discarded form checkpoint remained current')
+                recovery_window.destroy()
             # Exercise real Tcl teardown in the packaged runtime too.
             owner = ttk.Frame(root)
             probe = ui.StringVar(owner, value='lifecycle smoke')
@@ -950,6 +995,8 @@ def main():
                 'diagnostics_anonymous_preview_and_export': True,
                 'diagnostics_stale_preview_and_no_overwrite': True,
                 'configuration_draft_guards_exercised': draft_guards_exercised,
+                'configuration_encrypted_checkpoint_and_active_guard': True,
+                'configuration_recovery_form_mapping': True,
                 'nested_price_draft_guard_exercised': draft_guards_exercised,
                 'configuration_repair_preview_apply_and_return': True,
                 'configuration_repair_exact_original_backup': True,

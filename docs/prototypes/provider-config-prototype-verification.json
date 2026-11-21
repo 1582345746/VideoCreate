@@ -1,0 +1,30 @@
+{
+  "ok": true,
+  "prototype_only": true,
+  "checks": [
+    "initial upstream table and model detail",
+    "provider navigation, media filtering and full-text search",
+    "tabbed model editing, single save and escaped user text",
+    "invalid enable and duration constraints keep editor open",
+    "directory import preserves existing models and adds disabled draft",
+    "selected model comparison",
+    "separate video/image defaults and explicit policy save",
+    "URL/key-only provider entry, required key, automatic label and no credential retention",
+    "simulated catalog check, operation log and diagnostic preview",
+    "390px responsive layout"
+  ],
+  "checks_count": 10,
+  "browser_errors": [],
+  "external_requests": [],
+  "production_config_reads": 0,
+  "production_config_writes": 0,
+  "provider_creates": 0,
+  "viewport_desktop": [
+    1520,
+    1000
+  ],
+  "viewport_mobile": [
+    390,
+    844
+  ]
+}

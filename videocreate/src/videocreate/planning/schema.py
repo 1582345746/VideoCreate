@@ -35,8 +35,9 @@ def plan_schema():
             "start": number, "end": number, "description": STR}, ("phase", "start", "end", "description"))},
         "claim_ids": STRING_LIST, "visual_purpose": enum("illustration", "evidence", "map", "graphic"),
         "contacts": {"type": "array", "items": obj({"subject": STR, "object": STR, "relation": STR}, ("subject", "object", "relation"))},
+        "mouth_performance": obj({"mode": enum("natural", "closed", "silent-performance", "speech"), "direction": STR}, ("mode",)),
         "audio": obj({"mode": enum("native-dialogue", "offscreen", "ambience", "mute", "independent-voice"),
-            "ambience": STR, "lines": {"type": "array", "items": line}}, ("mode",)),
+            "ambience": STR, "music": enum("none", "allowed"), "lines": {"type": "array", "items": line}}, ("mode",)),
         "state_transition": obj({"cause_beat_id": STR, "evidence_shot_ids": STRING_LIST}, ("cause_beat_id", "evidence_shot_ids")),
     }, ("id", "scene_id", "information_goal", "framing", "planned_seconds", "actions", "cut_motivation"))
     job = obj({"id": STR, "shot_ids": {**STRING_LIST, "minItems": 1}, "operation": enum("text-to-video", "image-to-video", "reference-to-video"),
@@ -59,6 +60,7 @@ def plan_schema():
     schema = obj({
         "project": obj({"schema_version": {"const": 3}, "product": {"const": "VideoCreate"}, "title": STR,
             "files": obj({name: STR for name in ("brief", "story", "director", "generation-plan", "timeline", "research", "animation")}),
+            "prompt_semantics": {"type": "integer", "enum": [1, 2]},
             "status": STR}, ("schema_version", "product", "title")),
         "brief": obj({"intent": enum("narrative", "demonstration", "montage", "single-shot"), "genre": STR, "pace_profile": STR,
             "topic": STR, "viewer_goal": STR, "audience": STR, "aspect_ratio": STR, "resolution": STR, "visual_style": STR,

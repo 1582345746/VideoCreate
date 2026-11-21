@@ -174,5 +174,6 @@ def open_panel(manager):
         buttons.append(button)
     from .manager_drafts import DraftGuard
     guard=DraftGuard(win, read=lambda:(url.get(),port.get()), label='素材服务域名与端口', scope='configuration')
+    win.recovery_descriptor={'kind':'media'}
     refresh()
     return win
