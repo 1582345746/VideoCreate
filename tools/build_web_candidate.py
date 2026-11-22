@@ -11,7 +11,7 @@ import sys
 import zipfile
 
 ROOT=Path(__file__).resolve().parents[1]
-IGNORED_DIRECTORIES={'__pycache__','.pytest_cache','.mypy_cache','.ruff_cache','node_modules','.git'}
+IGNORED_DIRECTORIES={'__pycache__','.pytest_cache','.mypy_cache','.ruff_cache','node_modules','.git','local-cast'}
 
 
 def file_hash(path):
@@ -93,7 +93,7 @@ def main():
     source=output/'source';source.mkdir()
     for name in ('pyproject.toml','setup.py','MANIFEST.in','README.md'):
         shutil.copy2(ROOT/name,source/name)
-    shutil.copytree(ROOT/'videocreate',source/'videocreate',ignore=shutil.ignore_patterns('__pycache__','.pytest_cache','.mypy_cache','.ruff_cache','*.pyc','*.pyo','*.egg-info'))
+    shutil.copytree(ROOT/'videocreate',source/'videocreate',ignore=shutil.ignore_patterns('local-cast','__pycache__','.pytest_cache','.mypy_cache','.ruff_cache','*.pyc','*.pyo','*.egg-info'))
     shutil.copytree(ROOT/'requirements',source/'requirements')
     from videocreate import __version__
     from check_release import check

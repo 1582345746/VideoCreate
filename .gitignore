@@ -19,4 +19,5 @@ web/provider-config/node_modules/
 # Local production references, generated media and handoff archives.
 /research/
 /output/
+/videocreate/local-cast/
 /docs/VideoCreate-WebConfig-Handoff-20261113.zip

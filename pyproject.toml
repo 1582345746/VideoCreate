@@ -11,6 +11,7 @@ dependencies = []
 
 [project.optional-dependencies]
 web = ["fastapi==0.128.8", "uvicorn==0.39.0"]
+media = ["Pillow>=9.2"]
 
 [project.scripts]
 videocreate = "videocreate.cli:main"
@@ -28,3 +29,7 @@ version = {attr = "videocreate.__version__"}
 
 [tool.setuptools.packages.find]
 where = ["videocreate/src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["videocreate/src", "tests"]

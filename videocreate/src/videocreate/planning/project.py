@@ -63,7 +63,7 @@ def _positive(value: Any) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value) and value > 0
 
 
-def validate_plan(bundle: dict[str, Any], root: Path | None = None) -> dict[str, Any]:
+def validate_plan(bundle: dict[str, Any], root: Path | None = None, *, check_event_maps=True) -> dict[str, Any]:
     """Check declared causality and coverage, never claim to have viewed output."""
     errors, warnings = [], []
     from .schema import schema_errors
@@ -149,6 +149,8 @@ def validate_plan(bundle: dict[str, Any], root: Path | None = None) -> dict[str,
         state.update(effects)
         seen.add(bid)
     for sid, shot in shots.items():
+        from .adaptation import validate as validate_adaptation
+        errors.extend(validate_adaptation(shot, assets))
         bid = shot.get("beat_id")
         if bid not in beats and intent == "narrative":
             errors.append(sid + ": unknown beat_id")
@@ -244,6 +246,8 @@ def validate_plan(bundle: dict[str, Any], root: Path | None = None) -> dict[str,
         if job.get("operation") not in {"text-to-video", "image-to-video", "reference-to-video"}:
             errors.append(jid + ": unsupported generation operation")
         refs = job.get("references", [])
+        if brief.get('production_flow') == 'W3' and not any(ref.get('kind', 'image') == 'image' for ref in refs):
+            errors.append(jid + ': image-driven performance requires a selected image')
         if job.get('operation') == 'reference-to-video' and (not refs or any('kind' not in r for r in refs)):
             errors.append(jid + ': reference-to-video needs explicitly typed references')
         if job.get('operation') == 'text-to-video' and refs:
@@ -255,8 +259,8 @@ def validate_plan(bundle: dict[str, Any], root: Path | None = None) -> dict[str,
             errors.append(jid + ": image-to-video needs exactly one opening-frame primary image")
         for ref in refs:
             from ..catalog.media_constraints import ROLES
-            if 'derivation' in ref and ref.get('kind') not in {'video', 'audio'}:
-                errors.append(jid + ': derivation requires an explicitly typed temporal reference')
+            if 'derivation' in ref and 'kind' not in ref:
+                errors.append(jid + ': derivation requires an explicitly typed reference')
             if not isinstance(ref, dict) or ref.get("role") not in ROLES.get(ref.get('kind', 'image'), set()) or not ref.get("path"):
                 errors.append(jid + ": reference needs a supported role and path")
             elif root:
@@ -330,7 +334,23 @@ def validate_plan(bundle: dict[str, Any], root: Path | None = None) -> dict[str,
                 if any(track.get('clip_id') == cid for track in timeline.get('audio_tracks', [])):
                     errors.append(cid + ': static images contain no audio; select a separate audio file or video clip')
     from ..timeline.model import validate_timeline
-    errors.extend(validate_timeline(timeline))
+    timeline_errors = validate_timeline(timeline)
+    errors.extend(timeline_errors)
+    if root and not timeline_errors and check_event_maps:
+        from ..timeline.events import attached_event_map
+        for job in jobs.values():
+            if 'event_map' not in job:
+                continue
+            try:
+                timing = attached_event_map(root, bundle, job)
+                errors.extend(job['id'] + ': ' + issue for issue in timing.get('source_event_issues', []))
+                for event in timing['events']:
+                    for row in event['occurrences']:
+                        alignment = row.get('audio_alignment', {}).get('status')
+                        if not row['within_duration_tolerance'] or alignment and alignment != 'within-planned-tolerance':
+                            warnings.append(job['id'] + ': event ' + event['id'] + ' needs timing review in ' + row['segment_id'])
+            except (ConfigError, OSError, ValueError) as error:
+                errors.append(job['id'] + ': invalid event map: ' + str(error))
     target = brief.get("target_seconds")
     if target and not validate_timeline(timeline):
         from ..timeline.model import mapping
@@ -419,9 +439,36 @@ def compile_job(bundle: dict[str, Any], job: dict[str, Any], *, max_bytes: int, 
         if notes:
             sections.append("Observed reference style (adapt these visual observations): " + json.dumps(notes, ensure_ascii=False))
             retained.append("brief.reference_profiles.observed_style")
+    from .performance import directions
+    from ..cast_sheet import image_slots, slots_for_asset
+    shared_directions = []
+    slots = {}
+    if bundle['project'].get('prompt_semantics') == 3 and root and typed_refs:
+        slots = image_slots(root, typed_refs)
+    if bundle['project'].get('prompt_semantics') == 3 and len(job['shot_ids']) > 1:
+        by_shot = [directions(bundle, shots[sid]) for sid in job['shot_ids']]
+        shared_directions = [line for line in by_shot[0] if all(line in lines for lines in by_shot[1:])]
+        if shared_directions:
+            sections.append("Sound and mouth direction for every shot: " + " ".join(shared_directions))
     for sid in job["shot_ids"]:
         shot = shots[sid]
         sections.append("Current shot " + sid + ": " + shot["information_goal"])
+        cast_cells = []
+        if slots:
+            for actor in shot.get('actors', []):
+                cells = [f'{i}.{r}.{c}' for i,r,c in slots_for_asset(slots, assets[actor]) if r]
+                if cells:
+                    cast_cells.append('+'.join(cells))
+        if cast_cells:
+            sections.append('Cast (image.row.column): ' + ' '.join(cast_cells))
+            retained.append(sid + '.actors')
+        adaptation = shot.get('adaptation', {})
+        separate_identities = {actor['identity_asset_id'] for actor in adaptation.get('cast', [])
+                               if actor.get('wardrobe_asset_id') and actor['wardrobe_asset_id'] != actor['identity_asset_id']}
+        if adaptation:
+            from .adaptation import directions as adaptation_directions
+            sections.extend(adaptation_directions(shot, assets, job, root))
+            retained.append(sid + '.adaptation')
         if shot.get("timing"):
             t = shot["timing"]
             sections.append("Action timing: " + t["motion_tempo"] + "; begin by " + str(t["action_start_by"])
@@ -446,6 +493,11 @@ def compile_job(bundle: dict[str, Any], job: dict[str, Any], *, max_bytes: int, 
             retained.append(sid + ".pov_continuity_lock")
         for aid in shot.get("asset_ids", []):
             asset = assets[aid]
+            if aid in separate_identities:
+                identity = asset.get('visual_design', {}).get('identity', '')
+                sections.append('Identity reference ' + aid + ' supplies face and body proportions. Use the mapped wardrobe card for clothing and headwear. ' + identity)
+                retained.append(aid + '.identity')
+                continue
             sections.append("Visible " + aid + ": " + asset["description"])
             if asset.get("invariants"):
                 sections.append("Maintain identity/wardrobe: " + "; ".join(asset["invariants"]))
@@ -473,8 +525,7 @@ def compile_job(bundle: dict[str, Any], job: dict[str, Any], *, max_bytes: int, 
         else:
             for line in audio.get("lines", []):
                 sections.append("Speech: " + json.dumps(line, ensure_ascii=False, separators=(",", ":")))
-        from .performance import directions
-        sections.extend(directions(bundle, shot))
+        sections.extend(line for line in directions(bundle, shot) if line not in shared_directions)
         sections.append("Cut motivation: " + shot["cut_motivation"])
         retained += [sid + ".actions", sid + ".performance", sid + ".contacts", sid + ".audio"]
     allowed = bundle["brief"].get("allowed_elements", [])

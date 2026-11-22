@@ -1,0 +1,4 @@
+# Vue scope IDs and Vite bundle names depend on the source bytes.
+web/provider-config/**/*.vue text eol=lf
+web/provider-config/index.html text eol=lf
+videocreate/src/videocreate/config_web/static/** text eol=lf

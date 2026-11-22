@@ -27,6 +27,52 @@ PROFILES = {
                        "audio": "native-experimental", "focus": "可见的目标、阻碍、选择、结果及下集悬念"},
 }
 
+FLOWS = {
+    'W1': '原创视频', 'W2': '参考改编与换角', 'W3': '图片驱动表演',
+    'W4': '有来源的科普说明', 'W5': '既有素材剪辑', 'W6': '图片与 GIF 设计',
+}
+
+
+def create_flow(flow, *, title, topic='', seconds=None, aspect_ratio='16:9', profile=None):
+    """Start a production workflow using existing v3 profiles and layer files."""
+    if flow not in FLOWS:
+        raise ConfigError('Choose a production flow from W1 to W6')
+    specialized = {'W4': ('explainer',), 'W5': ('edit-only', 'mixed-video'),
+                   'W6': ('image-only', 'gif-only', 'gif-local')}
+    if flow in specialized:
+        allowed = specialized[flow]
+        if profile and profile not in allowed:
+            raise ConfigError(flow + ' supports profiles: ' + ', '.join(allowed))
+        profile = profile or allowed[0]
+    elif profile in {p for options in specialized.values() for p in options}:
+        raise ConfigError('Select the production flow matching that specialized profile')
+    if profile:
+        bundle = create(profile, title=title, topic=topic, seconds=seconds, aspect_ratio=aspect_ratio)
+        if flow in {'W2', 'W3'}:
+            for job in bundle['generation-plan']['jobs']:
+                job.update(operation='reference-to-video', references=[])
+    else:
+        bundle = create('mixed-video', title=title or FLOWS[flow], topic=topic, seconds=seconds, aspect_ratio=aspect_ratio)
+        brief = bundle['brief']
+        brief.pop('workflow_profile')
+        brief.pop('visual_style')
+        brief.update(intent='narrative' if flow == 'W1' else 'single-shot', topic=topic, audience='')
+        if flow in {'W2', 'W3'}:
+            duration = seconds if seconds is not None else 15
+            brief.update(target_seconds=duration, audio_policy='silent')
+            bundle['director']['scenes'].append({'id': 'scene-main', 'map': '待指定场景布局', 'axis': '待指定拍摄方向'})
+            bundle['director']['shots'].append({'id': 'shot-main', 'scene_id': 'scene-main',
+                'information_goal': topic or FLOWS[flow], 'framing': '待指定构图', 'asset_ids': [],
+                'actions': [{'kind': 'physical', 'description': topic or '待填写目标表演'}],
+                'planned_seconds': duration, 'audio': {'mode': 'mute'}, 'cut_motivation': 'Single reference performance.'})
+            bundle['generation-plan']['jobs'].append({'id': 'job-main', 'shot_ids': ['shot-main'],
+                'operation': 'reference-to-video', 'seconds': duration, 'references': []})
+            bundle['timeline']['clips'].append({'id': 'clip-main', 'job_id': 'job-main'})
+            bundle['timeline']['segments'].append({'id': 'seg-main', 'clip_id': 'clip-main', 'shot_id': 'shot-main',
+                'source_in': 0, 'source_out': duration, 'source_audio': 'mute', 'cut_reason': 'Full source window.'})
+    bundle['brief']['production_flow'] = flow
+    return bundle
+
 
 def create(profile: str, *, title: str = "", seconds: float | None = None, topic: str = "",
            aspect_ratio: str = "16:9") -> dict:

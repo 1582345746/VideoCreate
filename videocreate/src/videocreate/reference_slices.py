@@ -38,18 +38,40 @@ def validate_derivation(root, reference, media, *, seen=None):
     if path.stat().st_size > 128 * 1024 or digest(path) != pointer['sha256']:
         raise ConfigError('Reference derivation manifest hash changed or exceeds size limit')
     record = load_json(path)
-    if (set(record) != {'schema_version', 'operation', 'source', 'source_metadata', 'interval', 'output', 'method'}
-            or record['schema_version'] != 1 or record['operation'] != 'temporal-slice'
+    if isinstance(record, dict) and record.get('operation') == 'cast-sheet-v1':
+        from .cast_sheet import validate_sheet
+        validate_sheet(Path(root).resolve(), record, reference, media)
+        return
+    if isinstance(record, dict) and record.get('operation') == 'lossless-png':
+        from .image_reference_png import validate_png
+        validate_png(root, record, reference, media)
+        return
+    if not isinstance(record, dict):
+        raise ConfigError('Unsupported reference derivation manifest')
+    extract = record.get('operation') == 'extract-dialogue'
+    fields = {'schema_version', 'operation', 'source', 'source_metadata', 'interval', 'output', 'method'}
+    if extract:
+        fields.add('speaker')
+        if not isinstance(record.get('speaker'), str) or not record['speaker'].strip():
+            raise ConfigError('Dialogue extraction requires an assigned speaker')
+    if (set(record) != fields or record['schema_version'] != 1
+            or record['operation'] not in {'temporal-slice', 'extract-dialogue'}
             or not isinstance(record['source'], dict) or not isinstance(record['interval'], dict)
             or set(record['interval']) != {'start_seconds', 'end_seconds'}
             or not isinstance(record['method'], dict)
-            or record['method'].get('name') != 'ffmpeg-decoded-trim-v1'
+            or record['method'].get('name') != ('ffmpeg-first-audio-pcm-v1' if extract else 'ffmpeg-decoded-trim-v1')
             or not isinstance(record['method'].get('version'), str)):
         raise ConfigError('Unsupported reference derivation manifest')
     source = record['source']
     if (not {'kind', 'path', 'sha256', 'role'} <= set(source) <= set(REFERENCE_FIELDS)
             or any(not isinstance(source[key], str) for key in ('kind', 'path', 'sha256', 'role'))
-            or source['kind'] not in {'video', 'audio'} or source['kind'] != media['kind']):
+            or source['kind'] not in {'video', 'audio'}):
+        raise ConfigError('Invalid temporal source reference')
+    if extract:
+        if (source['kind'] != 'video' or media['kind'] != 'audio' or media['mime_type'] != 'audio/wav'
+                or reference['role'] != 'sound'):
+            raise ConfigError('Dialogue extraction requires a video source and PCM audio reference')
+    elif source['kind'] != media['kind']:
         raise ConfigError('Reference slice must preserve its temporal media kind')
     from .catalog.media_constraints import ROLES
     if source['role'] not in ROLES[source['kind']]:
@@ -63,11 +85,14 @@ def validate_derivation(root, reference, media, *, seen=None):
         raise ConfigError('Reference derivation output does not match the actual reference bytes')
 
 
-def slice_reference(root, reference, *, start, end):
+def slice_reference(root, reference, *, start, end, extract_speaker=None):
     """Create real cropped bytes. Never modify a plan, publish, or call a provider."""
     root = Path(root).resolve()
     if reference.get('kind') not in {'video', 'audio'}:
         raise ConfigError('Only explicitly typed video or audio references can be sliced')
+    extract = extract_speaker is not None
+    if extract and (reference['kind'] != 'video' or not isinstance(extract_speaker, str) or not extract_speaker.strip()):
+        raise ConfigError('Dialogue extraction needs a video reference and an assigned speaker')
     from .media_references import prepare_references
     source = {key: reference[key] for key in REFERENCE_FIELDS if key in reference}
     media = prepare_references(root, [source])[0]
@@ -87,7 +112,7 @@ def slice_reference(root, reference, *, start, end):
         shutil.copyfile(within(root, source['path']), snapshot)
         if digest(snapshot) != source['sha256']:
             raise ConfigError('Reference source changed before slicing')
-        video = source['kind'] == 'video'
+        video = source['kind'] == 'video' and not extract
         output = temp / ('slice.mp4' if video else 'slice.wav')
         args = [ffmpeg, '-v', 'error', '-nostdin', '-i', str(snapshot), '-ss', format(float(start), '.17g'),
                 '-t', format(float(end - start), '.17g'), '-map_metadata', '-1', '-map_chapters', '-1']
@@ -101,8 +126,15 @@ def slice_reference(root, reference, *, start, end):
         except (OSError, subprocess.TimeoutExpired):
             raise ConfigError('Local reference slicing could not finish; no provider request was made') from None
         if result.returncode:
+            if extract:
+                raise ConfigError('No decodable audio in the requested video interval')
             raise ConfigError('FFmpeg could not decode the requested reference interval')
-        derived = register(root, output, kind=source['kind'], role=source['role'])
+        if extract:
+            measured = inspect(output, 'audio')
+            if abs(measured['duration_seconds'] - (end - start)) > max(.001, 1 / measured['sample_rate']):
+                raise ConfigError('Audio stream does not cover the full requested video interval')
+        derived = register(root, output, kind='audio' if extract else source['kind'],
+                           role='sound' if extract else source['role'])
         actual_output = inspect(within(root, derived['path']), derived['kind'])
         # Audio is sample-quantized; video is frame-quantized. Record actual output
         # duration independently from the requested half-open source interval.
@@ -111,6 +143,9 @@ def slice_reference(root, reference, *, start, end):
             'interval': {'start_seconds': float(start), 'end_seconds': float(end)},
             'output': actual_output,
             'method': {'name': 'ffmpeg-decoded-trim-v1', 'version': version}}
+        if extract:
+            record.update(operation='extract-dialogue', speaker=extract_speaker.strip())
+            record['method']['name'] = 'ffmpeg-first-audio-pcm-v1'
         manifest = temp / 'derivation.json'
         atomic_json(manifest, record)
         manifest_hash = digest(manifest)
@@ -131,4 +166,5 @@ def slice_reference(root, reference, *, start, end):
     return {'ok': True, 'reference': derived, 'reference_file': str(reference_file),
         'requested_interval': record['interval'], 'actual_duration_seconds': actual_output['duration_seconds'],
         'quantization': 'decoded frames' if video else 'decoded PCM samples',
+        **({'speaker': record['speaker'], 'audio_source': 'original-mix', 'listening_status': 'unverified'} if extract else {}),
         'plan_modified': False, 'paid_creates': 0}

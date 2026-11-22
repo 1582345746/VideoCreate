@@ -111,6 +111,9 @@ class CandidateBuildTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError,'Build inputs changed'):build.verify_inputs_unchanged(self.root,before)
             p.write_bytes(prior)
         cache=self.root/'web/provider-config/node_modules/cache.js';cache.parent.mkdir();cache.write_text('ignored')
+        private_voice = self.root / 'videocreate/local-cast/voice.mp3'
+        private_voice.parent.mkdir()
+        private_voice.write_bytes(b'personal voice sample')
         build.verify_inputs_unchanged(self.root,before)
         added=self.root/'web/provider-config/public/new.svg';added.parent.mkdir();added.write_text('<svg/>')
         with self.assertRaisesRegex(RuntimeError,'Build inputs changed'):build.verify_inputs_unchanged(self.root,before)

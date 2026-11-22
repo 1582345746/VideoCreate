@@ -1,5 +1,7 @@
 # VideoCreate
 
+2026-11-22 起，`F:/VideoCreate` 作为独立项目继续开发。当前角色库包含噜噜、噜妹的原始设定、五季穿搭和两套去伴奏人声。新对话从[独立版交接与完整开发清单](videocreate/references/20261122-standalone-handoff.zh-CN.md)接手。
+
 > 工作目录已于 2026-11-13 复制迁移到 `F:/VideoCreate`，包含 Git 历史、未提交文件与本机项目；原 E 盘目录保留。后续开发请使用 F 盘副本。备份和迁移校验记录统一存放在主项目的 `_local/` 内，F 盘只保留一个项目文件夹。见[迁移说明与新对话入口](docs/20261113-f-drive-migration.zh-CN.md)。已安装技能与本机配置仍在 C 盘；当前源码为未完成的 dev44，不能混用已安装 dev43 的验收结果。
 
 > 当前开发方向（2026-11-13）：本机 Web 配置上游，新增默认只填 URL/Key，复杂信息由 Codex 根据已知合同维护；视频创作与生成继续在 Codex。正式 Web 已进入 dev44 本机候选验证，已安装 dev43 保持原样。启动与范围见 [Web 使用说明](videocreate/references/config-web.md)，执行状态见 [Web 开发验证记录](docs/20261113-web-development-progress.zh-CN.md)。[最新设计与原型](docs/20261113-web-provider-config-design.zh-CN.md)、[完整清单](docs/20261113-complete-development-checklist.zh-CN.md)、[新对话交接](docs/20261113-new-chat-handoff.zh-CN.md)、[产物清理记录](docs/20261113-cleanup-record.zh-CN.md)。下文 EXE/Tk 和旧发行内容为历史实现，后续不再作为主界面扩展。

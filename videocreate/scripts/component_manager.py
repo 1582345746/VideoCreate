@@ -297,6 +297,7 @@ def _git_output(*args: str, cwd: Path | None = None) -> str:
     result = subprocess.run(
         ["git", *args],
         cwd=cwd,
+        env=os.environ.copy(),  # Preserve empty Git config overrides in Windows child processes.
         capture_output=True,
         text=True,
         encoding="utf-8",

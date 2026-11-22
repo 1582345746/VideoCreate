@@ -11,7 +11,10 @@ def command(argv):
     parser = argparse.ArgumentParser(prog='videocreate library')
     parser.add_argument('action', choices=['list', 'show', 'add', 'import', 'impact'])
     parser.add_argument('project', nargs='?', type=Path)
-    parser.add_argument('--config', type=Path)
+    location = parser.add_mutually_exclusive_group()
+    location.add_argument('--config', type=Path)
+    location.add_argument('--store-root', type=Path,
+                          help='Directory containing a portable asset-library folder')
     parser.add_argument('--library-id')
     parser.add_argument('--version')
     parser.add_argument('--asset-id')
@@ -21,7 +24,7 @@ def command(argv):
     parser.add_argument('--query', default='')
     parser.add_argument('--kind', choices=asset_library.KINDS)
     args = parser.parse_args(argv)
-    store = user_config_path(args.config).parent
+    store = args.store_root if args.store_root is not None else user_config_path(args.config).parent
     if args.action in {'add', 'import', 'impact'} and (not args.project or not args.asset_id):
         raise ConfigError('This action requires project and --asset-id')
     if args.action in {'add', 'show', 'import'} and not args.library_id:

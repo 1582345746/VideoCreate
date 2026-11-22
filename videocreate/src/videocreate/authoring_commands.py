@@ -4,7 +4,7 @@ from pathlib import Path
 from . import authoring
 from .cli import print_result
 from .config.storage import load_json
-from .planning.profiles import PROFILES
+from .planning.profiles import FLOWS, PROFILES
 
 
 def command(argv):
@@ -12,7 +12,8 @@ def command(argv):
     sub=parser.add_subparsers(dest='action',required=True)
     create=sub.add_parser('create',help='Create an editable draft without selecting or calling a model')
     create.add_argument('project',type=Path)
-    create.add_argument('--profile',choices=PROFILES,required=True)
+    create.add_argument('--profile',choices=PROFILES)
+    create.add_argument('--flow',choices=FLOWS)
     create.add_argument('--title',required=True)
     for name in ('topic','audience','viewer-goal'):create.add_argument('--'+name,default='')
     create.add_argument('--seconds',type=float)
@@ -27,7 +28,7 @@ def command(argv):
         if action=='save':child.add_argument('--preview-token',required=True)
     args=parser.parse_args(argv)
     if args.action=='create':
-        result=authoring.create(args.project,profile=args.profile,title=args.title,topic=args.topic,
+        result=authoring.create(args.project,profile=args.profile,flow=args.flow,title=args.title,topic=args.topic,
             audience=args.audience,viewer_goal=args.viewer_goal,seconds=args.seconds,aspect_ratio=args.aspect_ratio)
     elif args.action=='show':result=authoring.describe(args.project,args.layer)
     elif args.action=='outline':result=authoring.outline(args.project)

@@ -76,11 +76,34 @@ def auxiliary_hashes(root: Path, timeline: dict) -> dict:
         for group in ("audio_tracks", "overlays") for entry in timeline.get(group, []) if entry.get("path")}
 
 
-def render(root: Path, bundle: dict, state: dict, *, output_name: str = "preview.mp4", scope: str = "project-timeline") -> dict:
+AUDIO_OUTPUTS = ('timeline', 'silent', 'dialogue', 'music', 'dialogue-music')
+
+
+def audio_delivery(bundle, requested=None):
+    policy = bundle.get('brief', {}).get('audio_policy')
+    mode = requested if requested is not None else ('silent' if policy == 'silent' else 'timeline')
+    if mode not in AUDIO_OUTPUTS:
+        raise ConfigError('Unknown audio output mode')
+    tracks = bundle['timeline'].get('audio_tracks', [])
+    if mode == 'silent':
+        tracks = []
+    elif mode != 'timeline':
+        kinds = set(mode.split('-'))
+        tracks = [t for t in tracks if t['kind'] in kinds]
+        missing = kinds - {t['kind'] for t in tracks}
+        if missing:
+            raise ConfigError('This output needs a separate timeline audio track for ' + ', '.join(sorted(missing)))
+    return {'mode': mode, 'selection': 'explicit' if requested is not None else 'project-default',
+            'track_ids': [t['id'] for t in tracks], 'include_source_audio': mode == 'timeline'}
+
+
+def render(root: Path, bundle: dict, state: dict, *, output_name: str = "preview.mp4",
+           scope: str = "project-timeline", audio_output=None) -> dict:
     if scope not in {"project-timeline", "animation-pilot"}:
         raise ConfigError("Unknown edit scope")
     timeline = bundle["timeline"]
     plan = mapping(timeline)
+    delivery = audio_delivery(bundle, audio_output)
     from .finishing import captions, fade, filter_chain, normalize, present, required_version
     burned_cues = captions(timeline, plan['subtitles'])
     finishing = {'global_filters': timeline.get('filters', []),
@@ -142,7 +165,7 @@ def render(root: Path, bundle: dict, state: dict, *, output_name: str = "preview
             selected_filters = filter_chain(timeline, seg)
             if selected_filters:
                 filters += ',' + selected_filters
-            if source["has_audio"] and seg.get("source_audio", "mute") != "mute":
+            if delivery['include_source_audio'] and source["has_audio"] and seg.get("source_audio", "mute") != "mute":
                 args += ["-af", "asetpts=PTS-STARTPTS," + atempo(rate)
                     + f",volume={seg.get('source_gain_db',0)}dB,apad=whole_dur={seg['duration']},atrim=duration={seg['duration']}", "-map", "0:a:0"]
             else:
@@ -174,7 +197,7 @@ def render(root: Path, bundle: dict, state: dict, *, output_name: str = "preview
             concat.write_text("\n".join("file '" + part.name + "'" for part in parts), encoding="utf-8")
             run([ffmpeg, "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", str(concat), "-c", "copy", str(base)])
         final_temp = folder / "output.mp4"
-        audio = plan["audio_tracks"]
+        audio = [t for t in plan["audio_tracks"] if t['id'] in delivery['track_ids']]
         if audio:
             args = [ffmpeg, "-v", "error", "-y", "-i", str(base)]
             graph, labels = [], ["[0:a]"]
@@ -201,10 +224,17 @@ def render(root: Path, bundle: dict, state: dict, *, output_name: str = "preview
         if timeline.get('fade_seconds'):
             fade(ffmpeg, final_temp, folder / 'faded.mp4', timeline['fade_seconds'], plan['duration'], run)
             final_temp = folder / 'faded.mp4'
-        if 'loudness' in timeline:
+        if 'loudness' in timeline and delivery['mode'] != 'silent':
             final_temp, finishing['loudness'] = normalize(ffmpeg, final_temp, folder / 'normalized.mp4',
                                                         timeline['loudness']['target_lufs'], plan['duration'], run)
+        if delivery['mode'] == 'silent':
+            silent = folder/'silent.mp4'
+            run([ffmpeg, '-nostdin', '-v', 'error', '-i', str(final_temp), '-map', '0:v:0',
+                 '-c:v', 'copy', '-an', '-movflags', '+faststart', str(silent)])
+            final_temp = silent
         final_media = probe(final_temp)
+        if final_media['has_audio'] != (delivery['mode'] != 'silent'):
+            raise ConfigError('Rendered audio stream differs from the selected delivery mode')
         if plan.get('transitions'):
             from fractions import Fraction
             fps=float(Fraction(timeline['fps']))
@@ -220,7 +250,8 @@ def render(root: Path, bundle: dict, state: dict, *, output_name: str = "preview
         "source_hashes": {cid: hashlib.sha256(path.read_bytes()).hexdigest() for cid, path in clips.items()},
         "source_kinds": kinds,
         "auxiliary_hashes": auxiliary,
-        "fps_report": fps_notes, "technical_decode": "pass", "audio_content": "unverified", "content": "unverified", "paid_creates": 0}
+        "fps_report": fps_notes, "technical_decode": "pass", "audio_delivery": delivery,
+        "audio_content": "unverified", "content": "unverified", "paid_creates": 0}
     if present(timeline) or required_version(timeline) == 4:
         manifest['finishing'] = finishing
     if "animation" in bundle:

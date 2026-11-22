@@ -59,6 +59,34 @@ class ReviewTests(unittest.TestCase):
         self.assertEqual(result["status"], "review_pending")
         self.assertEqual(result["assets"]["final"]["narrative"], "unverified")
 
+    def test_event_comparison_is_bound_to_media_intervals_and_separate_from_approval(self):
+        from unittest.mock import patch
+        from videocreate.review.comparison import export_comparison, record_observations
+        source = self.root / 'jobs/job-001/attempt/source.mp4'
+        candidate = self.root / 'deliverables/preview.mp4'
+        spec = {'schema_version': 1, 'events': [{'id': 'beat', 'label': '</script>',
+                'source': [0, 1], 'candidate': [1, 2]}]}
+        for key, path in (('source', source), ('candidate', candidate)):
+            spec[key] = {'path': path.relative_to(self.root).as_posix(), 'sha256': receipts.file_hash(path)}
+        with patch('videocreate.review.comparison.probe', return_value={'duration': 3, 'has_audio': False}):
+            page = export_comparison(self.root, self.bundle, spec)
+            self.assertNotIn('"label": "</script>"', Path(page['page']).read_text(encoding='utf-8'))
+            receipt = {'schema_version': 1, 'comparison_hash': page['comparison_hash'], 'reviewer': 'test',
+                       'observations': {'beat': {'status': 'fail', 'note': 'One second late in fixture'}}}
+            report = record_observations(self.root, self.bundle, spec, receipt)
+            self.assertEqual(record_observations(self.root, self.bundle, spec, receipt), report)
+            self.assertTrue(Path(report['observations']).is_file())
+            self.assertEqual(receipts.summary(self.root, self.bundle)['status'], 'review_pending')
+            spec['events'][0]['candidate'] = [0, 2]
+            with self.assertRaisesRegex(ConfigError, 'current comparison'):
+                record_observations(self.root, self.bundle, spec, receipt)
+            spec['events'][0]['candidate'] = [0, 4]
+            with self.assertRaisesRegex(ConfigError, 'interval'):
+                export_comparison(self.root, self.bundle, spec)
+            candidate.write_bytes(b'changed')
+            with self.assertRaisesRegex(ConfigError, 'bytes changed'):
+                record_observations(self.root, self.bundle, spec, receipt)
+
     def test_playable_page_uses_real_media_and_does_not_approve_it(self):
         import json, re
         from videocreate.review.page import export
@@ -69,6 +97,32 @@ class ReviewTests(unittest.TestCase):
         self.assertEqual(data['receipt']['assets']['final']['sha256'], self.receipt['assets']['final']['sha256'])
         self.assertEqual(data['media']['final'], '../deliverables/preview.mp4')
         self.assertEqual(receipts.summary(self.root,self.bundle)['status'],'review_pending')
+
+    def test_scoped_event_failure_tracks_selected_contract_and_trim(self):
+        from unittest.mock import patch
+        from videocreate.review.comparison import comparison, record_observations
+        artifact = self.receipt['assets']['job-001']
+        media = {key: artifact[key] for key in ('path', 'sha256')}
+        spec = {'schema_version': 1, 'review_asset_id': 'job-001', 'source': media, 'candidate': media,
+                'events': [{'id': 'hat', 'label': 'Hat disappears', 'source': [0, 1], 'candidate': [1, 2]}]}
+        with patch('videocreate.review.comparison.probe', return_value={'duration': 4, 'has_audio': False}):
+            review = comparison(self.root, self.bundle, spec)
+            record_observations(self.root, self.bundle, spec, {'schema_version': 1,
+                'comparison_hash': content_hash(review), 'reviewer': 'fixture',
+                'observations': {'hat': {'status': 'fail', 'note': 'The hat is absent.'}}})
+        receipts.apply(self.root, self.bundle, self.receipt)
+        segment = self.bundle['timeline']['segments'][0]
+        for start, expected, status in [(0, 'full', 'rejected'), (1.5, 'partial', 'review_pending'),
+                                        (2, 'trimmed', 'review_pending')]:
+            with self.subTest(start=start):
+                segment['source_in'] = start
+                report = receipts.summary(self.root, self.bundle)
+                self.assertEqual(report['status'], status)
+                self.assertEqual(report['event_observations'][0]['events'][0]['retained_defect'], expected)
+        segment['source_in'] = 0
+        self.bundle['director']['shots'][0]['framing'] = 'Changed review requirement'
+        report = receipts.summary(self.root, self.bundle)
+        self.assertNotIn('retained_defect', report['event_observations'][0]['events'][0])
 
     def test_review_contract_resolves_project_root_before_recording_relative_paths(self):
         (self.root / "alias-parent").mkdir()

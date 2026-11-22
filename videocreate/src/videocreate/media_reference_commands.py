@@ -11,12 +11,17 @@ from .media_references import ROLES, bind_url, list_links, register, resolve_tra
 
 def command(argv):
     parser = argparse.ArgumentParser(prog='videocreate media-ref')
-    parser.add_argument('action', choices=['register', 'link', 'check', 'list', 'host', 'attach', 'slice'])
+    parser.add_argument('action', choices=['register', 'link', 'check', 'list', 'host', 'attach', 'slice', 'extract-dialogue', 'cast-sheet'])
     parser.add_argument('project', type=Path)
     parser.add_argument('--source', type=Path)
+    parser.add_argument('--spec', type=Path, help='Cast sheet JSON with columns and ordered character cells')
     parser.add_argument('--kind', choices=sorted(ROLES))
     parser.add_argument('--role', choices=sorted(set.union(*ROLES.values())))
     parser.add_argument('--reference', type=Path, help='Registered reference JSON')
+    parser.add_argument('--asset-id', help='Attach a reference directly from a project asset card')
+    parser.add_argument('--media-index', type=int, help='One-based index for a card containing multiple files')
+    parser.add_argument('--as-png', action='store_true', help='Attach a lossless PNG copy of a visual asset')
+    parser.add_argument('--speaker', help='Assigned speaker of a source video interval')
     parser.add_argument('--config', type=Path)
     parser.add_argument('--upstream')
     parser.add_argument('--job', help='Job ID for an explicit local plan attachment')
@@ -34,34 +39,65 @@ def command(argv):
     root = args.project.resolve()
     if not (root / 'project.json').is_file():
         raise ConfigError('Use an existing VideoCreate project')
+    if args.action == 'cast-sheet':
+        from .cast_sheet import create_sheet
+        if not args.spec:
+            raise ConfigError('Choose a cast sheet layout with --spec')
+        print_result(create_sheet(root, load_json(args.spec)))
+        return 0
     if args.action == 'list':
         print_result({'ok': True, **list_links(root)})
         return 0
-    if args.action == 'slice':
+    if args.action in {'slice', 'extract-dialogue'}:
         if not args.reference or args.start is None or args.end is None:
             raise ConfigError('Slice requires --reference, --start and --end')
         from .reference_slices import slice_reference
-        print_result(slice_reference(root, load_json(args.reference), start=args.start, end=args.end))
+        if args.action == 'extract-dialogue' and not args.speaker:
+            raise ConfigError('Extract-dialogue requires --speaker')
+        print_result(slice_reference(root, load_json(args.reference), start=args.start, end=args.end,
+                                     extract_speaker=args.speaker if args.action == 'extract-dialogue' else None))
         return 0
     if args.action == 'attach':
-        if not args.reference or not args.job:
-            raise ConfigError('Attach requires --reference and --job')
+        if not args.job or bool(args.reference) == bool(args.asset_id):
+            raise ConfigError('Attach requires --job and exactly one of --reference or --asset-id')
+        if args.reference and (args.media_index is not None or args.as_png):
+            raise ConfigError('--media-index and --as-png apply only to a project asset card')
         from .planning.project import load_project, validate_plan, within
         from .runtime.state import state_lock
         from .media_references import prepare_references
         import copy
         import time
-        reference = load_json(args.reference)
-        if 'kind' not in reference:
-            raise ConfigError('Attach needs an explicitly typed registered reference')
         from .reference_slices import REFERENCE_FIELDS
-        reference = {k: reference[k] for k in REFERENCE_FIELDS if k in reference}
-        prepare_references(root, [reference])
         with state_lock(root):
             bundle = load_project(root)
             job = next((j for j in bundle['generation-plan']['jobs'] if j['id'] == args.job), None)
             if job is None:
                 raise ConfigError('Unknown job ID')
+            if args.asset_id:
+                from .asset_library import digest, project_media_revision
+                asset = next((a for a in bundle['director']['assets'] if a['id'] == args.asset_id), None)
+                if asset is None or not asset.get('references'):
+                    raise ConfigError('Select a project asset card with a reference file')
+                paths = asset['references']
+                index = 1 if len(paths) == 1 and args.media_index is None else args.media_index
+                if index is None or not 1 <= index <= len(paths):
+                    raise ConfigError('Choose --media-index from 1 to ' + str(len(paths)))
+                path = paths[index - 1]
+                kind = 'audio' if asset['kind'] == 'voice' else 'image'
+                if args.role not in ROLES[kind]:
+                    raise ConfigError('Choose a supported --role for the selected project asset')
+                sha = digest(within(root, path))
+                project_media_revision(root, path, sha)
+                reference = {'path': path, 'sha256': sha, 'kind': kind, 'role': args.role}
+                if args.as_png:
+                    from .image_reference_png import convert_under_lock
+                    reference = convert_under_lock(root, reference)
+            else:
+                reference = load_json(args.reference)
+                if 'kind' not in reference:
+                    raise ConfigError('Attach needs an explicitly typed registered reference')
+                reference = {k: reference[k] for k in REFERENCE_FIELDS if k in reference}
+            prepare_references(root, [reference])
             before = copy.deepcopy(bundle['generation-plan'])
             refs = job.setdefault('references', [])
             if any('kind' not in ref for ref in refs):

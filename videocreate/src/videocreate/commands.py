@@ -46,8 +46,9 @@ def plan_command(argv: list[str]) -> int:
     parser.add_argument("project", nargs="?", type=Path)
     parser.add_argument("--output", type=Path, help="Output path for plan schema or advisory audit")
     parser.add_argument("--example", choices=["smart-car"])
-    from .planning.profiles import PROFILES
+    from .planning.profiles import FLOWS, PROFILES
     parser.add_argument("--profile", choices=sorted(PROFILES))
+    parser.add_argument("--flow", choices=FLOWS, help="Choose one of the six production workflows")
     parser.add_argument("--seconds", type=float)
     parser.add_argument("--topic", default="")
     parser.add_argument("--aspect-ratio", choices=["16:9", "9:16"], default="16:9")
@@ -72,9 +73,14 @@ def plan_command(argv: list[str]) -> int:
     if args.action == "init":
         from .planning.examples import smart_car
         bundle = smart_car()
-        if args.example and args.profile:
-            raise ConfigError("Choose either --example or --profile")
-        if args.profile:
+        if args.example and (args.profile or args.flow):
+            raise ConfigError("Choose the worked example or a production flow/profile")
+        if args.flow:
+            from .planning.profiles import create_flow
+            bundle = create_flow(args.flow, title=args.title, topic=args.topic, seconds=args.seconds,
+                                 aspect_ratio=args.aspect_ratio, profile=args.profile)
+            args.profile = bundle['brief'].get('workflow_profile')
+        elif args.profile:
             from .planning.profiles import create
             bundle = create(args.profile, title=args.title, seconds=args.seconds, topic=args.topic, aspect_ratio=args.aspect_ratio)
         elif not args.example:
@@ -140,35 +146,41 @@ def plan_command(argv: list[str]) -> int:
         return 0
     path = user_config_path(args.config)
     config = read_config(path)
+    from .media_references import selection_request
+    from .planning.request_preview import describe_inputs
+    from .runtime.budget import estimate_details
     rows = []
+    selected_ids = {job["id"] for job in bundle["generation-plan"]["jobs"]}
+    if args.job and set(args.job) - selected_ids:
+        raise ConfigError("Unknown selected job")
     for job in bundle["generation-plan"]["jobs"]:
         if args.job and job["id"] not in args.job:
             continue
         mid = job.get("model", config["defaults"]["video_model"])
-        bid = args.binding or job.get("binding_id") or config["routes"][mid]["preferred_binding"]
+        route = config["routes"].get(mid, {})
+        bid = args.binding or job.get("binding_id") or route.get("preferred_binding")
         item = config["bindings"].get(bid)
         if not item or item["model"] != mid:
             raise ConfigError("Compile binding must reference the job's model")
         compiled = compile_job(bundle, job, max_bytes=capabilities(config, item)["max_prompt_bytes"], root=root)
         binding = configured_binding(config, bid)
-        shots = [shot for shot in bundle["director"]["shots"] if shot["id"] in job["shot_ids"]]
-        references = job.get("references", [])
-        request = validate_request(binding, {"operation": job["operation"], "prompt": compiled["prompt"],
-            "seconds": job["seconds"], "resolution": bundle["brief"]["resolution"],
-            "aspect_ratio": bundle["brief"]["aspect_ratio"],
-            "generate_audio": any(shot.get("audio", {}).get("mode", "ambience") in {"native-dialogue", "offscreen", "ambience"} for shot in shots),
-            "primary_reference": object() if any(ref["role"] == "opening-frame" for ref in references) else None,
-            "reference_images": [object() for ref in references if ref["role"] != "opening-frame"]})
+        inputs = selection_request(root, bundle, job)
+        if binding.adapter in {"xingapi-video-v2", "newapi-json-v2"} and job.get("references") and not inputs.get("media_references"):
+            raise ConfigError("Version two requires explicit reference kinds; register or attach typed references")
+        parameters = {"operation": job["operation"], **inputs}
+        request = validate_request(binding, {**parameters, "prompt": compiled["prompt"]})
         if not request["ok"]:
             raise ConfigError(job["id"] + ": " + "; ".join(request["errors"]))
         destination = root / "jobs" / job["id"] / "compiled.preview.json"
-        atomic_json(destination, compiled)
+        overview = describe_inputs(root, bundle, job, inputs)
+        overview["quote"] = estimate_details(binding, job["seconds"], config["budget"]["currency"], parameters=parameters)
+        overview["warnings"] = request["warnings"]
+        atomic_json(destination, {**compiled, "request_preview": overview, "binding_id": bid, "remote_model": item["remote_model"]})
         rows.append({"job_id": job["id"], "binding_id": bid, "enabled": item["enabled"],
-            "remote_model": item["remote_model"], "compiled": str(destination), "utf8_bytes": compiled["utf8_bytes"]})
-    if args.job and set(args.job) - {row["job_id"] for row in rows}:
-        raise ConfigError("Unknown selected job")
+            "remote_model": item["remote_model"], "compiled": str(destination), "utf8_bytes": compiled["utf8_bytes"],
+            "request_preview": overview})
     print_result({"ok": True, "jobs": rows, "local_sources":bundle['generation-plan'].get('local_sources',[]),
-        "verification": "offline-compiled-only", "paid_creates": 0})
+        "planned_video_jobs": len(rows), "verification": "offline-compiled-only", "paid_creates": 0})
     return 0
 
 
@@ -347,11 +359,18 @@ def timeline_command(argv: list[str]) -> int:
     from .cli import print_result
     from .runtime.state import read_state
     from .timeline.model import mapping, validate_timeline
+    from .timeline.render import AUDIO_OUTPUTS, render
     parser = argparse.ArgumentParser(prog="videocreate timeline")
     parser.add_argument("action", choices=["validate", "map", "render"])
     parser.add_argument("project", type=Path)
     parser.add_argument("--output-name", default="preview.mp4")
+    parser.add_argument("--events", type=Path, help="Map authored reference and target event windows into the current edit")
+    parser.add_argument("--audio-output", choices=AUDIO_OUTPUTS, help="Audio delivery for this local render")
     args = parser.parse_args(argv)
+    if args.events and args.action != "map":
+        raise ConfigError("--events applies to timeline map")
+    if args.audio_output and args.action != "render":
+        raise ConfigError("--audio-output applies to timeline render")
     root = args.project.resolve()
     bundle = load_project(root)
     errors = validate_timeline(bundle["timeline"])
@@ -359,10 +378,13 @@ def timeline_command(argv: list[str]) -> int:
         print_result({"ok": not errors, "errors": errors, "paid_creates": 0})
         return int(bool(errors))
     if args.action == "map":
-        print_result({"ok": True, **mapping(bundle["timeline"]), "paid_creates": 0})
+        if args.events:
+            from .timeline.events import event_map
+            print_result({"ok": True, **event_map(root, bundle, load_json(args.events))})
+        else:
+            print_result({"ok": True, **mapping(bundle["timeline"]), "paid_creates": 0})
         return 0
-    from .timeline.render import render
-    print_result(render(root, bundle, read_state(root), output_name=args.output_name))
+    print_result(render(root, bundle, read_state(root), output_name=args.output_name, audio_output=args.audio_output))
     return 0
 
 
@@ -371,10 +393,13 @@ def review_command(argv: list[str]) -> int:
     from .runtime.state import read_state
     from .review.receipts import apply, inbox, review_image, summary, template
     parser = argparse.ArgumentParser(prog="videocreate review")
-    parser.add_argument("action", choices=["template", "apply", "status", "packet", "inbox", "image", "gif", "page"])
+    parser.add_argument("action", choices=["template", "apply", "status", "packet", "inbox", "image", "gif", "page", "compare", "compare-apply"])
     parser.add_argument("project", type=Path)
     parser.add_argument("--receipt", type=Path)
     parser.add_argument("--output-name", default="preview.mp4")
+    comparison_inputs = parser.add_mutually_exclusive_group()
+    comparison_inputs.add_argument("--spec", type=Path, help="Versioned event comparison with source and candidate intervals")
+    comparison_inputs.add_argument("--events", type=Path, help="Compare mapped source events to the verified final edit")
     parser.add_argument("--pending-only", action="store_true")
     parser.add_argument("--job")
     parser.add_argument("--gif")
@@ -385,6 +410,8 @@ def review_command(argv: list[str]) -> int:
     args = parser.parse_args(argv)
     root = args.project.resolve()
     from . import image_production
+    if args.events and args.action not in {'compare', 'compare-apply'}:
+        raise ConfigError('--events applies to review compare and compare-apply')
     if args.action == 'inbox':
         result=inbox(root, pending_only=args.pending_only)
         bundle=load_project(root) if (root/'project.json').is_file() else None
@@ -394,6 +421,20 @@ def review_command(argv: list[str]) -> int:
         print_result(result)
         return 0
     bundle = load_project(root)
+    if args.action in {'compare', 'compare-apply'}:
+        from .review.comparison import export_comparison, record_observations
+        if not args.spec and not args.events:
+            raise ConfigError('Event comparison requires --spec or --events')
+        spec = load_json(args.spec or args.events)
+        options = {'mapped': bool(args.events), 'output_name': args.output_name}
+        if args.action == 'compare-apply':
+            if not args.receipt:
+                raise ConfigError('Import event observations with --receipt')
+            result = record_observations(root, bundle, spec, load_json(args.receipt), **options)
+        else:
+            result = export_comparison(root, bundle, spec, **options)
+        print_result(result)
+        return 0
     if image_production.is_image(bundle) and args.action in {'template','apply','packet'}:
         raise ConfigError('Pure image/GIF review uses review page/inbox/image/status; video-layer receipts do not apply')
     if args.action == "packet":

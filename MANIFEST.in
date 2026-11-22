@@ -10,6 +10,7 @@ recursive-include videocreate/agents *.yaml
 global-exclude *.pyc
 global-exclude *.pyo
 prune _local
+prune videocreate/local-cast
 recursive-include videocreate/src/videocreate/config_web/static *.html *.js *.css *.svg
 recursive-include web/provider-config *.json *.ts *.vue *.css *.html
 prune web/provider-config/node_modules

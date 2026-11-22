@@ -1,5 +1,6 @@
 """Real picture/audio overlap, mappings, source-review boundaries and native forms."""
 import copy
+import json
 import math
 import shutil
 import struct
@@ -159,6 +160,63 @@ class TransitionRenderTests(unittest.TestCase):
         real=sum(v*math.cos(2*math.pi*frequency*i/48000) for i,v in enumerate(samples))
         imaginary=sum(v*math.sin(2*math.pi*frequency*i/48000) for i,v in enumerate(samples))
         return math.hypot(real,imaginary)/len(samples)
+
+    def test_audio_deliveries_from_same_edit_have_only_selected_frequencies(self):
+        bundle = self.prepare()
+        value = bundle['timeline']
+        value['audio_tracks'] = [
+            {'id':role, 'kind':role, 'clip_id':clip['id'], 'source_in':0, 'source_out':1, 'timeline_start':0}
+            for role, clip in zip(('dialogue', 'music'), value['clips'])]
+        atomic_json(self.root/'timeline.json', value)
+        bundle['brief']['audio_policy'] = 'silent'
+        original_state = read_state(self.root)
+        silent = render(self.root, bundle, original_state, output_name='silent.mp4')
+        self.assertFalse(silent['media']['has_audio'])
+        self.assertEqual(silent['audio_delivery']['mode'], 'silent')
+        for mode, audible in [('dialogue',(True,False)), ('music',(False,True)), ('dialogue-music',(True,True))]:
+            result = render(self.root, bundle, original_state, output_name=mode+'.mp4', audio_output=mode)
+            self.assertEqual(result['media']['frame_count'], silent['media']['frame_count'])
+            self.assertEqual(receipts.contracts(self.root,bundle,output_name=mode+'.mp4')['final']['audio_delivery'],
+                             result['audio_delivery'])
+            path = Path(result['path'])
+            self.assertEqual(tuple(self.amplitude(path,.25,hz)>250 for hz in (440,880)), audible)
+        bundle['brief']['audio_policy'] = 'ambience'
+        with self.assertRaisesRegex(ConfigError, 'audio delivery changed'):
+            receipts.contracts(self.root,bundle,output_name='silent.mp4')
+        self.assertEqual(read_state(self.root), original_state)
+
+    def test_mapped_review_uses_final_bytes_and_rechecks_event_evidence_on_import(self):
+        from videocreate.review.comparison import export_comparison, record_observations
+        bundle = self.prepare()
+        local = bundle['generation-plan']['local_sources'][0]
+        card_path = self.root/'character.png'
+        subprocess.run(['ffmpeg','-v','error','-i',str(self.sources[0]),'-frames:v','1',str(card_path)],
+                       check=True,capture_output=True)
+        bundle['director']['assets'].append({'id':'character','kind':'character','description':'Selected character',
+                                             'references':[card_path.name]})
+        shot = next(s for s in bundle['director']['shots'] if s['id'] in local['shot_ids'])
+        shot['asset_ids'] = ['character']
+        atomic_json(self.root/'director.json',bundle['director'])
+        source = {k:local[k] for k in ('path','sha256')}
+        spec = {'schema_version':1,'source':source,'audio':source,'target_job':local['id'],
+                'tolerance_seconds':1/24,'events':[
+                    {'id':'opening','source':[0,.5],'audio':[0,.5],'target':[0,.5],'reason':'Opening half second'}]}
+        output = 'silent.mp4'
+        render(self.root,bundle,read_state(self.root),output_name=output,audio_output='silent')
+        page = export_comparison(self.root,bundle,spec,mapped=True,output_name=output)
+        self.assertFalse(page['candidate_has_audio_stream'])
+        compared = json.loads((Path(page['page']).parent/'comparison.json').read_text(encoding='utf-8'))
+        self.assertEqual(compared['visual_references'][0]['sha256'],digest(card_path))
+        receipt = {'schema_version':1,'comparison_hash':page['comparison_hash'],'reviewer':'fixture',
+                   'observations':{'event-1-use-1':{'status':'unverified','note':''}}}
+        saved = record_observations(self.root,bundle,spec,receipt,mapped=True,output_name=output)
+        self.assertTrue(Path(saved['observations']).is_file())
+        spec['events'][0]['target'] = [.25,.75]
+        with self.assertRaisesRegex(ConfigError,'current comparison'):
+            record_observations(self.root,bundle,spec,receipt,mapped=True,output_name=output)
+        bundle['timeline']['segments'][0]['cut_reason'] += ' changed'
+        with self.assertRaisesRegex(ConfigError,'manifest is stale'):
+            export_comparison(self.root,bundle,spec,mapped=True,output_name=output)
 
     def test_real_crossfade_blends_picture_and_source_audio_with_shortened_duration(self):
         bundle=self.prepare();before=[digest(p) for p in self.sources]

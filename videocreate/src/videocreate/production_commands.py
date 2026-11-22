@@ -172,6 +172,9 @@ def reference_command(argv):
     profile = sub.add_parser("profile")
     profile.add_argument("report", type=Path)
     profile.add_argument("--observations", type=Path)
+    events = sub.add_parser("events")
+    events.add_argument("report", type=Path)
+    events.add_argument("--output", required=True, type=Path)
     attach = sub.add_parser("attach")
     attach.add_argument("project", type=Path)
     attach.add_argument("--profile", required=True, type=Path)
@@ -180,6 +183,8 @@ def reference_command(argv):
         result = references.analyze(args.source.resolve(), args.output.resolve(), max_frames=args.max_frames, crop=args.crop)
     elif args.action == "profile":
         result = references.profile(args.report.resolve(), load_json(args.observations) if args.observations else None)
+    elif args.action == "events":
+        result = references.event_template(args.report.resolve(), args.output.resolve())
     else:
         result = references.attach(args.project.resolve(), args.profile.resolve())
     print_result(result)

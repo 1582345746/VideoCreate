@@ -15,13 +15,17 @@ from .runtime.state import read_state, state_lock
 LAYERS = ('brief', 'story', 'director', 'generation-plan', 'timeline')
 
 
-def create(root, *, profile, title, topic='', audience='', viewer_goal='', seconds=None, aspect_ratio='16:9'):
+def create(root, *, profile=None, flow=None, title, topic='', audience='', viewer_goal='', seconds=None, aspect_ratio='16:9'):
     root = Path(root).resolve()
     if not isinstance(title,str) or not title.strip():
         raise ConfigError('A new project needs a nonempty title')
     if any(not isinstance(value,str) for value in (topic,audience,viewer_goal)):
         raise ConfigError('Topic, audience and viewer goal must be text')
-    bundle = profile_plan(profile,title=title.strip(),topic=topic,seconds=seconds,aspect_ratio=aspect_ratio)
+    if flow:
+        from .planning.profiles import create_flow
+        bundle = create_flow(flow, profile=profile, title=title.strip(), topic=topic, seconds=seconds, aspect_ratio=aspect_ratio)
+    else:
+        bundle = profile_plan(profile,title=title.strip(),topic=topic,seconds=seconds,aspect_ratio=aspect_ratio)
     bundle['brief'].update(topic=topic.strip(),audience=audience.strip(),viewer_goal=viewer_goal.strip())
     errors = schema_errors(bundle)
     if errors:

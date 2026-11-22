@@ -109,6 +109,186 @@ class TypedMediaGenerationTests(unittest.TestCase):
     def run_job(self, **kwargs):
         return jobs.generate(self.root,self.config,store_root=self.root,job_ids=['job-001'],poll_timeout=1,**kwargs)
 
+    def attach_event_map(self):
+        spec = {'schema_version':1, 'target_job':self.job['id'], 'tolerance_seconds':1/24,
+                'source':{k:self.references[1][k] for k in ('path','sha256')},
+                'events':[{'id':'start','source':[0,1],'target':[0,1],'reason':'Opening source action'}]}
+        path = self.root/'events.json'
+        atomic_json(path,spec)
+        self.job['event_map'] = {'path':path.name,'sha256':refs.digest(path)}
+        atomic_json(self.root/'generation-plan.json',self.bundle['generation-plan'])
+        return path
+
+    def test_event_map_preview_and_original_request_survive_later_local_map_edits(self):
+        from videocreate.commands import plan_command
+        original = jobs.current_inputs(self.root,self.bundle,self.job,{})
+        path = self.attach_event_map()
+        self.assertEqual(jobs.current_inputs(self.root,self.bundle,self.job,{}), original)
+        cfg = self.root/'test-config.json'
+        atomic_json(cfg,self.config)
+        with redirect_stdout(io.StringIO()):
+            self.assertEqual(plan_command(['compile',str(self.root),'--config',str(cfg),'--job',self.job['id']]),0)
+        preview = load_json(self.root/'jobs/job-001/compiled.preview.json')['request_preview']
+        self.assertEqual(preview['local_event_timing']['events'][0]['occurrences'][0]['timeline'],[0,0.75])
+        send = self.mock_generation()
+        with mock.patch.object(self.client_class,'poll',side_effect=TimeoutError('poll timeout')):
+            with self.assertRaises(ConfigError):
+                self.run_job()
+        saved = read_state(self.root)['jobs'][self.job['id']]['compilation']['reference_inputs']['local_event_timing']
+        path.write_bytes(b'local edit awaiting validation')
+        self.assertFalse(validate_plan(self.bundle,self.root)['ok'])
+        self.assertTrue(self.run_job(retry='network',reason='Resume original accepted task')['ok'])
+        send.assert_called_once()
+        current = read_state(self.root)['jobs'][self.job['id']]
+        self.assertEqual(current['compilation']['reference_inputs']['local_event_timing'],saved)
+
+    def test_invalid_event_map_stops_new_create_before_budget_reservation(self):
+        path = self.attach_event_map()
+        spec = load_json(path)
+        spec['target_job'] = 'another-job'
+        atomic_json(path,spec)
+        self.job['event_map']['sha256'] = refs.digest(path)
+        atomic_json(self.root/'generation-plan.json',self.bundle['generation-plan'])
+        send = self.mock_generation()
+        with self.assertRaisesRegex(ConfigError,'event map must target'):
+            self.run_job()
+        send.assert_not_called()
+        self.assertFalse(read_state(self.root)['ledger'])
+
+    def test_required_source_opening_cannot_be_silently_trimmed_from_a_new_request(self):
+        from videocreate import references as source_references
+        video = self.references[1]
+        study = source_references.analyze(self.root/video['path'],self.root/'source-study',max_frames=3)
+        observations = {'reviewer_id':'','observations':[],'participants':[],
+                        'events':[{'id':'opening','category':'hook','start':0,'end':1,'notes':'First source beat',
+                                   'participants':[],'status':'unverified','must_preserve':True}]}
+        profile = Path(source_references.profile(Path(study['report']),observations)['profile'])
+        spec = {'schema_version':2, 'target_job':self.job['id'],'tolerance_seconds':1/24,
+                'source':{k:video[k] for k in ('path','sha256')},
+                'source_profile':{'path':profile.relative_to(self.root).as_posix(),'sha256':refs.digest(profile)},
+                'events':[{'id':'start','source_event_id':'opening','target':[0,1],'reason':'Keep the opening beat'}]}
+        path = self.root/'events.json'
+        atomic_json(path,spec)
+        self.job['event_map'] = {'path':path.name,'sha256':refs.digest(path)}
+        atomic_json(self.root/'generation-plan.json',self.bundle['generation-plan'])
+        send = self.mock_generation()
+        with self.assertRaisesRegex(ConfigError,'Required source events.*opening'):
+            self.run_job()
+        send.assert_not_called()
+        self.assertFalse(read_state(self.root)['ledger'])
+        spec['source_event_changes'] = {'opening':'Omit the first quarter-second preparation as planned in the edit.'}
+        atomic_json(path,spec)
+        self.job['event_map']['sha256'] = refs.digest(path)
+        atomic_json(self.root/'generation-plan.json',self.bundle['generation-plan'])
+        self.assertTrue(self.run_job()['ok'])
+        send.assert_called_once()
+
+    def test_offline_compile_with_imported_card_and_mixed_references(self):
+        from videocreate import asset_library
+        from videocreate.commands import plan_command
+        from videocreate.media_reference_commands import command as media_command
+        from videocreate.planning.project import load_project
+        source = self.bundle['director']['assets'][0]
+        source['references'] = [self.references[0]['path']]
+        atomic_json(self.root / 'director.json', self.bundle['director'])
+        version = asset_library.publish(self.root, self.root / 'store', source['id'], 'hero')['version']
+        asset_library.import_asset(self.root, self.root / 'store', 'hero', version, 'costume')
+        bundle = load_project(self.root)
+        shot = next(s for s in bundle['director']['shots'] if s['id'] in self.job['shot_ids'])
+        shot['asset_ids'].append('costume')
+        atomic_json(self.root / 'director.json', bundle['director'])
+        self.job['references'] = self.references[1:]
+        atomic_json(self.root / 'generation-plan.json', self.bundle['generation-plan'])
+        cfg = self.root / 'test-config.json'
+        atomic_json(cfg, self.config)
+        with redirect_stdout(io.StringIO()), mock.patch.object(refs, 'resolve_transports', side_effect=AssertionError):
+            attach = ['attach', str(self.root), '--asset-id', 'costume', '--role', 'identity', '--job', self.job['id']]
+            self.assertEqual(media_command(attach), 0)
+            self.assertEqual(media_command(attach), 0)
+            self.assertEqual(plan_command(['compile', str(self.root), '--config', str(cfg), '--job', self.job['id']]), 0)
+        preview = load_json(self.root / 'jobs' / self.job['id'] / 'compiled.preview.json')['request_preview']
+        self.assertEqual(preview['reference_counts'], {'image': 1, 'video': 1, 'audio': 1})
+        self.assertEqual([item['kind'] for item in preview['references']], ['video', 'audio', 'image'])
+        image = preview['references'][-1]
+        self.assertEqual(image['library_revision'], {'library_id': 'hero', 'version': version})
+        self.assertIn({'shot_id': shot['id'], 'asset_id': 'costume'}, image['shot_assets'])
+        self.assertEqual(image['sha256'], self.references[0]['sha256'])
+        self.assertFalse((self.root / 'state.json').exists())
+
+    def test_cast_sheet_cli_preserves_order_and_individual_source_evidence(self):
+        from PIL import Image
+        from videocreate.asset_library import import_asset, publish
+        from videocreate.media_reference_commands import command
+        from videocreate.planning.request_preview import describe_inputs
+        from videocreate.planning.project import load_project
+        card = self.bundle['director']['assets'][0]
+        sources = []
+        for name, shade in [('red', 'red'), ('blue', 'blue')]:
+            path = self.root / (name + '.png')
+            Image.new('RGB', (8, 12), shade).save(path)
+            card['references'] = [path.name]
+            atomic_json(self.root / 'director.json', self.bundle['director'])
+            version = publish(self.root, self.root/'store', card['id'], name)['version']
+            result = import_asset(self.root, self.root/'store', name, version, name)
+            self.bundle = load_project(self.root)
+            card = self.bundle['director']['assets'][0]
+            sources.append(self.root / result['asset']['references'][0])
+        spec = self.root / 'layout.json'
+        atomic_json(spec, {'columns': 2, 'cells': [{'asset_id':'red'}, {'asset_id':'blue','crop_xywh':[0,2,8,8]}]})
+        buffer = io.StringIO()
+        with redirect_stdout(buffer):
+            self.assertEqual(command(['cast-sheet', str(self.root), '--spec', str(spec)]), 0)
+        sheet = json.loads(buffer.getvalue())['reference']
+        ref = refs.prepare_references(self.root, [sheet])[0]
+        with Image.open(self.root / sheet['path']) as image:
+            self.assertEqual(image.getpixel((192,320)), (255,0,0))
+            self.assertEqual(image.getpixel((576,320)), (0,0,255))
+        job = self.bundle['generation-plan']['jobs'][0]
+        job['references'] = [sheet]
+        shot = next(s for s in self.bundle['director']['shots'] if s['id'] in job['shot_ids'])
+        shot['actors'] = ['blue', 'red']
+        self.bundle['project']['prompt_semantics'] = 3
+        compiled = compile_job(self.bundle, job, max_bytes=15000, root=self.root)
+        self.assertIn('Cast (image.row.column): 1.1.2 1.1.1', compiled['prompt'])
+        preview = describe_inputs(self.root, self.bundle, job, {'media_references':[ref], 'generate_audio':False})
+        cells = preview['references'][0]['cast_cells']
+        self.assertEqual([(c['column'],c['library_revision']['library_id'],c['shot_ids'])
+                          for c in cells], [(1,'red',[shot['id']]),(2,'blue',[shot['id']])])
+        self.assertFalse((self.root/'state.json').exists())
+        with self.assertRaisesRegex(ConfigError, 'crop must fit'):
+            atomic_json(spec, {'columns':1,'cells':[{'asset_id':'blue','crop_xywh':[0,0,9,12]}]})
+            command(['cast-sheet', str(self.root), '--spec', str(spec)])
+        sources[1].write_bytes(b'changed')
+        with self.assertRaisesRegex(ConfigError, 'source changed'):
+            refs.prepare_references(self.root, [sheet])
+
+    def test_png_conversion_keeps_webp_source_bound_for_runtime_preflight(self):
+        from PIL import Image
+        from videocreate import asset_library
+        from videocreate.media_reference_commands import command
+        from videocreate.planning.project import load_project
+        from videocreate.planning.request_preview import describe_inputs
+        webp = self.root / 'cast.webp'
+        Image.new('RGBA', (31, 13), (9, 20, 213, 130)).save(webp, lossless=True)
+        source = self.bundle['director']['assets'][0]
+        source['references'] = ['cast.webp']
+        atomic_json(self.root / 'director.json', self.bundle['director'])
+        version = asset_library.publish(self.root, self.root / 'store', source['id'], 'cast')['version']
+        imported = asset_library.import_asset(self.root, self.root / 'store', 'cast', version, 'look')
+        with redirect_stdout(io.StringIO()):
+            command(['attach', str(self.root), '--job', self.job['id'], '--asset-id', 'look', '--role', 'identity', '--as-png'])
+        bundle = load_project(self.root)
+        job = bundle['generation-plan']['jobs'][0]
+        inputs = refs.selection_request(self.root, bundle, job)
+        self.assertEqual(inputs['media_references'][-1]['mime_type'], 'image/png')
+        item = describe_inputs(self.root, bundle, job, inputs)['references'][-1]
+        self.assertEqual(item['source_sha256'], refs.digest(webp))
+        self.assertEqual(item['library_revision']['version'], version)
+        self.assertNotEqual(item['sha256'], item['source_sha256'])
+        (self.root / imported['asset']['references'][0]).write_bytes(b'changed')
+        with self.assertRaisesRegex(ConfigError, 'Original image changed'):
+            refs.selection_request(self.root, bundle, job)
+
     def transport_refs(self):
         b=self.config['bindings'][self.bid]
         return refs.resolve_transports(self.root,self.references,store_root=self.root,
@@ -145,6 +325,9 @@ class TypedMediaGenerationTests(unittest.TestCase):
         state=read_state(self.root)
         self.assertEqual(state['jobs']['job-001']['binding_snapshot']['adapter_version'],2)
         self.assertEqual(len(state['ledger']),1)
+        persisted = state['jobs']['job-001']['compilation']['reference_inputs']
+        self.assertEqual([r['sha256'] for r in persisted['references']], [r['sha256'] for r in self.references])
+        self.assertEqual(persisted['verification'], 'planned-inputs-only')
 
     def test_input_order_and_roles_are_preserved_in_prompt_and_arrays(self):
         first={**self.references[0],'role':'style'}

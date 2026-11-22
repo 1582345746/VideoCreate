@@ -64,8 +64,9 @@ def pinned_binding(config: dict, snapshot: dict, store_root: Path) -> Binding:
 
 def job_inputs(bundle: dict, job: dict, compilation: dict) -> str:
     # Timeline, title, subtitle styles and other shots do not recreate this job.
+    # Event maps describe the local edit and do not change the provider request.
     # Selection of a new default route likewise does not override pinned tasks.
-    return content_hash({"job": {k: v for k, v in job.items() if k not in {"binding_id", "model"}},
+    return content_hash({"job": {k: v for k, v in job.items() if k not in {"binding_id", "model", "event_map"}},
                          "prompt_sha256": compilation["prompt_sha256"]})
 
 
@@ -203,6 +204,13 @@ def _prepare_job(root, bundle, job, config, store_root, prior, *, retry, explici
                 candidate_kwargs['media_references'] = transports
                 # Validate the actual wire mapping, without performing a POST.
                 video_client.fields(compilation['prompt'], candidate_kwargs)
+            if typed or 'event_map' in job:
+                from ..planning.request_preview import describe_inputs
+                compilation['reference_inputs'] = describe_inputs(root, bundle, job,
+                    {'media_references': typed or reference_entries, 'generate_audio': kwargs['generate_audio']})
+                timing_issues = compilation['reference_inputs'].get('local_event_timing', {}).get('source_event_issues', [])
+                if timing_issues:
+                    raise ConfigError('; '.join(timing_issues))
         except ConfigError as error:
             decisions.append({"binding": candidate.id, "eligible": False, "reason": str(error)})
             continue
@@ -219,7 +227,7 @@ def _generate_serial(root: Path, config: dict, *, store_root: Path, job_ids: lis
              include_dependencies: bool = True, explicit_job_ids: set[str] | None = None,
              allow_create: bool = True) -> dict:
     bundle = load_project(root)
-    validation = validate_plan(bundle, root)
+    validation = validate_plan(bundle, root, check_event_maps=False)
     if not validation["ok"]:
         raise ConfigError("; ".join(validation["errors"]))
     jobs = {job["id"]: job for job in bundle["generation-plan"]["jobs"]}
@@ -439,7 +447,7 @@ def generate(root: Path, config: dict, *, store_root: Path, job_ids: list[str] |
              binding_override: dict[str, str] | None = None, allow_create: bool = True) -> dict:
     root = root.resolve()
     bundle = load_project(root)
-    validation = validate_plan(bundle, root)
+    validation = validate_plan(bundle, root, check_event_maps=False)
     if not validation["ok"]:
         raise ConfigError("; ".join(validation["errors"]))
     jobs = {job["id"]: job for job in bundle["generation-plan"]["jobs"]}

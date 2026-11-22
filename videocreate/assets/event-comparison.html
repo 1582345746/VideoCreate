@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>逐段对照审片</title>
+<style>
+body{font:16px/1.55 Inter,"Microsoft YaHei",sans-serif;max-width:1160px;margin:auto;padding:24px;color:#18232c;background:#f7f8fa}
+h1,h2{line-height:1.2}h2{font-size:1.1rem}.players{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+video{width:100%;height:min(44vh,480px);background:#15202b}section{margin:18px 0}figure{margin:0}img{max-height:210px;max-width:100%}
+button,select,input,textarea{font:inherit;padding:6px}label,figcaption{display:block;margin:.4rem 0}
+textarea{display:block;width:min(96%,640px)}#cards{display:flex;gap:16px;flex-wrap:wrap}output{display:block}
+table{border-collapse:collapse;width:100%}th,td{text-align:left;vertical-align:top;border-bottom:1px solid #ccd5dc;padding:8px}
+@media(max-width:680px){body{padding:12px}.players{gap:6px}video{height:32vh}}
+</style></head><body>
+<h1>逐段对照审片</h1>
+<div class="players"><figure><figcaption>动作原片</figcaption><video id="source" controls muted preload="auto"></video></figure>
+<figure><figcaption id="candidateCaption">候选成片</figcaption><video id="candidate" controls preload="auto"></video></figure></div>
+<output id="streams"></output>
+<section><label>审核区间 <select id="event"></select></label><p id="times"></p>
+<p id="sourceEvent" hidden></p>
+<button id="play">从区间开头原速对播</button> <button id="mappedPlay" hidden>按剪辑速度对播</button> <button id="stop">暂停</button>
+<div id="audioRef" hidden><button id="listen">试听本段参考音频</button> <audio id="audio" controls preload="metadata"></audio></div>
+<label>按各自区间比例定位 <input id="seek" type="range" min="0" max="100" value="0"></label></section>
+<details><summary>核对角色参考图</summary><div id="cards"></div></details>
+<details id="sourceEvents" hidden><summary>核对原片事件表</summary><p id="sourceCoverage"></p>
+<table><thead><tr><th>原片秒数</th><th>事件与人物</th><th>记录与台词</th><th>观察依据</th></tr></thead><tbody id="sourceRows"></tbody></table></details>
+<details id="eventEvidence" hidden><summary>核对当前事件引用的抽帧</summary><div id="eventFrames"></div></details>
+<section><label>本项结果 <select id="status"><option value="unverified">未核实</option><option value="pass">通过</option><option value="fail">不通过</option></select></label>
+<label>实际观察和出现时间 <textarea id="note" rows="3"></textarea></label></section>
+<label>审核人 <input id="reviewer"></label><button id="save">导出逐项记录</button><output id="message" aria-live="polite"></output>
+<script type="application/json" id="data">__COMPARISON_DATA__</script>
+<script>
+'use strict';
+const byId = id => document.getElementById(id);
+const data = JSON.parse(byId('data').textContent);
+const comparison = data.comparison;
+const sourceProfile = comparison.timing && comparison.timing.source_profile;
+const sourceEventStates = {unverified:'未核实', observed:'已观察', inferred:'推测'};
+const sides = ['source', 'candidate'];
+const observations = Object.fromEntries(comparison.events.map(e => [e.id, {status:'unverified', note:''}]));
+let active = comparison.events[0];
+let playing = false;
+let playVersion = 0;
+let audioTimer;
+function stop() {
+  playing = false;
+  playVersion++;
+  for (const side of sides) byId(side).pause();
+  byId('audio').pause();
+}
+function position(percent) {
+  for (const side of sides) {
+    const [start,end] = active[side];
+    byId(side).currentTime = start + (end - start) * percent / 100;
+  }
+}
+function followFinal(version) {
+  if (!playing || version !== playVersion) return;
+  const final = byId('candidate'), source = byId('source');
+  const end = active.candidate[1];
+  if (final.ended || final.currentTime >= end) {
+    stop(); position(100); return;
+  }
+  const progress = Math.max(0, (final.currentTime - active.candidate[0]) / (end - active.candidate[0]));
+  const expected = active.source[0] + progress * (active.source[1] - active.source[0]);
+  const tolerance = Math.max(0.04, comparison.timing.tolerance_seconds);
+  if (!final.seeking && !source.seeking && Math.abs(source.currentTime - expected) > tolerance) {
+    source.currentTime = expected;
+  }
+  requestAnimationFrame(() => followFinal(version));
+}
+function remember() {
+  observations[active.id] = {status:byId('status').value, note:byId('note').value.trim()};
+}
+function choose() {
+  stop();
+  remember();
+  active = comparison.events[byId('event').selectedIndex];
+  const range = value => value.map(t => Number(t.toFixed(3))).join(' – ') + ' 秒';
+  const times = ['原片 ' + range(active.source)];
+  if (active.audio) times.push('参考音频 ' + range(active.audio));
+  if (active.target) times.push('目标素材 ' + range(active.target));
+  times.push((comparison.timing ? '最终剪辑 ' : '候选 ') + range(active.candidate));
+  if (active.audio_alignment && active.audio_alignment.picture_minus_audio_seconds) {
+    const offsets = active.audio_alignment.picture_minus_audio_seconds.map(s => Math.round(s * 1000));
+    times.push('画面相对参考音轨的计划偏移（起点、终点）' + offsets.join('、') + ' 毫秒');
+    if (comparison.timing.reference_track_in_export === false) times.push('这条参考音轨仅用于对照');
+  }
+  byId('times').textContent = times.join(' / ');
+  const sourceEvent = sourceProfile && sourceProfile.events.find(event => event.id === active.source_event_id);
+  byId('sourceEvent').hidden = !sourceEvent;
+  if (sourceEvent) byId('sourceEvent').textContent = sourceEventStates[sourceEvent.status] + '原片节点 ' + sourceEvent.id + ' · ' + sourceEvent.notes;
+  byId('eventFrames').replaceChildren();
+  const evidenceIds = new Set([...(sourceEvent?.frame_ids || []), ...(sourceEvent?.evidence_ids || [])]);
+  const evidence = sourceProfile ? sourceProfile.evidence.filter(item => evidenceIds.has(item.id)) : [];
+  byId('eventEvidence').hidden = !evidence.length;
+  for (const item of evidence) {
+    const figure=document.createElement('figure'), image=document.createElement('img'), caption=document.createElement('figcaption');
+    image.src=data.urls[item.path];image.alt=sourceEvent.id+' at '+item.at_seconds+' seconds';
+    caption.textContent='抽帧 '+Number(item.at_seconds.toFixed(3))+' 秒 · '+item.sha256.slice(0,12);
+    figure.append(image,caption);byId('eventFrames').append(figure);
+  }
+  byId('audioRef').hidden = !active.audio;
+  if (active.audio) byId('audio').currentTime = active.audio[0];
+  byId('status').value = observations[active.id].status;
+  byId('note').value = observations[active.id].note;
+  byId('seek').value = 0;
+  position(0);
+}
+for (const side of sides) {
+  const video = byId(side);
+  video.src = data.urls[comparison[side].path];
+  video.addEventListener('timeupdate', () => {
+    if (playing && video.currentTime >= active[side][1]) video.pause();
+  });
+}
+byId('streams').textContent = comparison.candidate.media.has_audio ? '候选文件含音轨，请试听。' : 'FFprobe 检查结果为候选文件无音轨。';
+for (const event of comparison.events) byId('event').add(new Option(event.label, event.id));
+for (const ref of comparison.visual_references) {
+  const figure = document.createElement('figure'), image = document.createElement('img'), caption = document.createElement('figcaption');
+  image.src = data.urls[ref.path]; image.alt = ref.asset_id;
+  caption.textContent = ref.asset_id + (ref.revision ? ' · ' + ref.revision.version.slice(0,12) : '');
+  figure.append(image,caption); byId('cards').append(figure);
+}
+if (sourceProfile) {
+  byId('sourceEvents').hidden = false;
+  const methods = {'frames':'抽帧','human-video':'视频观察','model-audio-video':'音视频观察',
+    'human-listening':'听审','asr':'语音转录','ocr':'文字识别'};
+  const participants = Object.fromEntries(sourceProfile.participants.map(person => [person.id,person.description]));
+  const gaps = sourceProfile.event_coverage.temporal.unverified_intervals;
+  byId('sourceCoverage').textContent = gaps.length ? '动作事件尚待视频观察的区间为 ' + gaps.map(range=>range.join('–')+' 秒').join('、') : '已登记覆盖原片全长的动作事件观察。';
+  const retained = Object.fromEntries(comparison.timing.source_event_coverage.map(row=>[row.source_event_id,row]));
+  const missing = comparison.timing.source_event_coverage.filter(row=>row.must_preserve && !row.fully_retained && !row.change_reason);
+  if (missing.length) byId('sourceCoverage').textContent += '　当前剪辑需复核的必保留节点为 '+missing.map(row=>row.source_event_id).join('、')+'。';
+  for (const event of sourceProfile.events) {
+    const row = document.createElement('tr');
+    const location = document.createElement('td'), seek = document.createElement('button');
+    seek.textContent = event.start+'–'+event.end+' 秒';
+    seek.setAttribute('aria-label','定位原片 '+event.id+' '+seek.textContent);
+    seek.onclick = () => {stop();byId('source').currentTime=event.start;byId('message').textContent='原片已定位到 '+event.id+'，区间为 '+seek.textContent+'。';};
+    location.append(seek);row.append(location);
+    const values = [event.id+' · '+event.participants.map(id=>participants[id]).join('、'),
+      event.notes+(event.transcript ? '　台词 '+event.transcript : '')+(retained[event.id].change_reason ? '　剪辑改动 '+retained[event.id].change_reason : ''),
+      sourceEventStates[event.status]+(event.method ? ' · '+methods[event.method] : '')+(event.must_preserve ? ' · 必保留' : '')];
+    for (const value of values) {const cell=document.createElement('td');cell.textContent=value;row.append(cell);}
+    byId('sourceRows').append(row);
+  }
+}
+byId('event').onchange = choose;
+byId('stop').onclick = stop;
+byId('seek').oninput = () => {stop(); position(Number(byId('seek').value));};
+async function playPair(mapped) {
+  stop(); position(0); playing = true;
+  const version = playVersion;
+  try {
+    byId('source').playbackRate = mapped ? (active.source[1]-active.source[0])/(active.candidate[1]-active.candidate[0]) : 1;
+    byId('candidate').playbackRate = 1;
+    await Promise.all(sides.map(side => byId(side).play()));
+    if (mapped && version === playVersion) followFinal(version);
+  }
+  catch {if (version === playVersion) {stop(); byId('message').textContent = '播放失败，请检查两个视频是否可读。';}}
+}
+byId('play').onclick = () => playPair(false);
+byId('mappedPlay').onclick = () => playPair(true);
+if (comparison.timing) {
+  byId('candidateCaption').textContent = '最终剪辑';
+  byId('mappedPlay').hidden = false;
+  if (comparison.timing.audio) byId('audio').src = data.urls[comparison.timing.audio.path];
+}
+byId('listen').onclick = async () => {
+  stop();
+  byId('audio').currentTime = active.audio[0];
+  try {await byId('audio').play();}
+  catch {byId('message').textContent = '参考音频播放失败，请检查文件是否可读。';}
+};
+function watchAudio() {
+  clearTimeout(audioTimer);
+  const audio = byId('audio');
+  if (audio.paused || !active.audio) return;
+  const remaining = active.audio[1] - audio.currentTime;
+  if (remaining <= 0) {audio.pause(); return;}
+  audioTimer = setTimeout(watchAudio, Math.min(50, remaining * 1000));
+}
+byId('audio').onplay = watchAudio;
+byId('audio').onpause = () => clearTimeout(audioTimer);
+byId('audio').ontimeupdate = () => {
+  if (active.audio && byId('audio').currentTime >= active.audio[1]) byId('audio').pause();
+};
+byId('save').onclick = () => {
+  remember();
+  const reviewer = byId('reviewer').value.trim();
+  if (!reviewer || Object.values(observations).some(row => row.status !== 'unverified' && !row.note)) {
+    byId('message').textContent = '请填写审核人，并为每个已判定的区间写下观察。'; return;
+  }
+  const receipt = {schema_version:1, comparison_hash:data.comparison_hash, reviewer, observations};
+  const url = URL.createObjectURL(new Blob([JSON.stringify(receipt,null,2)], {type:'application/json'}));
+  const link = document.createElement('a'); link.href = url; link.download = 'event-observations.json'; link.click();
+  setTimeout(() => URL.revokeObjectURL(url),1000);
+  byId('message').textContent = '记录已导出，可用 review compare-apply 导入项目。';
+};
+choose();
+</script></body></html>

@@ -98,6 +98,15 @@ def contracts(root: Path, bundle: dict, *, output_name: str = "preview.mp4", inc
         from ..timeline.render import auxiliary_hashes
         if manifest.get("auxiliary_hashes", {}) != auxiliary_hashes(root, bundle["timeline"]):
             raise ConfigError("Final edit audio/overlay bytes changed; rerender before reviewing")
+        delivery = manifest.get('audio_delivery')
+        if delivery is not None:
+            from ..timeline.render import audio_delivery
+            if not isinstance(delivery, dict) or delivery.get('selection') not in {'explicit', 'project-default'}:
+                raise ConfigError('Final audio delivery manifest is invalid')
+            mode = delivery.get('mode') if delivery['selection'] == 'explicit' else None
+            if (delivery != audio_delivery(bundle, mode)
+                    or manifest['media'].get('has_audio') != (delivery['mode'] != 'silent')):
+                raise ConfigError('Final audio delivery changed; rerender before reviewing')
         voice_scope = {}
         if "animation" in bundle:
             from ..animation.voices import profiles_hash
@@ -109,7 +118,9 @@ def contracts(root: Path, bundle: dict, *, output_name: str = "preview.mp4", inc
         result["final"] = make(final_path, duration, all_shots,
             {"story": bundle["story"], "director": bundle["director"], "timeline": bundle["timeline"],
              "research": bundle.get("research", {}), **({"animation": bundle["animation"]} if "animation" in bundle else {}),
-             **voice_scope}, [[0.0, duration]])
+             **({'audio_delivery':delivery} if delivery is not None else {}), **voice_scope}, [[0.0, duration]])
+        if delivery is not None:
+            result['final']['audio_delivery'] = delivery
     return result
 
 
@@ -144,7 +155,8 @@ def _mapped_view(root, expected, item, layer):
         return False
     if timeline.get("overlays") or layer == "audio" and timeline.get("audio_tracks"):
         return False  # Compositing/mixing cannot certify the unmodified source.
-    if layer == 'audio' and 'loudness' in timeline:
+    if layer == 'audio' and ('loudness' in timeline or
+            not manifest.get('audio_delivery', {}).get('include_source_audio', True)):
         return False
     if layer != 'audio' and (timeline.get('filters') or timeline.get('fade_seconds') or
             timeline.get('subtitle_render', {}).get('burn') and timeline.get('subtitles')):
@@ -419,6 +431,13 @@ def summary(root: Path, bundle: dict, *, output_name="preview.mp4") -> dict:
         animation_status = review_status(root, bundle, output_name=output_name)
         rejected = rejected or animation_status == "fail"
         accepted = accepted and animation_status == "pass"
+    from .comparison import event_history
+    history = event_history(root, actual)
+    # A partially trimmed event needs inspection of the remaining frames.
+    # The ordinary layer receipts already require these exact retained windows.
+    rejected = rejected or any(event.get('retained_defect') == 'full'
+                               for report in history for event in report['events'])
     return {"status": "rejected" if rejected else "accepted_delivery" if accepted else "review_pending" if actual else "draft_preview",
+        **({'event_observations': history} if history else {}),
         "structural_is_content_approval": False, "assets": layers, "valid_receipts": len(records),
         "final_error":final_error,"animation_story": animation_status}

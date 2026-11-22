@@ -352,6 +352,7 @@ def delivery(root, *, output_name='preview.mp4'):
         'video': {'path': str(target), 'sha256': hashlib.sha256(target.read_bytes()).hexdigest()},
         'script': script, 'subtitles': str(target.with_suffix('.srt')) if target.with_suffix('.srt').exists() else None,
         'mapping': manifest.get('mapping'), 'source_hashes': manifest.get('source_hashes'),
+        **({'audio_delivery':manifest['audio_delivery']} if 'audio_delivery' in manifest else {}),
         'jobs': current['jobs'], 'local_sources':current['local_sources'], 'budget': current['budget'], 'review': current['review'],
         'unverified': [s for s in current['stages'] if s['id'] in {'editing', 'review'} and s['status'] != 'complete'],
         'paid_creates': 0}

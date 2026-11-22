@@ -28,6 +28,36 @@ class ProductionTests(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
 
+    def test_six_flows_offline_from_both_creation_commands(self):
+        from contextlib import redirect_stdout
+        from io import StringIO
+        from videocreate.cli import main
+        for entry in [('plan', 'init'), ('authoring', 'create')]:
+            for flow in ('W1', 'W2', 'W3', 'W4', 'W5', 'W6'):
+                with self.subTest(entry=entry, flow=flow):
+                    path = self.root / (entry[0] + flow)
+                    args = [*entry, str(path), '--title', 'Flow fixture', '--flow', flow, '--topic', 'dance']
+                    if flow == 'W2':
+                        args.extend(['--seconds', '30'])
+                    output = StringIO()
+                    with redirect_stdout(output):
+                        self.assertEqual(main(args), 0)
+                    self.assertEqual(json.loads(output.getvalue())['paid_creates'], 0)
+                    bundle = load_project(path)
+                    self.assertEqual(bundle['brief']['production_flow'], flow)
+                    jobs = bundle['generation-plan']['jobs']
+                    if flow == 'W2':
+                        self.assertEqual([job['seconds'] for job in jobs], [30])
+                    if flow == 'W3':
+                        self.assertTrue(any('selected image' in error for error in validate_plan(bundle)['errors']))
+                    if flow in {'W5', 'W6'}:
+                        self.assertFalse(jobs)
+                    if flow == 'W4':
+                        self.assertIn('research', bundle)
+                    if flow == 'W6':
+                        self.assertEqual(bundle['generation-plan']['image_jobs'][0]['operation'], 'text-to-image')
+                    self.assertFalse((path / 'state.json').exists())
+
     def test_published_plan_schema_matches_runtime_and_cli_export(self):
         published = load_json(ROOT / "videocreate/assets/schemas/videocreate.plan.schema.json")
         self.assertEqual(published, plan_schema())
@@ -40,6 +70,36 @@ class ProductionTests(unittest.TestCase):
         with redirect_stdout(StringIO()):
             self.assertEqual(main(["plan", "schema", "--output", str(output)]), 0)
         self.assertEqual(load_json(output), published)
+
+    def test_adaptation_preserves_scope_and_validates_cast_before_compile(self):
+        from videocreate.planning.examples import smart_car
+        from videocreate.planning.project import compile_job, validate_plan
+        bundle = smart_car()
+        job = bundle['generation-plan']['jobs'][0]
+        shot = next(s for s in bundle['director']['shots'] if s['id'] in job['shot_ids'])
+        original = compile_job(bundle, job, max_bytes=50000)
+        before = copy.deepcopy(shot)
+        for aid, wardrobe in [('identity-card', 'old headwear'), ('chosen-look', 'selected hat')]:
+            bundle['director']['assets'].append({'id': aid, 'kind': 'character', 'description': wardrobe,
+                'references': ['identity.png'], 'visual_design': {'identity': 'round face', 'wardrobe': wardrobe}})
+            shot['asset_ids'].append(aid)
+        shot['adaptation'] = {'version': 1, 'mode': 'replace-region', 'region': 'top of the wall',
+            'preserve': ['action', 'rhythm'], 'allow_change': ['identity','wardrobe'],
+            'cast': [{'source_actor': 'general', 'identity_asset_id': 'identity-card', 'wardrobe_asset_id': 'chosen-look'}]}
+        check = validate_plan(bundle)
+        self.assertTrue(check['ok'], check['errors'])
+        prompt = compile_job(bundle, job, max_bytes=50000)['prompt']
+        self.assertIn('top of the wall', prompt)
+        self.assertIn('selected hat', prompt)
+        self.assertNotIn('old headwear', prompt)
+        shot['adaptation']['region'] = ''
+        shot['adaptation']['preserve'].append('wardrobe')
+        errors = validate_plan(bundle)['errors']
+        self.assertTrue(any('target region' in e for e in errors))
+        self.assertTrue(any('preserved and changed' in e for e in errors))
+        shot.clear()
+        shot.update(before)
+        self.assertEqual(compile_job(bundle, job, max_bytes=50000), original)
 
     def test_profiles_have_different_coverage_and_exact_duration(self):
         for profile in ("portrait", "action-insert", "scenic", "explainer"):

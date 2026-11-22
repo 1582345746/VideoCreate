@@ -46,6 +46,7 @@ from component_manager import (  # noqa: E402
     _download_component_models,
     _ensure_model_disk_space,
     _checkout_component,
+    _git_output,
     component_status,
     load_model_state,
 )
@@ -3148,14 +3149,11 @@ class SkillIntegrationTests(unittest.TestCase):
     def test_new_component_checkout_failure_leaves_no_partial_target(self) -> None:
         remote = self.root / "component-remote"
         target = self.root / "component-target"
-        subprocess.run(["git", "init", str(remote)], check=True, capture_output=True)
+        _git_output("init", str(remote))
         (remote / "README.md").write_text("fixture", encoding="utf-8")
-        subprocess.run(["git", "-C", str(remote), "add", "README.md"], check=True, capture_output=True)
-        subprocess.run(
-            ["git", "-C", str(remote), "-c", "user.name=VideoCreate Test", "-c", "user.email=test@example.invalid", "commit", "-m", "fixture"],
-            check=True,
-            capture_output=True,
-        )
+        _git_output("add", "README.md", cwd=remote)
+        _git_output("-c", "user.name=VideoCreate Test", "-c", "user.email=test@example.invalid",
+                    "commit", "-m", "fixture", cwd=remote)
         component = {"repository": str(remote), "commit": "d" * 40, "submodules": False}
         with self.assertRaises(RuntimeError):
             _checkout_component("demo", component, target)

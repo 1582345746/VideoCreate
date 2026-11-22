@@ -189,6 +189,22 @@ def describe(store_root, library_id, version):
     return {'ok': True, **manifest, 'manifest': str(path), 'paid_creates': 0}
 
 
+def project_media_revision(root, relative_path, sha256):
+    """Identify the exact imported file using its validated project manifest."""
+    path = within(root, relative_path)
+    parts = path.relative_to(root).parts
+    if parts[:2] != ('assets', 'library'):
+        return None
+    if len(parts) != 6 or parts[4] != 'media':
+        raise ConfigError('Invalid project library media path')
+    manifest = _load(within(root, (path.parent.parent / 'manifest.json').relative_to(root).as_posix()),
+                     verify_media=False)
+    if not any(m['file'] == 'media/' + path.name and m['sha256'] == sha256
+               for m in manifest['payload']['media']):
+        raise ConfigError('Project reference does not match the imported library revision')
+    return {'library_id': manifest['library_id'], 'version': manifest['version']}
+
+
 def catalog(store_root, *, kind=None, query=''):
     if kind is not None and kind not in KINDS:
         raise ConfigError('Unknown library asset kind')

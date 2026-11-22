@@ -528,6 +528,17 @@
             "pace_profile": {
               "type": "string"
             },
+            "production_flow": {
+              "type": "string",
+              "enum": [
+                "W1",
+                "W2",
+                "W3",
+                "W4",
+                "W5",
+                "W6"
+              ]
+            },
             "topic": {
               "type": "string"
             },
@@ -910,6 +921,92 @@
                       "type": "string"
                     },
                     "uniqueItems": true
+                  },
+                  "adaptation": {
+                    "type": "object",
+                    "properties": {
+                      "version": {
+                        "const": 1
+                      },
+                      "mode": {
+                        "type": "string",
+                        "enum": [
+                          "replace-actor",
+                          "replace-region",
+                          "rhythm-only"
+                        ]
+                      },
+                      "preserve": {
+                        "type": "array",
+                        "uniqueItems": true,
+                        "items": {
+                          "type": "string",
+                          "enum": [
+                            "identity",
+                            "body",
+                            "wardrobe",
+                            "headwear",
+                            "background",
+                            "action",
+                            "camera",
+                            "sound",
+                            "rhythm",
+                            "props"
+                          ]
+                        }
+                      },
+                      "allow_change": {
+                        "type": "array",
+                        "uniqueItems": true,
+                        "items": {
+                          "type": "string",
+                          "enum": [
+                            "identity",
+                            "body",
+                            "wardrobe",
+                            "headwear",
+                            "background",
+                            "action",
+                            "camera",
+                            "sound",
+                            "rhythm",
+                            "props"
+                          ]
+                        }
+                      },
+                      "region": {
+                        "type": "string"
+                      },
+                      "cast": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "source_actor": {
+                              "type": "string"
+                            },
+                            "identity_asset_id": {
+                              "type": "string"
+                            },
+                            "wardrobe_asset_id": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "source_actor",
+                            "identity_asset_id"
+                          ],
+                          "additionalProperties": false
+                        }
+                      }
+                    },
+                    "required": [
+                      "version",
+                      "mode",
+                      "preserve",
+                      "allow_change"
+                    ],
+                    "additionalProperties": false
                   },
                   "actions": {
                     "type": "array",

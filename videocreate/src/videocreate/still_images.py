@@ -4,8 +4,16 @@ from pathlib import Path
 from .config.storage import ConfigError
 
 
+def pillow_modules():
+    try:
+        from PIL import Image, ImageOps
+    except ImportError:
+        raise ConfigError('Image processing requires Pillow. Install videocreate[media] in this Python environment.') from None
+    return Image, ImageOps
+
+
 def inspect(path, *, normalized=None):
-    from PIL import Image, ImageOps, UnidentifiedImageError
+    Image, ImageOps = pillow_modules()
     try:
         with Image.open(path) as image:
             if image.format not in {'PNG', 'JPEG', 'WEBP'} or getattr(image, 'n_frames', 1) != 1:
@@ -20,5 +28,5 @@ def inspect(path, *, normalized=None):
                 canvas.paste(rgba, mask=rgba.getchannel('A'))
                 canvas.save(Path(normalized), format='PNG')
             return result
-    except (OSError, ValueError, UnidentifiedImageError, Image.DecompressionBombError) as exc:
+    except (OSError, ValueError, Image.DecompressionBombError) as exc:
         raise ConfigError('Static image could not be fully decoded: ' + type(exc).__name__) from None

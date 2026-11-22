@@ -40,9 +40,12 @@ try {
     Copy-Item -LiteralPath (Join-Path $repoRoot "install.ps1") -Destination $bundleRoot
     Copy-Item -LiteralPath (Join-Path $repoRoot "README.md") -Destination $bundleRoot
     Copy-Item -LiteralPath (Join-Path $repoRoot "docs") -Destination $bundleRoot -Recurse
-    Copy-Item -LiteralPath $skillSource -Destination $bundleRoot -Recurse
     $stagedSkill = [IO.Path]::GetFullPath((Join-Path $bundleRoot "videocreate"))
-    $cacheDirectories = @(Get-ChildItem -LiteralPath $stagedSkill -Directory -Recurse -Force | Where-Object { $_.Name -eq "__pycache__" -or $_.Name.EndsWith(".egg-info") })
+    New-Item -ItemType Directory -Path $stagedSkill | Out-Null
+    Get-ChildItem -LiteralPath $skillSource -Force | Where-Object { $_.Name -notin @('local-cast', '.pytest_cache', '.mypy_cache', '.ruff_cache') } | ForEach-Object {
+        Copy-Item -LiteralPath $_.FullName -Destination $stagedSkill -Recurse
+    }
+    $cacheDirectories = @(Get-ChildItem -LiteralPath $stagedSkill -Directory -Recurse -Force | Where-Object { $_.Name -in @('__pycache__', '.pytest_cache', '.mypy_cache', '.ruff_cache') -or $_.Name.EndsWith(".egg-info") })
     foreach ($cache in $cacheDirectories) {
         $cachePath = [IO.Path]::GetFullPath($cache.FullName)
         if (-not $cachePath.StartsWith($stagedSkill + [IO.Path]::DirectorySeparatorChar)) {

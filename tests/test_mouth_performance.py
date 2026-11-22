@@ -29,6 +29,23 @@ class MouthPerformanceTests(unittest.TestCase):
         self.assertIn('speaking/singing mouth gestures silently',prompt)
         self.assertNotIn('mouths stay closed',prompt)
 
+    def test_compact_multishot_shares_only_matching_sound_and_mouth_directions(self):
+        from copy import deepcopy
+        second = {**deepcopy(self.shot), 'id': 'second', 'mouth_performance': {'mode': 'closed'}}
+        self.b['director']['shots'].append(second)
+        self.job['shot_ids'].append(second['id'])
+        previous = compile_job(self.b, self.job, max_bytes=20000)['prompt']
+        self.assertEqual(previous.count('No background music.'), 2)
+        self.b['project']['prompt_semantics'] = 3
+        compact = compile_job(self.b, self.job, max_bytes=20000)['prompt']
+        self.assertEqual(compact.count('No background music.'), 1)
+        prefix, rest = compact.split('Current shot ', 1)
+        self.assertIn('No background music.', prefix)
+        first, second_text = rest.split('Current shot second')
+        self.assertIn('Natural facial expression', first)
+        self.assertNotIn('Keep visible mouths closed', first)
+        self.assertIn('Keep visible mouths closed', second_text)
+
     def test_closed_and_speech_conflicts_are_explicit(self):
         self.shot['mouth_performance']={'mode':'closed'}
         self.shot['audio']={'mode':'native-dialogue','lines':[{'on_screen':True}]}

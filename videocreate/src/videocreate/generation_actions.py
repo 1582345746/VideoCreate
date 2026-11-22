@@ -71,7 +71,7 @@ def _prepare(root, config_path, *, job_ids, mode, reason, bindings, max_new_requ
     requested = list(dict.fromkeys(job_ids))
     if mode in {'content', 'replan'} and (len(requested) != 1 or not reason.strip()):
         raise ConfigError('A new candidate requires one selected task and an actual reason')
-    check = validate_plan(bundle, root)
+    check = validate_plan(bundle, root, check_event_maps=mode != 'resume')
     if not check['ok']:
         raise ConfigError('; '.join(check['errors']))
     kind = 'image' if image_production.is_image(bundle) else 'video'

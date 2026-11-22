@@ -17,6 +17,13 @@ def plan_schema():
                  "visual_design": obj({key: STR for key in VISUAL_DESIGN_FIELDS}),
                  "physical_design": obj({key: STR for key in PHYSICAL_DESIGN_FIELDS})}, ("id", "kind", "description"))
     scene = obj({"id": STR, "map": STR, "axis": STR, "positions": state}, ("id", "map", "axis"))
+    elements = {"type": "array", "uniqueItems": True, "items": enum(
+        "identity", "body", "wardrobe", "headwear", "background", "action", "camera", "sound", "rhythm", "props")}
+    adaptation = obj({"version": {"const": 1}, "mode": enum("replace-actor", "replace-region", "rhythm-only"),
+        "preserve": elements, "allow_change": elements, "region": STR,
+        "cast": {"type": "array", "items": obj({"source_actor": STR, "identity_asset_id": STR,
+            "wardrobe_asset_id": STR}, ("source_actor", "identity_asset_id"))}},
+        ("version", "mode", "preserve", "allow_change"))
     shot = obj({
         "id": STR, "beat_id": STR, "scene_id": STR, "role": STR, "information_goal": STR, "framing": STR,
         "camera_position": STR, "camera_motion": STR, "screen_direction": STR, "eyeline": STR,
@@ -24,7 +31,7 @@ def plan_schema():
         "timing": obj({"motion_tempo": enum("brisk", "natural", "slow"),
             "action_start_by": number, "action_complete_by": number, "max_reaction_hold": number},
             ("motion_tempo", "action_start_by", "action_complete_by", "max_reaction_hold")),
-        "asset_ids": STRING_LIST, "actors": STRING_LIST,
+        "asset_ids": STRING_LIST, "actors": STRING_LIST, "adaptation": adaptation,
         "actions": {"type": "array", "items": obj({"kind": enum("physical", "reaction", "camera", "hold"),
             "description": STR}, ("kind", "description")), "minItems": 1},
         "performance": obj({key: STR for key in ("trigger", "attention", "visible_response", "decision")}),
@@ -46,6 +53,7 @@ def plan_schema():
             "kind": enum('image', 'video', 'audio'),
             "derivation": obj({"path": STR, "sha256": STR}, ("path", "sha256")),
             "role": enum("opening-frame", "identity", "prop", "scene", "style", "motion", "sound")}, ("path", "sha256", "role"))},
+        "event_map": obj({"path":STR, "sha256":STR}, ("path", "sha256")),
         "depends_on": STRING_LIST, "required_quality_checks": STRING_LIST}, ("id", "shot_ids", "operation", "seconds"))
     segment = obj({"id": STR, "shot_id": STR, "clip_id": STR, "source_in": number, "source_out": number,
         "rate": {"type": "number", "exclusiveMinimum": 0}, "source_audio": enum("mute", "retime", "preserve"),
@@ -60,9 +68,10 @@ def plan_schema():
     schema = obj({
         "project": obj({"schema_version": {"const": 3}, "product": {"const": "VideoCreate"}, "title": STR,
             "files": obj({name: STR for name in ("brief", "story", "director", "generation-plan", "timeline", "research", "animation")}),
-            "prompt_semantics": {"type": "integer", "enum": [1, 2]},
+            "prompt_semantics": {"type": "integer", "enum": [1, 2, 3]},
             "status": STR}, ("schema_version", "product", "title")),
         "brief": obj({"intent": enum("narrative", "demonstration", "montage", "single-shot"), "genre": STR, "pace_profile": STR,
+            "production_flow": enum("W1", "W2", "W3", "W4", "W5", "W6"),
             "topic": STR, "viewer_goal": STR, "audience": STR, "aspect_ratio": STR, "resolution": STR, "visual_style": STR,
             "allowed_elements": STRING_LIST, "forbidden_elements": STRING_LIST,
             "workflow_profile": enum("portrait", "action-insert", "action-montage", "animal-comedy", "scenic", "explainer", "series-episode", "animation-story", "edit-only", "mixed-video", "image-only", "gif-only", "gif-local"),

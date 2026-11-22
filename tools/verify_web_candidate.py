@@ -1,4 +1,4 @@
-"""Install/upgrade/rollback only in a new F-drive environment outside the repo."""
+"""Verify candidate installs in a temporary runtime outside the source checkout."""
 import argparse
 import hashlib
 import http.cookiejar
@@ -12,11 +12,13 @@ import socket
 import subprocess
 import sys
 import tarfile
+import tempfile
 import time
 import urllib.request
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
+DEV43_COMMIT = 'aed9f160ed8d07007ab5b2ef3950706ce0d3a207'
 
 
 def main():
@@ -24,18 +26,29 @@ def main():
     parser.add_argument('--candidate', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--python', type=Path, required=True)
+    parser.add_argument('--media-wheelhouse', type=Path, help='Also exercise the installed cast sheet CLI with offline Pillow wheels')
     args = parser.parse_args()
     # Installation commands intentionally run outside the repository. Resolve
     # the candidate before changing cwd so relative CLI paths remain usable.
     args.candidate = args.candidate.resolve()
+    if args.media_wheelhouse:
+        args.media_wheelhouse = args.media_wheelhouse.resolve()
     output = args.output.resolve()
     if not output.is_relative_to(ROOT/'_local') or output.exists():
         raise RuntimeError('Choose a new verification directory within workspace _local')
+    with tempfile.TemporaryDirectory(prefix='videocreate-candidate-') as temporary:
+        runtime = Path(temporary).resolve()
+        if runtime.is_relative_to(ROOT):
+            raise RuntimeError('Set TEMP to a directory outside the source checkout')
+        verify(args, output, runtime)
+
+
+def verify(args, output, runtime):
     output.mkdir(parents=True)
     tmp = output/'tmp'; tmp.mkdir()
-    cwd = output/'仓库外 工作目录 & 路径'; cwd.mkdir()
-    config_dir=output/'配置目录 空格 & 路径'
-    venv=output/'Python 环境 空格 & 路径'
+    cwd = runtime/'仓库外 工作目录 & 路径'; cwd.mkdir()
+    config_dir=runtime/'配置目录 空格 & 路径'
+    venv=runtime/'Python 环境 空格 & 路径'
     env = dict(os.environ)
     env.pop('PYTHONPATH', None)
     env.update(PYTHONDONTWRITEBYTECODE='1', PYTHONUTF8='1', PYTHONIOENCODING='utf-8', TEMP=str(tmp), TMP=str(tmp),
@@ -61,7 +74,7 @@ def main():
     # Rebuild the immutable committed dev43 source for a genuine isolated
     # 43 -> 44 -> 43 -> 44 package transition, without touching the installation.
     stable = output/'stable-source'; stable.mkdir()
-    payload = subprocess.check_output(['git', 'archive', 'HEAD', '--', 'pyproject.toml', 'setup.py', 'MANIFEST.in', 'README.md', 'videocreate'], cwd=ROOT)
+    payload = subprocess.check_output(['git', 'archive', DEV43_COMMIT, '--', 'pyproject.toml', 'setup.py', 'MANIFEST.in', 'README.md', 'videocreate'], cwd=ROOT)
     with tarfile.open(fileobj=io.BytesIO(payload)) as archive:
         for item in archive.getmembers():
             target = (stable/item.name).resolve()
@@ -228,7 +241,7 @@ def main():
     # The ZIP must work without the wheel masking missing source or resources.
     run([python,'-m','pip','uninstall','--yes','videocreate'])
     assert run([python,'-c',"import importlib.util;print(importlib.util.find_spec('videocreate') is None)"]).strip()=='True'
-    extracted = output/'技能解压目录 空格 & 路径'; extracted.mkdir()
+    extracted = runtime/'技能解压目录 空格 & 路径'; extracted.mkdir()
     with zipfile.ZipFile(skill_zip) as archive:
         for name in archive.namelist():
             assert (extracted/name).resolve().is_relative_to(extracted)
@@ -266,6 +279,171 @@ def main():
             assert image_config.read_bytes()==image_before
         else:image_quote()
     run([python, '-m', 'pip', 'check'])
+    cast_check = None
+    media_check = None
+    if args.media_wheelhouse:
+        project = cwd/'双人排练'
+        run([entry, 'plan', 'init', project, '--title', 'Two character rehearsal'])
+        card_file = project/'director.json'
+        director = json.loads(card_file.read_text(encoding='utf-8'))
+        layout_file = project/'layout.json'
+        cells = []
+        for shade in ('red', 'blue'):
+            run(['ffmpeg', '-v','error', '-f','lavfi', '-i','color=c='+shade+':s=16x16',
+                 '-frames:v','1', project/(shade+'.png')])
+            director['assets'].append({'id':shade,'kind':'character','description':shade,
+                                       'references':[shade+'.png']})
+            cells.append({'asset_id':shade})
+        card_file.write_text(json.dumps(director),encoding='utf-8')
+        layout_file.write_text(json.dumps({'columns':2,'cells':cells}),encoding='utf-8')
+        make_sheet = [entry,'media-ref','cast-sheet',project,'--spec',layout_file]
+        missing = run(make_sheet,expected=1)
+        assert 'Pillow' in missing and 'Traceback' not in missing
+        run([python,'-m','pip','install','--no-index','--find-links',args.media_wheelhouse,
+             f'videocreate[media]=={report["version"]}'])
+        sheet = json.loads(run(make_sheet))
+        assert sheet['cells'] == 2 and sheet['paid_creates'] == 0
+        path = project/sheet['reference']['path']
+        assert hashlib.sha256(path.read_bytes()).hexdigest() == sheet['reference']['sha256']
+        measured = json.loads(run(['ffprobe','-v','error','-show_streams','-of','json',path]))['streams'][0]
+        assert (measured['width'],measured['height']) == (768,512)
+        run([python,'-m','pip','check'])
+        cast_check = {'pillow_version':run([python,'-c','import PIL; print(PIL.__version__)']).strip(),
+                      'missing_dependency_diagnostic':True, 'cells':2, 'dimensions':[768,512],
+                      'sha256':sheet['reference']['sha256']}
+        edit_project = cwd/'动作时间与声音版本'
+        run([entry,'plan','init',edit_project,'--profile','edit-only'])
+        original_video = edit_project/'original.mp4'
+        run(['ffmpeg','-v','error','-f','lavfi','-i','color=c=blue:s=64x64:r=24:d=2',
+             '-c:v','libx264','-pix_fmt','yuv420p',original_video])
+        run([entry,'production','import-clip',edit_project,'--source',original_video,'--source-id','dance',
+             '--start','0','--end','1','--mute'])
+        edit_path = edit_project/'timeline.json'
+        edit = json.loads(edit_path.read_text(encoding='utf-8'))
+        first = edit['segments'][0]
+        edit.update(width=64,height=64,fps='24',
+                    segments=[{**first,'id':'fast','rate':2}, {**first,'id':'repeat'}])
+        edit['audio_tracks'] = []
+        for role, frequency in (('dialogue',440),('music',880)):
+            sound = edit_project/(role+'.wav')
+            run(['ffmpeg','-v','error','-f','lavfi','-i',f'sine=frequency={frequency}:duration=1.5',sound])
+            edit['audio_tracks'].append({'id':role,'kind':role,'path':sound.name,
+                'source_in':0,'source_out':1.5,'timeline_start':0})
+        edit_path.write_text(json.dumps(edit),encoding='utf-8')
+        spec = {'schema_version':1,'source':{'path':original_video.name,
+                'sha256':hashlib.sha256(original_video.read_bytes()).hexdigest()},
+                'target_job':'dance','tolerance_seconds':1/24,
+                'events':[{'id':'beat','source':[0,1],'target':[0,1],'reason':'Speed change and reprise'}]}
+        event_file = edit_project/'events.json'
+        event_file.write_text(json.dumps(spec),encoding='utf-8')
+        mapped = json.loads(run([entry,'timeline','map',edit_project,'--events',event_file]))
+        assert [r['timeline'] for r in mapped['events'][0]['occurrences']] == [[0,.5],[.5,1.5]]
+        variants = []
+        for mode in ('silent','dialogue','music','dialogue-music'):
+            value = json.loads(run([entry,'timeline','render',edit_project,
+                '--output-name',mode+'.mp4','--audio-output',mode]))
+            assert value['media']['has_audio'] == (mode != 'silent')
+            assert value['media']['frame_count'] == '36' and value['paid_creates'] == 0
+            variants.append({'mode':mode,'sha256':value['sha256'],'media':value['media'],
+                             'audio_delivery':value['audio_delivery']})
+        page = json.loads(run([entry,'review','compare',edit_project,'--events',event_file,
+                               '--output-name','silent.mp4']))
+        assert page['events'] == 2 and not page['candidate_has_audio_stream']
+        review = json.loads(run([entry,'review','status',edit_project,'--output-name','silent.mp4']))
+        assert review['status'] == 'review_pending'
+        media_check = {'events':2,'timeline_windows':[[0,.5],[.5,1.5]],'variants':variants,
+                       'mapped_review':'review_pending','paid_creates':0}
+        study = json.loads(run([entry,'reference','analyze',original_video,'--output',edit_project/'study',
+                               '--max-frames','3']))
+        source_events = edit_project/'source-events.json'
+        run([entry,'reference','events',study['report'],'--output',source_events])
+        source_frame=Path(study['report']).parent/'source-frame.jpg'
+        run(['ffmpeg','-v','error','-ss','0.25','-i',original_video,'-frames:v','1',source_frame])
+        observed = {'reviewer_id':'','observations':[],'participants':[],
+                    'events':[{'id':'opening','category':'hook','start':0,'end':1,'participants':[],
+                               'evidence_ids':['fixture-frame'],'notes':'Unverified opening source event',
+                               'status':'unverified','must_preserve':True}],
+                    'evidence':[{'id':'fixture-frame','path':source_frame.relative_to(Path(study['report']).parent).as_posix(),
+                        'sha256':hashlib.sha256(source_frame.read_bytes()).hexdigest(),
+                        'source_sha256':hashlib.sha256(original_video.read_bytes()).hexdigest(),'at_seconds':0.25}]}
+        source_events.write_text(json.dumps(observed),encoding='utf-8')
+        draft = json.loads(run([entry,'reference','events',study['report'],'--output',source_events]))
+        assert draft['created'] is False and json.loads(source_events.read_text(encoding='utf-8'))['evidence'] == observed['evidence']
+        profile = json.loads(run([entry,'reference','profile',study['report'],'--observations',source_events]))
+        profile_file = Path(profile['profile'])
+        attached = json.loads(run([entry,'reference','attach',edit_project,'--profile',profile_file]))
+        attached_profile = edit_project/attached['path']
+        old_profile = attached_profile.read_bytes()
+        spec.update(schema_version=2, source_profile={'path':attached['path'],
+                    'sha256':hashlib.sha256(old_profile).hexdigest()})
+        spec['events'][0].update(source_event_id='opening')
+        event_file.write_text(json.dumps(spec),encoding='utf-8')
+        mapped = json.loads(run([entry,'timeline','map',edit_project,'--events',event_file]))
+        assert not mapped['source_event_issues']
+        assert mapped['source_profile']['event_coverage']['temporal']['observed_event_seconds'] == 0
+        page = json.loads(run([entry,'review','compare',edit_project,'--events',event_file,
+                               '--output-name','silent.mp4']))
+        compared = json.loads((Path(page['page']).parent/'comparison.json').read_text(encoding='utf-8'))
+        assert compared['events'][0]['source_event_id'] == 'opening'
+        assert len(compared['timing']['source_profile']['events']) == 1
+        frame=compared['timing']['source_profile']['evidence'][0]
+        assert hashlib.sha256((edit_project/frame['path']).read_bytes()).hexdigest()==frame['sha256']
+        assert compared['source_events'][0]['evidence_ids']==['fixture-frame']
+        page_html=Path(page['page']).read_text(encoding='utf-8')
+        assert ('"path": "'+frame['path']+'"') in page_html
+        playwright_root='C:/Users/FBX/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules'
+        runtime_node_root = None
+        for node_root in ('C:/Users/FBX/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules',
+                          'E:/MyFiles/MarineAI/node_global/node_modules'):
+            if (Path(node_root)/'playwright/package.json').is_file():
+                runtime_node_root=Path(node_root);break
+        runtime_chrome=next((p for p in ('C:/Program Files/Google/Chrome/Application/chrome.exe',
+            'C:/Program Files (x86)/Google/Chrome/Application/chrome.exe') if Path(p).is_file()),None)
+        node=shutil.which('node')
+        if (node and runtime_node_root and runtime_chrome
+                and os.environ.get('VC_SKIP_EVENT_BROWSER_TEST') != '1'):
+            browser_script=output/'verify-event-frames.cjs'
+            env['NODE_PATH']=str(runtime_node_root)
+            browser_script.write_text("""
+const fs=require('fs'),{chromium}=require('playwright');
+(async()=>{const browser=await chromium.launch({headless:true,executablePath:process.env.VC_BROWSER});
+const page=await browser.newPage();const failures=[];page.on('pageerror',e=>failures.push(String(e)));
+await page.goto(process.env.VC_EVENT_PAGE);await page.waitForTimeout(500);
+const initial=await page.evaluate(()=>({rows:document.querySelectorAll('#sourceRows tr').length,
+images:[...document.querySelectorAll('#eventFrames img')].map(i=>({complete:i.complete,width:i.naturalWidth})),
+status:document.querySelector('#status').value,coverage:document.querySelector('#sourceCoverage').textContent}));
+if(initial.rows!==1||initial.images.length!==1||!initial.images[0].width)throw Error(JSON.stringify(initial));
+await page.selectOption('#event','event-1-use-1');await page.click('#sourceRows button:first-of-type');
+await page.selectOption('#event','event-1-use-2');await page.locator('#seek').fill('50');
+await page.waitForTimeout(200);
+const final=await page.evaluate(()=>({rows:document.querySelectorAll('#sourceRows tr').length,
+selected:document.querySelector('#event').selectedOptions[0].value,
+images:[...document.querySelectorAll('#eventFrames img')].map(i=>i.naturalWidth),
+source:document.querySelector('#source').currentTime,candidate:document.querySelector('#candidate').currentTime,
+status:document.querySelector('#status').value}));
+if(final.rows!==1||final.selected!=='event-1-use-2'||final.images[0]===0||final.status!=='unverified'
+||Math.abs(final.source-.75)>.05||Math.abs(final.candidate-.5)>.05)throw Error(JSON.stringify(final));
+if(failures.length)throw Error(failures.join('\\n'));
+fs.writeFileSync(process.env.VC_EVENT_EVIDENCE,JSON.stringify({initial,final},null,2));
+await browser.close()})().catch(e=>{console.error(e);process.exitCode=1});
+""",encoding='utf-8')
+            browser_log=(output/'event-frame-browser.log').open('w',encoding='utf-8')
+            browser_env=dict(env,VC_BROWSER=runtime_chrome,VC_EVENT_PAGE=Path(page['page']).as_uri(),
+                             VC_EVENT_EVIDENCE=str(output/'event-frame-browser.json'))
+            browser_run=subprocess.run([node,str(browser_script)],cwd=cwd,env=browser_env,
+                stdout=browser_log,stderr=subprocess.STDOUT,timeout=90)
+            browser_log.close()
+            if browser_run.returncode:
+                raise RuntimeError('Review-page frame check failed; inspect event-frame-browser.log')
+            media_check['source_event_browser']=json.loads((output/'event-frame-browser.json').read_text(encoding='utf-8'))
+        else:
+            media_check['source_event_browser']='browser-unavailable'
+        observed['events'][0]['notes'] = 'Revised source event awaiting playback'
+        source_events.write_text(json.dumps(observed),encoding='utf-8')
+        revision = json.loads(run([entry,'reference','profile',study['report'],'--observations',source_events]))
+        assert attached_profile.read_bytes() == old_profile and revision['profile'] != str(profile_file)
+        media_check['source_event_profile'] = {'events':1,'observed_motion_seconds':0,
+                                               'evidence_images':1,'immutable_revision':True,'mapped_occurrences':page['events']}
     report = {'ok':True,'candidate_version':'3.0.0.dev44','status':'unreleased',
               'checks':['artifact SHA-256','clean Python 3.9 venv','CLI-only missing-Web diagnostic',
                         'offline locked runtime install','pip check','outside-repo console entry/static resources',
@@ -275,6 +453,9 @@ def main():
                         'Unicode/space/ampersand working/config/Python/ZIP paths','runtime PATH without Node/npm',
                         'dev43 -> dev44 -> dev43 -> dev44'],
               'configuration_preserved':True,'installed_stable_replaced':False,'paid_creates':0,
+              'runtime_outside_source_checkout': True, 'runtime_directory':str(runtime),
+              'cast_sheet_check':cast_check,
+              'local_media_check':media_check,
               'catalog_identity':identity_checks,
               'image_pricing':{'requested_images':1,'per_request':.01,'per_image':.04,'estimate':.05,
                   'actual_payment':'unknown','dev44_before_after_rollback':'passed',

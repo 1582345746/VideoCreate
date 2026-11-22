@@ -118,6 +118,8 @@ def prepare_references(root, references):
         media = inspect(within(Path(root), ref['path']), kind)
         if media['sha256'] != ref.get('sha256'):
             raise ConfigError('Reference source hash changed')
+        from .asset_library import project_media_revision
+        project_media_revision(Path(root).resolve(), ref['path'], media['sha256'])
         if 'derivation' in ref:
             from .reference_slices import validate_derivation
             validate_derivation(root, ref, media)
@@ -128,6 +130,8 @@ def prepare_references(root, references):
 def selection_request(root, bundle, job):
     """Serializable, URL-free constraints for selecting a job's actual inputs."""
     refs = job.get('references', [])
+    if bundle['brief'].get('production_flow') == 'W3' and not any(ref.get('kind', 'image') == 'image' for ref in refs):
+        raise ConfigError('Image-driven performance requires a selected image for this video job')
     result = {'seconds': job['seconds'], 'resolution': bundle['brief']['resolution'],
               'aspect_ratio': bundle['brief']['aspect_ratio']}
     shots = [s for s in bundle['director']['shots'] if s['id'] in job['shot_ids']]

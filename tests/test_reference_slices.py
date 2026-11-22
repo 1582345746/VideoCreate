@@ -68,6 +68,25 @@ class ReferenceSliceTests(unittest.TestCase):
         self.assertEqual(result['paid_creates'], 0)
         self.assertFalse(result['plan_modified'])
 
+    def test_extract_dialogue_pins_speaker_video_interval_and_original_mix(self):
+        source = self.source('video')
+        result = slice_reference(self.root, source, start=.25, end=1.5, extract_speaker='speaker-a')
+        self.assertEqual(result['audio_source'], 'original-mix')
+        ref = result['reference']
+        manifest = load_json(self.root / ref['derivation']['path'])
+        self.assertEqual(manifest['speaker'], 'speaker-a')
+        self.assertEqual(manifest['source'], source)
+        self.assertEqual(manifest['interval'], {'start_seconds': .25, 'end_seconds': 1.5})
+        prepared = refs.prepare_references(self.root, [ref])[0]
+        self.assertEqual((prepared['kind'], prepared['role'], prepared['mime_type']), ('audio', 'sound', 'audio/wav'))
+        with wave.open(str(self.root / ref['path']), 'rb') as audio:
+            self.assertEqual(audio.getnframes(), int(audio.getframerate() * 1.25))
+        silent = self.root / 'silent.mp4'
+        subprocess.run(['ffmpeg','-v','error','-i',str(self.fixture/'source.mp4'),'-an','-c:v','copy',str(silent)],check=True)
+        no_audio = refs.register(self.root, silent, kind='video', role='motion')
+        with self.assertRaisesRegex(ConfigError, 'No decodable audio'):
+            slice_reference(self.root, no_audio, start=0, end=1, extract_speaker='speaker-a')
+
     def test_decoded_video_slice_is_playable_and_preserves_audio(self):
         source = self.source('video')
         result = slice_reference(self.root, source, start=.5, end=1.5)
