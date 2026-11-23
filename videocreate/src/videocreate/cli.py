@@ -32,7 +32,7 @@ def read_config(path: Path, *, ready: bool = False, kind: str | None = None) -> 
 
 def configuration_command(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(prog="videocreate config")
-    parser.add_argument("action", choices=["init", "open", "validate", "show", "effective", "schema", "migrate", "migrate-project", "import"])
+    parser.add_argument("action", choices=["init", "open", "validate", "show", "effective", "schema", "locate", "use", "migrate", "migrate-project", "import"])
     parser.add_argument("--config", type=Path)
     parser.add_argument("--redacted", action="store_true", help="Output is always redacted")
     parser.add_argument("--ready", action="store_true")
@@ -44,6 +44,12 @@ def configuration_command(argv: list[str]) -> int:
     parser.add_argument("--job")
     parser.add_argument("--binding")
     args = parser.parse_args(argv)
+    if args.action in {'locate', 'use'}:
+        from .config import location
+        if args.action == 'use' and not args.config:
+            raise ConfigError('config use requires --config with an existing valid configuration')
+        print_result(location.locate() if args.action == 'locate' else location.use(args.config))
+        return 0
     path = user_config_path(args.config)
     if args.action == "migrate-project":
         if not args.project:

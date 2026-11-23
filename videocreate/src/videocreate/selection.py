@@ -115,6 +115,15 @@ def project_choice(root, kind):
 
 def resolve(root, config, *, kind, store_root, model=None, binding=None, upstream=None, operation=None, request=None):
     """Return an explicit fixed pair, or None for an explicitly allowed legacy/default policy."""
+    if upstream:
+        from .config.provider_profiles import resolve_upstream, upstream_matches
+        try:
+            upstream = resolve_upstream(config, upstream)
+        except ConfigError:
+            raise SelectionRequired({'ok': False, 'status': 'upstream_selection_required',
+                'choices': [], 'upstream_ids': upstream_matches(config, upstream),
+                'reason': 'Upstream name is unknown or ambiguous; select a stable upstream ID',
+                'paid_creates': 0}) from None
     if binding:
         item = config['bindings'].get(binding)
         if not item or config['models'][item['model']]['kind'] != kind:
@@ -134,6 +143,14 @@ def resolve(root, config, *, kind, store_root, model=None, binding=None, upstrea
     rows = candidates(config, kind=kind, store_root=store_root, model=model, upstream=upstream,
                       operation=operation, request=request)
     eligible = [r for r in rows if r['eligible']]
+    if upstream:
+        preferred = config['upstreams'][upstream].get('preferred_bindings', {}).get(kind)
+        choice = next((r for r in eligible if r['id'] == preferred), None)
+        if choice:
+            return choice['model'], choice['id']
+        if preferred and not model:
+            raise SelectionRequired(menu(root, config, kind=kind, store_root=store_root,
+                                         upstream=upstream, operation=operation, request=request))
     if (model or upstream) and len(eligible) == 1:
         return eligible[0]['model'], eligible[0]['id']
     raise SelectionRequired(menu(root, config, kind=kind, store_root=store_root, model=model,

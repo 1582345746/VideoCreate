@@ -66,6 +66,8 @@ def _protect_recovery(before, after):
         current = after.get('upstreams', {}).get(uid)
         if current is None:
             raise ConfigError('Archive an upstream instead of deleting it; old tasks may still need its credentials')
+        if any(document not in current.get('documents', []) for document in previous.get('documents', [])):
+            raise ConfigError('Preserve saved upstream document revisions; append a new revision instead of replacing history')
         for key in ('base_url', 'account_id'):
             a = previous.get(key, uid if key == 'account_id' else '')
             b = current.get(key, uid if key == 'account_id' else '')
@@ -150,6 +152,10 @@ def restore_candidate(current, previous):
                 if group == 'bindings':
                     kept['enabled'] = False
                 old[group][key] = kept
+    for uid, upstream in current['upstreams'].items():
+        if upstream.get('documents'):
+            # Configuration rollback must not erase later source/incident history.
+            old['upstreams'][uid]['documents'] = copy.deepcopy(upstream['documents'])
     return old
 
 

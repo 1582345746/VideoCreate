@@ -6,10 +6,13 @@ from .config.storage import ConfigError, load_json, redact_config, user_config_p
 
 
 def providers_command(argv):
+    if argv and argv[0] in {'profile-list', 'profile-show', 'profile-import'}:
+        from .provider_profile_commands import command
+        return command(argv)
     from .cli import print_result
     from .config import management as m
     parser = argparse.ArgumentParser(prog='videocreate providers')
-    parser.add_argument('action', choices=['list', 'identify', 'filter', 'compare', 'quotas', 'show', 'migrate', 'save', 'archive', 'restore', 'credential', 'discover', 'catalog-show', 'pricing', 'import-models', 'diagnostics', 'diagnostics-export', 'repair-inspect', 'repair-preview', 'repair-apply'])
+    parser.add_argument('action', choices=['list', 'identify', 'profile-list', 'profile-show', 'profile-import', 'filter', 'compare', 'quotas', 'show', 'migrate', 'save', 'archive', 'restore', 'credential', 'discover', 'catalog-show', 'pricing', 'import-models', 'diagnostics', 'diagnostics-export', 'repair-inspect', 'repair-preview', 'repair-apply'])
     parser.add_argument('--config', type=Path)
     parser.add_argument('--upstream')
     parser.add_argument('--upstream-name',help='Exact saved upstream name/platform for offline identity lookup')

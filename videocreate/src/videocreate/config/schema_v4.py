@@ -15,6 +15,16 @@ def extend(schema):
         p[group]['additionalProperties']['properties'].update(metadata)
     up = p['upstreams']['additionalProperties']['properties']
     up.update({'account_id': STR, 'credential_version': STR, 'capacity_group': STR})
+    up['aliases'] = STRING_LIST
+    up['preferred_bindings'] = obj({'image': STR, 'video': STR})
+    up['documents'] = {'type': 'array', 'items': obj({
+        'id': STR, 'revision': POS, 'title': STR,
+        'kind': enum('api', 'models', 'pricing', 'example', 'incident', 'notes'),
+        'path': STR, 'sha256': STR, 'source_sha256': STR, 'bytes': POS,
+        'source_url': STR, 'captured_at': STR, 'redacted': BOOL,
+        'binding_fingerprints': {'type': 'object', 'additionalProperties': STR},
+    }, ('id', 'revision', 'title', 'kind', 'path', 'sha256', 'source_sha256',
+        'bytes', 'captured_at', 'redacted', 'binding_fingerprints'))}
     up['quotas'] = obj({name: POS for name in
         ('max_remote_inflight', 'create_rpm', 'poll_rpm', 'download_rpm')})
     binding = p['bindings']['additionalProperties']
@@ -85,6 +95,8 @@ def extend(schema):
 
 def semantic_errors(config):
     errors = []
+    from .provider_profiles import profile_errors
+    errors.extend(profile_errors(config))
     if config.get('local_media_server', {}).get('public_base_url'):
         from ..media_references import public_url
         from .storage import ConfigError

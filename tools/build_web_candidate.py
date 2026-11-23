@@ -23,7 +23,7 @@ def source_files(directory):
         children[:] = sorted(name for name in children
             if name not in IGNORED_DIRECTORIES and not name.endswith('.egg-info'))
         for name in sorted(files):
-            if not name.endswith(('.pyc','.pyo')):
+            if not name.endswith(('.pyc','.pyo')) and name != '20261123-seven-video-generation-handoff.zh-CN.md':
                 yield Path(folder)/name
 
 
@@ -93,7 +93,7 @@ def main():
     source=output/'source';source.mkdir()
     for name in ('pyproject.toml','setup.py','MANIFEST.in','README.md'):
         shutil.copy2(ROOT/name,source/name)
-    shutil.copytree(ROOT/'videocreate',source/'videocreate',ignore=shutil.ignore_patterns('local-cast','__pycache__','.pytest_cache','.mypy_cache','.ruff_cache','*.pyc','*.pyo','*.egg-info'))
+    shutil.copytree(ROOT/'videocreate',source/'videocreate',ignore=shutil.ignore_patterns('local-cast','__pycache__','.pytest_cache','.mypy_cache','.ruff_cache','*.pyc','*.pyo','*.egg-info','20261123-seven-video-generation-handoff.zh-CN.md'))
     shutil.copytree(ROOT/'requirements',source/'requirements')
     from videocreate import __version__
     from check_release import check

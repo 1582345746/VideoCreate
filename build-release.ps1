@@ -46,6 +46,8 @@ try {
         Copy-Item -LiteralPath $_.FullName -Destination $stagedSkill -Recurse
     }
     $cacheDirectories = @(Get-ChildItem -LiteralPath $stagedSkill -Directory -Recurse -Force | Where-Object { $_.Name -in @('__pycache__', '.pytest_cache', '.mypy_cache', '.ruff_cache') -or $_.Name.EndsWith(".egg-info") })
+    $privateHandoff = Join-Path $stagedSkill 'references\20261123-seven-video-generation-handoff.zh-CN.md'
+    if (Test-Path -LiteralPath $privateHandoff -PathType Leaf) { Remove-Item -LiteralPath $privateHandoff -Force }
     foreach ($cache in $cacheDirectories) {
         $cachePath = [IO.Path]::GetFullPath($cache.FullName)
         if (-not $cachePath.StartsWith($stagedSkill + [IO.Path]::DirectorySeparatorChar)) {

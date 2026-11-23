@@ -2,6 +2,8 @@
 
 配置格式 v4 与项目格式 v3 独立。旧 v3 配置可读；新建配置默认在缺少明确型号时询问。统一文件仍是 `%LOCALAPPDATA%/VideoCreate/videocreate.config.json`，不另建 providers 数据库。`manager` 与 CLI 调用相同的配置事务、校验与选型服务。
 
+dev45 增加[上游资料档案与按名称接续](upstream-profiles.md)：API/模型/价格/截图/故障资料按上游保存不可变版本；配置保存别名、各媒体首选 binding 和文档索引。`profile-show` 返回当前完整上下文和文件完整性；`profile-import` 共用原子配置事务和恢复保护。`config locate/use` 解决普通终端与 Codex 打包环境读取不同配置目录的问题。未选择过配置时仍使用上述系统默认目录。
+
 dev44 候选增加本机 `config-web`：用户主要填写 URL/Key，名称、备注可选；Codex 根据已知合同整理模型和协议。Web 与 CLI 共享配置事务、备份、原账户凭据版本和独立图片/视频默认，页面不生成或恢复媒体。详见[Web 使用与恢复边界](config-web.md)。旧 Tk 表单的“应用后主窗口保存”行为保留为历史兼容；Web 实体只有一次面向用户的保存动作。
 
 ## 管理与迁移

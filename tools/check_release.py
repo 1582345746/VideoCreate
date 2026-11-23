@@ -17,6 +17,8 @@ def check(entries):
             errors.append({"file": name, "reason": "private project or build/cache directory"})
         if name.endswith((".pyc", ".pyo", ".dpapi")) or parts[-1] in {"config.json", "videocreate.config.json", "secrets.json"}:
             errors.append({"file": name, "reason": "private/runtime file"})
+        if parts[-1] == '20261123-seven-video-generation-handoff.zh-CN.md' or 'provider-documents' in parts or 'handoff' in parts:
+            errors.append({"file": name, "reason": "local production handoff or private upstream documents"})
         if "grok-video-studio" in parts:
             errors.append({"file": name, "reason": "old discoverable skill directory"})
         if re.search(rb"sk-[A-Za-z0-9]{20,}", data):

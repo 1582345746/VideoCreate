@@ -17,8 +17,9 @@ def identify(config, *, kind, model_name=None, upstream_name=None, upstream=None
     elif upstream_name in known_upstreams:
         upstream_matches={upstream_name:['upstream_id']}
     else:
-        upstream_matches={uid:[field for field in ('display_name','platform') if row.get(field)==upstream_name]
-            for uid,row in known_upstreams.items() if any(row.get(field)==upstream_name for field in ('display_name','platform'))}
+        upstream_matches={uid:fields for uid,row in known_upstreams.items()
+            if (fields := [field for field in ('display_name','platform') if row.get(field)==upstream_name]
+                + (['alias'] if upstream_name in row.get('aliases',[]) else []))}
     if upstream is not None:
         upstream_matches={uid:fields for uid,fields in upstream_matches.items() if uid==upstream}
     rows=[row for row in catalog(config,kind=kind) if row['upstream_id'] in upstream_matches]

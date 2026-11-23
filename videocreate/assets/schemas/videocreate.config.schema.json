@@ -188,6 +188,97 @@
           "capacity_group": {
             "type": "string"
           },
+          "aliases": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "uniqueItems": true
+          },
+          "preferred_bindings": {
+            "type": "object",
+            "properties": {
+              "image": {
+                "type": "string"
+              },
+              "video": {
+                "type": "string"
+              }
+            },
+            "required": [],
+            "additionalProperties": false
+          },
+          "documents": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "revision": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "title": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "api",
+                    "models",
+                    "pricing",
+                    "example",
+                    "incident",
+                    "notes"
+                  ]
+                },
+                "path": {
+                  "type": "string"
+                },
+                "sha256": {
+                  "type": "string"
+                },
+                "source_sha256": {
+                  "type": "string"
+                },
+                "bytes": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "source_url": {
+                  "type": "string"
+                },
+                "captured_at": {
+                  "type": "string"
+                },
+                "redacted": {
+                  "type": "boolean"
+                },
+                "binding_fingerprints": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": [
+                "id",
+                "revision",
+                "title",
+                "kind",
+                "path",
+                "sha256",
+                "source_sha256",
+                "bytes",
+                "captured_at",
+                "redacted",
+                "binding_fingerprints"
+              ],
+              "additionalProperties": false
+            }
+          },
           "quotas": {
             "type": "object",
             "properties": {

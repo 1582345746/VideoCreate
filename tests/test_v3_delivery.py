@@ -59,7 +59,7 @@ class DeliveryTests(unittest.TestCase):
         for binding in self.config["bindings"].values():
             binding["enabled"] = False
         self.assertTrue(any("setup_required" in e for e in validate_config(self.config, ready=True)))
-        with mock.patch("videocreate.config.storage.os.name", "posix"), mock.patch("videocreate.config.storage.Path", type(self.root)), mock.patch.dict(os.environ, {"XDG_CONFIG_HOME": str(self.root)}, clear=True):
+        with mock.patch("videocreate.config.storage.os.name", "posix"), mock.patch("videocreate.config.storage.Path", type(self.root)), mock.patch.dict(os.environ, {"XDG_CONFIG_HOME": str(self.root)}, clear=True), mock.patch("videocreate.config.storage.active_config_pointer", return_value=self.root / 'no-active-config.json'):
             self.assertEqual(str(config_root()), str(self.root / "VideoCreate"))
 
     def test_catalog_receipt_cannot_certify_smoke_or_quality_and_changed_bytes_expire(self):

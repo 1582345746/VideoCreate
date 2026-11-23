@@ -13,7 +13,34 @@ class ConfigError(ValueError):
     """An actionable error that never includes secret field values."""
 
 
-def config_root() -> Path:
+def active_config_pointer() -> Path:
+    home = (os.environ.get('USERPROFILE') or os.environ.get('HOME') or '').strip()
+    if home:
+        base = Path(home)
+    elif os.name == 'nt' and os.environ.get('LOCALAPPDATA'):
+        base = Path(os.environ['LOCALAPPDATA']).parent
+    elif os.environ.get('XDG_CONFIG_HOME'):
+        base = Path(os.environ['XDG_CONFIG_HOME'])
+    else:
+        base = Path.home()
+    return base / '.videocreate' / 'active-config.json'
+
+
+def active_config_path() -> Path | None:
+    pointer = active_config_pointer()
+    if not pointer.exists():
+        return None
+    try:
+        value = load_json(pointer)
+        path = Path(value['path'])
+        if (value.get('schema_version') != 1 or not path.is_absolute() or not path.is_file()):
+            raise ValueError()
+        return path.resolve()
+    except (OSError, ValueError, KeyError, TypeError):
+        raise ConfigError('Saved active configuration is unavailable; use config locate or config use --config PATH') from None
+
+
+def default_config_root() -> Path:
     override = os.environ.get("VIDEOCREATE_CONFIG_DIR", "").strip()
     if override:
         return Path(override).expanduser().resolve()
@@ -23,8 +50,22 @@ def config_root() -> Path:
     return (Path(xdg).expanduser() if xdg else Path.home() / ".config") / "VideoCreate"
 
 
+def config_root() -> Path:
+    if not os.environ.get('VIDEOCREATE_CONFIG_DIR', '').strip():
+        active = active_config_path()
+        if active:
+            return active.parent
+    return default_config_root()
+
+
 def user_config_path(explicit: str | Path | None = None) -> Path:
-    return Path(explicit).expanduser().resolve() if explicit else config_root() / "videocreate.config.json"
+    if explicit:
+        return Path(explicit).expanduser().resolve()
+    if not os.environ.get('VIDEOCREATE_CONFIG_DIR', '').strip():
+        active = active_config_path()
+        if active:
+            return active
+    return default_config_root() / "videocreate.config.json"
 
 
 def atomic_json(path: Path, value: Any) -> None:

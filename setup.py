@@ -15,7 +15,7 @@ class BuildSkill(build_py):
         shutil.copy2(source / "SKILL.md", target / "SKILL.md")
         for name in ("scripts", "assets", "references", "agents"):
             shutil.copytree(source / name, target / name, dirs_exist_ok=True,
-                ignore=shutil.ignore_patterns("__pycache__", "*.pyc", "*.pyo"))
+                ignore=shutil.ignore_patterns("__pycache__", "*.pyc", "*.pyo", "20261123-seven-video-generation-handoff.zh-CN.md"))
 
 
 setup(cmdclass={"build_py": BuildSkill})

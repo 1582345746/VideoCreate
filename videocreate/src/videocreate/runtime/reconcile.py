@@ -55,7 +55,9 @@ def reconcile(root: Path, config: dict, receipt: dict, *, store_root: Path) -> d
             raise ConfigError("Not-received receipt must not include a task ID")
     elif outcome == 'rejected-before-task':
         from .failures import (REFERENCE_FETCH_CONTRACT, reference_fetch_rejection,
-                               PUBLIC_REFERENCE_CONTRACT, public_reference_rejection)
+                               PUBLIC_REFERENCE_CONTRACT, public_reference_rejection,
+                               XING_VIDEO_REFERENCE_CONTRACT, xing_video_reference_rejection,
+                               XING_REFERENCE_VIDEO_CONTRACT, xing_reference_video_rejection)
         trace = record.get('submission_receipt', {}).get('trace_ids', {}).get('request_id')
         contract = receipt.get('contract_id')
         documented = (contract == REFERENCE_FETCH_CONTRACT
@@ -64,7 +66,13 @@ def reconcile(root: Path, config: dict, receipt: dict, *, store_root: Path) -> d
         explicit = (contract == PUBLIC_REFERENCE_CONTRACT
                     and receipt.get('method') == 'explicit-create-validation-rejection'
                     and public_reference_rejection(400, record.get('error', ''), pinned))
-        if (not (documented or explicit)
+        unsupported = (contract == XING_VIDEO_REFERENCE_CONTRACT
+                       and receipt.get('method') == 'explicit-create-validation-rejection'
+                       and xing_video_reference_rejection(400, record.get('error', ''), pinned))
+        unsupported_reference = (contract == XING_REFERENCE_VIDEO_CONTRACT
+                       and receipt.get('method') == 'explicit-create-validation-rejection'
+                       and xing_reference_video_rejection(400, record.get('error', ''), pinned))
+        if (not (documented or explicit or unsupported or unsupported_reference)
                 or not trace or receipt.get('request_id') != trace
                 or record.get('task_id') or task_id):
             raise ConfigError('Saved create response does not establish this documented pre-task rejection')
@@ -72,8 +80,16 @@ def reconcile(root: Path, config: dict, receipt: dict, *, store_root: Path) -> d
         # upstream audit claiming the request never arrived, or a billing receipt.
         if not any(item.get('kind') == 'provider-contract' for item in evidence):
             raise ConfigError('Documented rejection needs the hashed provider contract')
-        if explicit and not any(item.get('kind') == 'create-response' for item in evidence):
+        if (explicit or unsupported or unsupported_reference) and not any(item.get('kind') == 'create-response' for item in evidence):
             raise ConfigError('Explicit validation rejection needs the hashed create response')
+        if unsupported or unsupported_reference:
+            if (f'(request_id={trace})' not in record.get('error', '')
+                    or not any(ref.get('kind') == 'video' for ref in
+                               record.get('submission_receipt', {}).get('media_references', []))
+                    or not any(item.get('kind') == 'create-response'
+                               and within(root, item['path']).read_text(encoding='utf-8') == record['error']
+                               for item in evidence)):
+                raise ConfigError('Unsupported-video rejection needs the exact saved response, trace and video input')
     else:
         raise ConfigError("Resolution outcome must be accepted/not-received/rejected-before-task/unknown")
     with state_lock(root):

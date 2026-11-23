@@ -7,6 +7,33 @@ from urllib.parse import urlsplit
 
 REFERENCE_FETCH_CONTRACT = 'suanliai-reference-image-fetch-20261116'
 PUBLIC_REFERENCE_CONTRACT = 'suanliai-speed-public-reference-validation-20261117'
+XING_VIDEO_REFERENCE_CONTRACT = 'xingapi-t-reference-video-unsupported-20261123'
+XING_REFERENCE_VIDEO_CONTRACT = 'xingapi-reference-video-unsupported-20261123'
+
+
+def xing_video_reference_rejection(status, message, snapshot) -> bool:
+    """Recognize the saved T-route input-capability refusal, never generic 400s."""
+    try:
+        origin = urlsplit(snapshot['base_url'])
+        if (origin.scheme != 'https' or origin.hostname != 'xingapi.top'
+                or origin.port not in (None, 443) or origin.username or origin.password):
+            return False
+    except (KeyError, TypeError, ValueError):
+        return False
+    if (status != 400 or snapshot.get('adapter') != 'xingapi-video-v2'
+            or snapshot.get('remote_model') != 'seedance2.5-T'):
+        return False
+    return bool(re.fullmatch(
+        r'HTTP 400: this Miaowu video provider does not support reference videos'
+        r' \(request_id=[A-Za-z0-9_-]+\)', str(message)))
+
+
+def xing_reference_video_rejection(status, message, snapshot) -> bool:
+    """Match the exact XingAPI input-capability refusal for the T or V route."""
+    return (snapshot.get('remote_model') in {'seedance2.5-T', 'seedance2.5-V'}
+            and xing_video_reference_rejection(
+                status, message,
+                {**snapshot, 'remote_model': 'seedance2.5-T'}))
 
 
 def public_reference_rejection(status, message, snapshot) -> bool:

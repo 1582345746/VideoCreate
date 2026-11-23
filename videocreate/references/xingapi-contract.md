@@ -27,3 +27,11 @@
 **dev17 提供两个独立版本。** `xingapi-video-v1` 保持文生视频行为供原任务恢复；`xingapi-video-v2` 按明确配置的数量、格式、大小、时长、用途和组合限制消费 [素材托管与传输绑定](media-hosting.md)，传递独立 HTTPS 字符串数组。字段合同和本地模拟服务集成通过，真实型号参考效果尚未验证，升级不会自动启用 binding 的参考能力。`generate_audio` 仅在 binding 明确配置 explicit 时发送；当前 V 小样采用模型默认声音，没有验证开关。seed 同样不推定支持。
 
 六个目录 ID 保留原大小写：seedance-933、seedance2.0-933-C、seedance2.0-933-Q、seedance2.5-V、seedance2.5-s、wan3.0-prime-720P。文档中特别提到的 seedance-2.5-480p-M2 不等于这些型号，不套用它的 25 秒限制。截图的参考数量、5–30 秒、全比例和 `$` 标价分别保留为供应商声明；不据此认定账户币种、实际扣款或所有参数组合已测。
+
+## 2026-11-23 T/V 通道显式输入拒绝
+
+保存的 T 与 V 通道创建响应为 HTTP 400：`this Miaowu video provider does not support reference videos`，各自带原始 request_id，无任务号。这是上游对视频参考能力的明确拒绝，不是“未收到请求”，也不证明零扣费。该响应与当前目录宣称支持视频参考、以及本机历史 V 任务成功使用视频参考的记录都相矛盾；这些记录不抹掉本次失败。
+
+用户随后确认本次问题来自上游。这应与对应日期、来源和回执一并记为上游故障，不能根据该次报错将 T/V 永久禁用或删掉已保存的视频参考合同。错误识别仅服务于这些历史请求的对账，不保证当前服务已恢复，也不触发自动重新生成。后续接续读取对应上游档案和成功请求记录。
+
+旧 `submission_unknown` 可通过 `rejected-before-task` 对账。T 使用合同 ID `xingapi-t-reference-video-unsupported-20261123`；V 使用 `xingapi-reference-video-unsupported-20261123`，方法均为 `explicit-create-validation-rejection`。核对原始星光 HTTPS 域名、`xingapi-video-v2`、精确模型 ID、完整精确错误、原 request_id、实际视频输入、无任务号及哈希绑定的原错误文本与合同。只修正这两个模型本次的精确历史拒绝，不自动重试，不推广到其他模型、普通 HTTP 400、超时或内容审核错误。
