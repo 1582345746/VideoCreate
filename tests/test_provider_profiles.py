@@ -101,9 +101,13 @@ class ProviderProfileTests(unittest.TestCase):
         result = selection.resolve(project, value, kind='video', store_root=self.root, upstream='星光AI')
         self.assertEqual(result, ('grok-imagine-video-1.5', self.bid))
         self.assertIn('alias', identify(value, kind='video', upstream_name='星光')['upstream_matches'][0]['matched_by'])
+        listed = selection.menu(project, value, kind='video', store_root=self.root, upstream='星光AI')
+        self.assertEqual(listed['upstream_filter'], self.uid)
+        self.assertEqual({row['upstream_id'] for row in listed['choices']}, {self.uid})
         value['upstreams']['backup-newapi']['aliases'] = ['星光AI']
         with self.assertRaises(selection.SelectionRequired):
             selection.resolve(project, value, kind='video', store_root=self.root, upstream='星光AI')
+        self.assertEqual(selection.menu(project, value, kind='video', store_root=self.root, upstream='星光AI')['choices'], [])
         self.assertEqual(p.resolve_upstream(value, self.uid), self.uid)
         value['bindings'][self.bid]['enabled'] = False
         # A disabled saved preference cannot silently turn into a different model.

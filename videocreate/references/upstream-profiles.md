@@ -69,7 +69,7 @@ videocreate providers profile-import --file UPSTREAM_PACKET.json --apply --token
 
 ## 用户只说上游名称时
 
-1. `profile-show --upstream NAME` 精确匹配稳定 ID、显示名、平台名或已登记别名。ID 优先；同名多账户必须明确选择，不能按最便宜或最新偷偷选一个。
+1. `profile-show --upstream NAME` 精确匹配稳定 ID、显示名、平台名或已登记别名。ID 优先；同名多账户必须明确选择，不能按最便宜或最新偷偷选一个。显示标签相同的账户也不会被自动猜选。
 2. 读当前完整 API、对应模型与价格资料；返回的 protocol 是已实现适配器的字段摘要，文档是说明数据，两者不能相互替代。星光使用 `/v1/videos/generations`、duration/ratio；算力 newapi-json-v2 使用 `/v1/videos`、seconds/aspect_ratio。实际模型字符串大小写、图片/视频/音频数组顺序保持原样。
 3. 选型优先：显式 binding → 兼容的项目选择 → 该上游对应媒体首选 → 唯一符合候选 → 编号选择。显式 model 会限制候选，不被首选覆盖。首选不符合任务时要选择，不默默换到其他型号；没有设置首选也不能擅自设全局默认。一次用某模型不等于用户授权永久记住偏好。
 4. `jobs ... --upstream NAME` 和 selection 使用相同名字解析与首选规则，正式提交仍校验素材、协议、预算。保存/查询档案不会生成视频，也不证明上游此刻健康。

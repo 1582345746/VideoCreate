@@ -21,8 +21,18 @@ def policy(config, kind):
     return config.get('selection', {}).get(kind, {}).get('when_unspecified', 'use-default')
 
 
+def _catalog_upstream(config, upstream):
+    """Normalize an explicit ID/alias for selection lists without guessing."""
+    if not upstream:
+        return None
+    from .config.provider_profiles import upstream_matches
+    matches = upstream_matches(config, upstream)
+    return matches[0] if len(matches) == 1 else upstream
+
+
 def candidates(config, *, kind, store_root, model=None, upstream=None, binding=None,
                operation=None, request=None):
+    upstream = _catalog_upstream(config, upstream)
     operation = operation or ('text-to-video' if kind == 'video' else 'text-to-image')
     rows = []
     for row in catalog(config, upstream=upstream, kind=kind):
@@ -50,6 +60,7 @@ def candidates(config, *, kind, store_root, model=None, upstream=None, binding=N
 
 
 def menu(root, config, *, kind, store_root, model=None, upstream=None, operation=None, request=None):
+    upstream = _catalog_upstream(config, upstream)
     root = Path(root).resolve()
     if not (root / 'project.json').is_file():
         raise ConfigError('A project is required for a numbered selection')
